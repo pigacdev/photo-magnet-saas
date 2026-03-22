@@ -1,0 +1,120 @@
+import { Router } from "express";
+import rateLimit from "express-rate-limit";
+import { prisma } from "../lib/prisma";
+import { hashPassword, verifyPassword, signToken, verifyToken } from "../lib/auth";
+import { authConfig } from "../config/auth";
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again in a minute." },
+});
+
+export const authRouter = Router();
+
+authRouter.post("/signup", authLimiter, async (req, res) => {
+  const { email, password, name } = req.body;
+
+  if (!email || !password) {
+    res.status(400).json({ error: "Email and password are required" });
+    return;
+  }
+
+  if (password.length < authConfig.passwordMinLength) {
+    res
+      .status(400)
+      .json({ error: `Password must be at least ${authConfig.passwordMinLength} characters` });
+    return;
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { email, deletedAt: null },
+  });
+
+  if (existing) {
+    res.status(409).json({ error: "Email already in use" });
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  const user = await prisma.user.create({
+    data: { email, name: name || null, passwordHash },
+  });
+
+  const token = signToken({ userId: user.id, role: user.role });
+
+  res.cookie(authConfig.cookieName, token, authConfig.cookieOptions);
+  res.status(201).json({
+    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+  });
+});
+
+authRouter.post("/login", authLimiter, async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    res.status(400).json({ error: "Email and password are required" });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email, deletedAt: null },
+  });
+
+  if (!user) {
+    res.status(401).json({ error: "Invalid email or password" });
+    return;
+  }
+
+  const valid = await verifyPassword(password, user.passwordHash);
+
+  if (!valid) {
+    res.status(401).json({ error: "Invalid email or password" });
+    return;
+  }
+
+  const token = signToken({ userId: user.id, role: user.role });
+
+  res.cookie(authConfig.cookieName, token, authConfig.cookieOptions);
+  res.json({
+    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+  });
+});
+
+authRouter.post("/logout", (_req, res) => {
+  res.clearCookie(authConfig.cookieName, { path: "/" });
+  res.json({ success: true });
+});
+
+authRouter.get("/me", async (req, res) => {
+  const token = req.cookies?.[authConfig.cookieName];
+
+  if (!token) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  try {
+    const payload = verifyToken(token);
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId, deletedAt: null },
+      select: { id: true, email: true, name: true, role: true },
+    });
+
+    if (!user) {
+      res.status(401).json({ error: "User not found" });
+      return;
+    }
+
+    const freshToken = signToken({ userId: user.id, role: user.role });
+    res.cookie(authConfig.cookieName, freshToken, authConfig.cookieOptions);
+
+    res.json({ user });
+  } catch {
+    res.status(401).json({ error: "Invalid token" });
+  }
+});
