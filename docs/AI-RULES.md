@@ -1,0 +1,7 @@
+- Always follow image-processing-and-printing.md exactly
+- Never change crop behavior
+- Never approximate PDF layout
+- Always use server-side image processing
+- Never resize images inside PDF generation
+- Always use stored crop data to render final images
+- Ask if something is unclear before implementing

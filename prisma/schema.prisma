@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum ContextType {
+  EVENT
+  STOREFRONT
+}
+
+enum PricingType {
+  PER_ITEM
+  BUNDLE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  CASH
+  FAILED
+}
+
+enum ShapeType {
+  SQUARE
+  CIRCLE
+  RECTANGLE
+}
+
+// ---------------------------------------------------------------------------
+// 1. Core tables
+// ---------------------------------------------------------------------------
+
+model User {
+  id               String    @id @default(uuid())
+  email            String    @unique
+  passwordHash     String
+  role             Role      @default(ADMIN)
+  stripeCustomerId String?   @unique
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  events       Event[]
+  storefronts  Storefront[]
+  printBatches PrintBatch[]
+}
+
+model Event {
+  id        String    @id @default(uuid())
+  userId    String
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Storefront {
+  id        String    @id @default(uuid())
+  userId    String
+  name      String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// 2. Pricing (polymorphic: belongs to Event OR Storefront)
+// ---------------------------------------------------------------------------
+
+model Pricing {
+  id          String      @id @default(uuid())
+  contextType ContextType
+  contextId   String
+  type        PricingType
+  price       Decimal     @db.Decimal(10, 2)
+  quantity    Int?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  @@index([contextType, contextId])
+}
+
+// ---------------------------------------------------------------------------
+// 3. Orders (polymorphic: belongs to Event OR Storefront)
+// ---------------------------------------------------------------------------
+
+model Order {
+  id            String        @id @default(uuid())
+  orderNumber   String        @unique
+  customerName  String
+  paymentStatus PaymentStatus @default(PENDING)
+  totalPrice    Decimal       @db.Decimal(10, 2)
+  contextType   ContextType
+  contextId     String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  images Image[]
+
+  @@index([contextType, contextId])
+  @@index([paymentStatus])
+}
+
+// ---------------------------------------------------------------------------
+// 4. Images (CRITICAL TABLE — carries print-production data)
+// ---------------------------------------------------------------------------
+
+model Image {
+  id      String @id @default(uuid())
+  orderId String
+
+  // File data
+  originalImageUrl    String
+  originalImageWidth  Int
+  originalImageHeight Int
+
+  // Crop data (CRITICAL — normalized values)
+  cropX     Float
+  cropY     Float
+  zoomLevel Float
+  rotation  Float @default(0)
+
+  // Output config
+  shapeType     ShapeType
+  outputWidthPx Int
+  outputHeightPx Int
+
+  // Status
+  printedFlag Boolean @default(false)
+
+  // Metadata
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  order           Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  printBatchItems PrintBatchItem[]
+
+  @@index([orderId])
+  @@index([printedFlag])
+}
+
+// ---------------------------------------------------------------------------
+// 5. Print system
+// ---------------------------------------------------------------------------
+
+model PrintBatch {
+  id        String   @id @default(uuid())
+  userId    String
+  pdfUrl    String
+  createdAt DateTime @default(now())
+
+  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items PrintBatchItem[]
+
+  @@index([userId])
+}
+
+model PrintBatchItem {
+  id           String @id @default(uuid())
+  printBatchId String
+  imageId      String
+
+  printBatch PrintBatch @relation(fields: [printBatchId], references: [id], onDelete: Cascade)
+  image      Image      @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@index([printBatchId])
+  @@index([imageId])
+}
+
+// ---------------------------------------------------------------------------
+// 6. Allowed shapes (polymorphic: belongs to Event OR Storefront)
+// ---------------------------------------------------------------------------
+
+model AllowedShape {
+  id          String      @id @default(uuid())
+  contextType ContextType
+  contextId   String
+  shapeType   ShapeType
+  widthMm     Float
+  heightMm    Float
+
+  @@index([contextType, contextId])
+}
