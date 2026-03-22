@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
+import { eventsRouter } from "./routes/events";
 import { authenticate, requireRole } from "./middleware/auth";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -29,6 +30,7 @@ app.use("/api/auth", authRouter);
 
 // --- Protected routes ---
 app.use("/api/admin", authenticate, requireRole("ADMIN", "STAFF"));
+app.use("/api/events", authenticate, requireRole("ADMIN", "STAFF"), eventsRouter);
 app.use("/api/orders", authenticate, requireRole("ADMIN", "STAFF"));
 app.use("/api/images", authenticate, requireRole("ADMIN", "STAFF"));
 app.use("/api/print", authenticate, requireRole("ADMIN", "STAFF"));

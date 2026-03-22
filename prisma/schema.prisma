@@ -204,9 +204,11 @@ model AllowedShape {
   id          String      @id @default(uuid())
   contextType ContextType
   contextId   String
-  shapeType   ShapeType
-  widthMm     Float
-  heightMm    Float
+  shapeType    ShapeType
+  widthMm      Float
+  heightMm     Float
+  displayOrder Int       @default(0)
 
+  @@unique([contextType, contextId, shapeType, widthMm, heightMm])
   @@index([contextType, contextId])
 }

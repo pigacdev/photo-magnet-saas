@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function DashboardPage() {
   return (
     <div>
@@ -5,8 +7,20 @@ export default function DashboardPage() {
         Dashboard
       </h1>
       <p className="mt-2 text-[#6B7280]">
-        Welcome to your dashboard. More features coming soon.
+        Manage your events and orders.
       </p>
+
+      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        <Link
+          href="/dashboard/events"
+          className="rounded-lg border border-gray-200 p-6 transition-colors hover:border-gray-300 hover:bg-[#F9FAFB]"
+        >
+          <h2 className="text-base font-medium text-[#111111]">Events</h2>
+          <p className="mt-1 text-sm text-[#6B7280]">
+            Create and manage your events.
+          </p>
+        </Link>
+      </div>
     </div>
   );
 }
