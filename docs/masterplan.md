@@ -57,6 +57,11 @@
   - OR define bundles (e.g. 3 for $10, 6 for $18)
   - System automatically calculates total price
 
+- Pricing mode:
+    - Each event/storefront uses ONE mode:
+        - Per item OR bundles
+    - Mixing is not allowed
+
 ### Customer (QR app)
 
 - Scan QR → open order page instantly

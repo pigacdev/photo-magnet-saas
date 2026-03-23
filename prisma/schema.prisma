@@ -99,8 +99,10 @@ model Pricing {
   contextId   String
   type        PricingType
   price       Decimal     @db.Decimal(10, 2)
-  quantity    Int?
-  createdAt   DateTime    @default(now())
+  currency     String      @default("EUR")
+  quantity     Int?
+  displayOrder Int?
+  createdAt    DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   deletedAt   DateTime?
 

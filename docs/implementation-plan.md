@@ -63,6 +63,13 @@
 - Pricing belongs to:
     - Event OR Storefront
 
+### Validation rules
+
+- Enforce one pricing mode per context:
+    - If PER_ITEM → only one row allowed
+    - If BUNDLE → allow multiple rows
+    - Reject mixed configurations
+
 ### Backend
 
 - Create Pricing model:

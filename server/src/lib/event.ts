@@ -28,3 +28,13 @@ export function enrichEvent(event: EventRecord) {
     status: getEventStatus(event),
   };
 }
+
+export function canAcceptOrders(event: EventRecord, pricingCount: number): { ok: true } | { ok: false; reason: string } {
+  if (!isEventOpen(event)) {
+    return { ok: false, reason: "Event is not open" };
+  }
+  if (pricingCount === 0) {
+    return { ok: false, reason: "Pricing not configured" };
+  }
+  return { ok: true };
+}

@@ -273,6 +273,15 @@
     - original dimensions
 - Pricing must belong to:
     - Event OR Storefront
+- Pricing mode must be exclusive per context:
+    - A context (event or storefront) can have:
+        - ONLY `per_item`
+        - OR ONLY `bundle`
+    - Mixing both types is NOT allowed
+    - If `per_item` exists → only one row allowed
+    - If `bundle` exists → one or more rows allowed
+- Cash payment:
+    - Allowed ONLY when context_type = event
 
 ---
 
