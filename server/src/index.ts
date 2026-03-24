@@ -1,8 +1,8 @@
+import "./load-env";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
-import dotenv from "dotenv";
 import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
 import { eventsRouter } from "./routes/events";
@@ -10,8 +10,6 @@ import { storefrontsRouter } from "./routes/storefronts";
 import { pricingRouter } from "./routes/pricing";
 import { authenticate, requireRole } from "./middleware/auth";
 import { errorHandler } from "./middleware/errorHandler";
-
-dotenv.config({ path: "../.env" });
 
 const app = express();
 const PORT = process.env.API_PORT || 4000;
