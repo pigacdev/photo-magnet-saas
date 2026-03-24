@@ -119,12 +119,16 @@ export default function EventDetailPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg">
-      <Link href="/dashboard/events" className="text-sm text-[#6B7280] hover:text-[#111111]">
-        &larr; All events
-      </Link>
+    <div className="mx-auto flex max-w-lg flex-col gap-8">
+      <div>
+        <Link
+          href="/dashboard/events"
+          className="-ml-1 inline-block rounded-md px-1 py-0.5 text-sm text-[#6B7280] transition-colors hover:bg-[#F9FAFB] hover:text-[#111111]"
+        >
+          &larr; All events
+        </Link>
 
-      <div className="mt-4 flex items-start justify-between">
+        <div className="mt-4 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
             {event.name}
@@ -149,9 +153,10 @@ export default function EventDetailPage() {
             Delete
           </button>
         </div>
+        </div>
       </div>
 
-      <dl className="mt-6 space-y-3 text-sm">
+      <dl className="space-y-3 text-sm">
         <div className="flex justify-between">
           <dt className="text-[#6B7280]">Start</dt>
           <dd className="text-[#111111]">{formatDate(event.startDate)}</dd>
@@ -162,7 +167,7 @@ export default function EventDetailPage() {
         </div>
       </dl>
 
-      <div className="mt-8">
+      <div>
         <h2 className="text-lg font-medium text-[#111111]">Shapes</h2>
         {event.shapes.length === 0 ? (
           <p className="mt-3 text-sm text-[#6B7280]">No shapes configured.</p>
@@ -178,8 +183,9 @@ export default function EventDetailPage() {
                   {shape.widthMm}×{shape.heightMm} mm
                 </span>
                 <button
+                  type="button"
                   onClick={() => handleRemoveShape(shape.id)}
-                  className="text-[#6B7280] transition-colors hover:text-[#DC2626]"
+                  className="text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
                 >
                   Remove
                 </button>
@@ -189,7 +195,7 @@ export default function EventDetailPage() {
         )}
       </div>
 
-      <div className="mt-8">
+      <div>
         <h2 className="text-lg font-medium text-[#111111]">Pricing</h2>
         {event.pricing.length === 0 ? (
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -379,7 +385,7 @@ function PricingEditor({
                 <button
                   type="button"
                   onClick={() => removeBundle(i)}
-                  className="mb-0.5 rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#6B7280] transition-colors hover:text-[#DC2626]"
+                  className="mb-0.5 rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
                 >
                   Remove
                 </button>
@@ -410,7 +416,7 @@ function PricingEditor({
           <button
             onClick={handleClear}
             disabled={saving}
-            className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-[#6B7280] transition-colors hover:text-[#DC2626] disabled:opacity-50"
+            className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50 disabled:opacity-50"
           >
             Clear pricing
           </button>

@@ -40,7 +40,7 @@ export default function DashboardLayout({
 
   if (checking) {
     return (
-      <div className="flex min-h-full flex-1 items-center justify-center">
+      <div className="flex min-h-full flex-1 items-center justify-center p-6">
         <p className="text-sm text-[#6B7280]">Loading…</p>
       </div>
     );
@@ -49,7 +49,7 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="border-b border-gray-200 bg-white">
-        <div className="mx-auto flex h-14 max-w-[1200px] items-center justify-between px-4">
+        <div className="mx-auto flex h-14 max-w-[1200px] items-center justify-between px-6">
           <div className="flex items-center gap-8">
             <Link href="/dashboard" className="text-base font-semibold text-[#111111]">
               Photo Magnet
@@ -67,7 +67,7 @@ export default function DashboardLayout({
                     className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                       isActive
                         ? "bg-[#F9FAFB] text-[#111111]"
-                        : "text-[#6B7280] hover:text-[#111111]"
+                        : "text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#111111]"
                     }`}
                   >
                     {item.label}
@@ -82,8 +82,9 @@ export default function DashboardLayout({
               {user?.name || user?.email}
             </span>
             <button
+              type="button"
               onClick={handleLogout}
-              className="text-sm font-medium text-[#6B7280] transition-colors hover:text-[#111111]"
+              className="rounded-md px-2 py-1 text-sm font-medium text-[#6B7280] transition-colors hover:bg-[#F9FAFB] hover:text-[#111111]"
             >
               Log out
             </button>
@@ -91,9 +92,7 @@ export default function DashboardLayout({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1200px] flex-1 px-4 py-8">
-        {children}
-      </main>
+      <main className="mx-auto w-full max-w-[1200px] flex-1 p-6">{children}</main>
     </div>
   );
 }

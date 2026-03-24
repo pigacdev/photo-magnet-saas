@@ -34,15 +34,17 @@ export default function NewStorefrontPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg">
-      <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
-        Create storefront
-      </h1>
-      <p className="mt-2 text-sm text-[#6B7280]">
-        Set up a permanent storefront for ongoing photo magnet sales.
-      </p>
+    <div className="mx-auto flex max-w-lg flex-col gap-8">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+          Create storefront
+        </h1>
+        <p className="mt-2 text-sm text-[#6B7280]">
+          Set up a permanent storefront for ongoing photo magnet sales.
+        </p>
+      </div>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-[#111111]">
             Storefront name

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="flex flex-1 items-center justify-center">
+    <div className="flex flex-1 items-center justify-center p-6">
       <div className="text-center">
         <h1 className="text-4xl font-bold tracking-tight text-[#111111]">
           Photo Magnet

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
 type Event = {
@@ -31,6 +32,7 @@ const STATUS_BADGE: Record<Event["status"], { label: string; className: string }
 };
 
 export default function EventsPage() {
+  const router = useRouter();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,7 +51,7 @@ export default function EventsPage() {
   }
 
   return (
-    <div>
+    <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
           Events
@@ -63,16 +65,16 @@ export default function EventsPage() {
       </div>
 
       {loading ? (
-        <p className="mt-8 text-sm text-[#6B7280]">Loading…</p>
+        <p className="text-sm text-[#6B7280]">Loading…</p>
       ) : events.length === 0 ? (
-        <div className="mt-16 text-center">
+        <div className="py-8 text-center">
           <p className="text-[#6B7280]">No events yet.</p>
           <p className="mt-1 text-sm text-[#6B7280]">
             Create your first event to start accepting orders.
           </p>
         </div>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-lg border border-gray-200">
+        <div className="overflow-hidden rounded-lg border border-gray-200">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-200 bg-[#F9FAFB]">
               <tr>
@@ -83,29 +85,44 @@ export default function EventsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {events.map((event) => (
-                <tr key={event.id} className="hover:bg-[#F9FAFB]">
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/dashboard/events/${event.id}`}
-                      className="font-medium text-[#111111] hover:text-[#2563EB]"
+              {events
+                .filter((event) => event.id)
+                .map((event) => {
+                  const href = `/dashboard/events/${event.id}`;
+                  return (
+                    <tr
+                      key={event.id}
+                      role="link"
+                      tabIndex={0}
+                      aria-label={`Open event ${event.name}`}
+                      className="cursor-pointer hover:bg-[#F9FAFB] focus-visible:bg-[#F9FAFB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2"
+                      onClick={() => router.push(href)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(href);
+                        }
+                      }}
                     >
-                      {event.name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-[#6B7280]">
-                    {formatDate(event.startDate)}
-                  </td>
-                  <td className="px-4 py-3 text-[#6B7280]">
-                    {formatDate(event.endDate)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[event.status].className}`}>
-                      {STATUS_BADGE[event.status].label}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                      <td className="px-4 py-3">
+                        <span className="font-medium text-[#111111]">{event.name}</span>
+                      </td>
+                      <td className="px-4 py-3 text-[#6B7280]">
+                        {formatDate(event.startDate)}
+                      </td>
+                      <td className="px-4 py-3 text-[#6B7280]">
+                        {formatDate(event.endDate)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[event.status].className}`}
+                        >
+                          {STATUS_BADGE[event.status].label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>

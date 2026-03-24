@@ -102,12 +102,16 @@ export default function StorefrontDetailPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg">
-      <Link href="/dashboard/storefronts" className="text-sm text-[#6B7280] hover:text-[#111111]">
-        &larr; All storefronts
-      </Link>
+    <div className="mx-auto flex max-w-lg flex-col gap-8">
+      <div>
+        <Link
+          href="/dashboard/storefronts"
+          className="-ml-1 inline-block rounded-md px-1 py-0.5 text-sm text-[#6B7280] transition-colors hover:bg-[#F9FAFB] hover:text-[#111111]"
+        >
+          &larr; All storefronts
+        </Link>
 
-      <div className="mt-4 flex items-start justify-between">
+        <div className="mt-4 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
             {storefront.name}
@@ -139,9 +143,10 @@ export default function StorefrontDetailPage() {
           </button>
         </div>
       </div>
+      </div>
 
       {(storefront.shapes.length === 0 || storefront.pricing.length === 0) && (
-        <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm font-medium text-amber-800">Store is not ready yet</p>
           <ul className="mt-1 list-inside list-disc text-sm text-amber-700">
             {storefront.shapes.length === 0 && <li>Add at least one shape</li>}
@@ -151,7 +156,7 @@ export default function StorefrontDetailPage() {
       )}
 
       {/* Store link */}
-      <div className="mt-6 rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-4">
+      <div className="rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-4">
         <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">Store link</p>
         <div className="mt-2 flex items-center gap-2">
           <input
@@ -170,7 +175,7 @@ export default function StorefrontDetailPage() {
       </div>
 
       {/* QR Code placeholder */}
-      <div className="mt-4 rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-4">
+      <div className="rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-4">
         <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">QR Code</p>
         <div className="mt-3 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white px-4 py-6">
           <svg
@@ -197,7 +202,7 @@ export default function StorefrontDetailPage() {
       </div>
 
       {/* Shapes */}
-      <div className="mt-8">
+      <div>
         <h2 className="text-lg font-medium text-[#111111]">Shapes</h2>
         {storefront.shapes.length === 0 ? (
           <p className="mt-3 text-sm text-[#6B7280]">No shapes configured.</p>
@@ -214,7 +219,8 @@ export default function StorefrontDetailPage() {
                 </span>
                 <button
                   onClick={() => handleRemoveShape(shape.id)}
-                  className="text-[#6B7280] transition-colors hover:text-[#DC2626]"
+                  type="button"
+                  className="text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
                 >
                   Remove
                 </button>
@@ -229,7 +235,7 @@ export default function StorefrontDetailPage() {
       </div>
 
       {/* Pricing */}
-      <div className="mt-8">
+      <div>
         <h2 className="text-lg font-medium text-[#111111]">Pricing</h2>
         {storefront.pricing.length === 0 ? (
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
