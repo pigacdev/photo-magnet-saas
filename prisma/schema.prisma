@@ -131,6 +131,14 @@ model OrderSession {
   lastActiveAt DateTime           @default(now())
   expiresAt    DateTime
 
+  selectedShapeId String?
+  /// Mirrors seller pricing mode for this selection (PER_ITEM = per magnet, BUNDLE = tier).
+  pricingType     PricingType?
+  quantity        Int?
+  /// Pricing row id when pricingType is BUNDLE.
+  bundleId        String?
+  totalPrice      Decimal?        @db.Decimal(10, 2)
+
   @@index([contextType, contextId])
   @@index([expiresAt])
   @@index([lastActiveAt])

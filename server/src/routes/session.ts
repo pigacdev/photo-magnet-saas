@@ -10,9 +10,12 @@ import { prisma } from "../lib/prisma";
 import { sessionConfig } from "../config/session";
 import {
   clearSessionCookie,
+  serializeCatalogPricing,
+  serializeCatalogShape,
   serializeOrderSession,
   setSessionCookie,
 } from "../lib/orderSessionApi";
+import { applySessionSelectionPatch } from "../lib/sessionSelectionPatch";
 import {
   validateEventOrderContext,
   validateOrderSessionContext,
@@ -171,7 +174,7 @@ sessionRouter.get("/", async (req, res) => {
   const sessionId = req.cookies?.[sessionConfig.cookieName] as string | undefined;
 
   if (!sessionId) {
-    res.json({ session: null });
+    res.json({ session: null, shapes: [], pricing: [] });
     return;
   }
 
@@ -183,7 +186,7 @@ sessionRouter.get("/", async (req, res) => {
 
   if (!session) {
     clearSessionCookie(res);
-    res.json({ session: null });
+    res.json({ session: null, shapes: [], pricing: [] });
     return;
   }
 
@@ -195,7 +198,7 @@ sessionRouter.get("/", async (req, res) => {
       });
     }
     clearSessionCookie(res);
-    res.json({ session: null });
+    res.json({ session: null, shapes: [], pricing: [] });
     return;
   }
 
@@ -210,7 +213,7 @@ sessionRouter.get("/", async (req, res) => {
       data: { status: "ABANDONED" },
     });
     clearSessionCookie(res);
-    res.json({ session: null });
+    res.json({ session: null, shapes: [], pricing: [] });
     return;
   }
 
@@ -219,7 +222,85 @@ sessionRouter.get("/", async (req, res) => {
     data: { lastActiveAt: new Date() },
   });
 
-  res.json({ session: serializeOrderSession(touched) });
+  const shapes = await prisma.allowedShape.findMany({
+    where: {
+      contextType: touched.contextType,
+      contextId: touched.contextId,
+    },
+    orderBy: { displayOrder: "asc" },
+  });
+
+  const pricing = await prisma.pricing.findMany({
+    where: {
+      contextType: touched.contextType,
+      contextId: touched.contextId,
+      deletedAt: null,
+    },
+    orderBy: { displayOrder: "asc" },
+  });
+
+  res.json({
+    session: serializeOrderSession(touched),
+    shapes: shapes.map(serializeCatalogShape),
+    pricing: pricing.map(serializeCatalogPricing),
+  });
+});
+
+sessionRouter.patch("/", async (req, res) => {
+  const sessionId = req.cookies?.[sessionConfig.cookieName] as string | undefined;
+
+  if (!sessionId) {
+    res.status(400).json({ error: "Session required" });
+    return;
+  }
+
+  const session = await prisma.orderSession.findUnique({
+    where: { id: sessionId },
+  });
+
+  const now = new Date();
+
+  if (!session) {
+    clearSessionCookie(res);
+    res.status(400).json({ error: "Session not found" });
+    return;
+  }
+
+  if (session.status !== "ACTIVE" || session.expiresAt <= now) {
+    if (session.status === "ACTIVE") {
+      await prisma.orderSession.update({
+        where: { id: session.id },
+        data: { status: "ABANDONED" },
+      });
+    }
+    clearSessionCookie(res);
+    res.status(400).json({ error: "Session is not active" });
+    return;
+  }
+
+  const contextOk = await validateOrderSessionContext(
+    session.contextType,
+    session.contextId,
+  );
+
+  if (!contextOk.ok) {
+    await prisma.orderSession.update({
+      where: { id: session.id },
+      data: { status: "ABANDONED" },
+    });
+    clearSessionCookie(res);
+    res.status(400).json({ error: "Context is no longer valid" });
+    return;
+  }
+
+  const result = await applySessionSelectionPatch(session, req.body);
+
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+
+  res.json({ session: serializeOrderSession(result.session) });
 });
 
 sessionRouter.delete("/", async (req, res) => {
