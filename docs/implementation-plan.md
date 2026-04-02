@@ -107,84 +107,71 @@
 
 ---
 
-### Phase 5 — QR order flow (customer app) (Day 10–16)
+## Phase 5 — QR order flow (refined execution plan)
 
-### Step 1: Entry page (event or storefront)
+To avoid bugs and ensure pixel-perfect print accuracy, Phase 5 is implemented in atomic micro-steps.
 
-- URL:
-    - `/event/{eventId}`
-    - `/store/{storefrontId}`
-- Mobile-first layout
-- Big CTA: “Start Order”
+### Phase 5A — Session layer (NO orders yet)
 
-### Step 2: Order creation
+- One active session per device (cookie-based)
+- Create OrderSession model
+- QR entry → creates session
+- Validate:
+  - pricing exists
+  - event is open / storefront active
+- Store session in httpOnly cookie
+- NO order creation yet
 
-- Create Order model:
-    - order_id (auto-generated)
-    - customer_name
-    - payment_status
-    - context_type: event | storefront
-    - context_id
+---
 
-### Step 3: Choose magnet shape
+### Phase 5B — Shape + pricing selection
 
-- Shapes are predefined by user
+- User selects:
+  - shape
+  - quantity or bundle
+- Live price calculation
+- Still NO order
 
-### Step 4: Choose quantity (or bundle)
+---
 
-### Step 4.1: Price calculation
+### Phase 5C — Image upload pipeline
 
-- System calculates total:
-    - Based on:
-        - per-item price OR bundle
-- Show live total price to user
+- Upload images to storage
+- Attach to session
+- Validate resolution
 
-### Step 5: Image upload
+---
 
-- Upload from:
-    - Device
-- Store in cloud
+### Phase 5D — Crop system (CRITICAL)
 
-### Step 6: Image cropping (CRITICAL)
-
-- Detect low resolution images
-- Show warning:
-    - “This image may print blurry”
-- Add cropping UI:
-    - Drag to move
-    - Pinch/zoom
+- Pixel-based crop (no %)
 - Lock aspect ratio per shape
-- Save:
-    - crop coordinates
-    - zoom level
-    - shape
+- Store crop coordinates
+- Crop = print (strict rule)
 
-👉 Example:
+---
 
-- User picks circle → crop box stays circle
+### Phase 5E — Review screen
 
-### Step 7: Review screen
+- Show images
+- Allow edit / delete
 
-- Show thumbnails
-- Allow:
-    - Edit
-    - Delete
+---
 
-### Step 8: Payment
+### Phase 5F — Order creation (FIRST COMMIT)
 
-- Stripe (cards, Apple Pay, Google Pay)
+- Convert session → order
+- Persist:
+  - images
+  - crops
+  - pricing snapshot
 
-- Conditional payment logic:
-    - If context_type = event:
-        - Allow “Pay with cash”
-    - If context_type = storefront:
-        - Stripe only
+---
 
-### Step 9: Confirmation
+### Phase 5G — Payment
 
-- Show:
-    - Order number
-    - Status
+- Event → cash
+- Storefront → Stripe
 
 ✅ Checkpoint:
 

@@ -37,7 +37,7 @@ export default function StorefrontDetailPage() {
   const [copied, setCopied] = useState(false);
 
   const storeUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/s/${params.id}`
+    ? `${window.location.origin}/store/${params.id}`
     : "";
 
   useEffect(() => {

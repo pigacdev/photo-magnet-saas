@@ -33,6 +33,12 @@ enum PaymentStatus {
   FAILED
 }
 
+enum OrderSessionStatus {
+  ACTIVE
+  ABANDONED
+  CONVERTED
+}
+
 enum ShapeType {
   SQUARE
   CIRCLE
@@ -107,6 +113,27 @@ model Pricing {
   deletedAt   DateTime?
 
   @@index([contextType, contextId])
+}
+
+// ---------------------------------------------------------------------------
+// 2b. Customer order sessions (QR flow — not persisted orders)
+// ---------------------------------------------------------------------------
+
+model OrderSession {
+  id           String             @id @default(uuid())
+  contextType  ContextType
+  contextId    String
+  status       OrderSessionStatus @default(ACTIVE)
+  createdAt    DateTime           @default(now())
+  /// Session start (set on create; same instant as first activity for new sessions).
+  startedAt    DateTime           @default(now())
+  /// Bumped on each successful GET /api/session (presence / debugging / future analytics).
+  lastActiveAt DateTime           @default(now())
+  expiresAt    DateTime
+
+  @@index([contextType, contextId])
+  @@index([expiresAt])
+  @@index([lastActiveAt])
 }
 
 // ---------------------------------------------------------------------------

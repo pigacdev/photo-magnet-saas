@@ -30,6 +30,11 @@ export function enrichEvent(event: EventRecord) {
   };
 }
 
+/**
+ * Event must be loadable with `deletedAt: null` by the caller.
+ * Enforces: not soft-deleted (`isEventOpen` checks `deletedAt`), within open window + `isActive`,
+ * and at least one non-deleted pricing row (`pricingCount` from `Pricing` where `deletedAt: null`).
+ */
 export function canAcceptOrders(event: EventRecord, pricingCount: number): { ok: true } | { ok: false; reason: string } {
   if (!isEventOpen(event)) {
     return { ok: false, reason: "Event is not open" };

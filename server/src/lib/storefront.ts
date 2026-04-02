@@ -14,6 +14,11 @@ export function enrichStorefront(storefront: StorefrontRecord) {
   };
 }
 
+/**
+ * Storefront must be loadable with `deletedAt: null` by the caller.
+ * Enforces: not soft-deleted (`isStorefrontOpen` checks `deletedAt`), `isActive === true`,
+ * and at least one non-deleted pricing row (`pricingCount` from `Pricing` where `deletedAt: null`).
+ */
 export function canStorefrontAcceptOrders(
   storefront: StorefrontRecord,
   pricingCount: number,
