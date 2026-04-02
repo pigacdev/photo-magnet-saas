@@ -5,13 +5,14 @@ type EventRecord = {
   deletedAt: Date | null;
 };
 
-export type EventStatus = "upcoming" | "active" | "ended";
+export type EventStatus = "upcoming" | "active" | "ended" | "inactive";
 
 export function getEventStatus(event: EventRecord): EventStatus {
   const now = new Date();
 
-  if (now < event.startDate) return "upcoming";
   if (now > event.endDate) return "ended";
+  if (!event.isActive) return "inactive";
+  if (now < event.startDate) return "upcoming";
   return "active";
 }
 

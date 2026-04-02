@@ -164,8 +164,13 @@ eventsRouter.patch("/:id", async (req, res) => {
     orderBy: { displayOrder: "asc" },
   });
 
+  const pricing = await prisma.pricing.findMany({
+    where: { contextType: "EVENT", contextId: event.id, deletedAt: null },
+    orderBy: { displayOrder: "asc" },
+  });
+
   res.json({
-    event: { ...event, ...enrichEvent(event), shapes },
+    event: { ...event, ...enrichEvent(event), shapes, pricing },
   });
 });
 

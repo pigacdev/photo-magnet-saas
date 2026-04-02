@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import {
+  PricingEditor,
+  PricingPreview,
+  type PricingRule,
+} from "@/components/PricingEditor";
 
 type AllowedShape = {
   id: string;
@@ -11,15 +16,6 @@ type AllowedShape = {
   widthMm: number;
   heightMm: number;
   displayOrder: number;
-};
-
-type PricingRule = {
-  id: string;
-  type: "PER_ITEM" | "BUNDLE";
-  price: string;
-  currency: string;
-  quantity: number | null;
-  displayOrder: number | null;
 };
 
 type Storefront = {
@@ -57,7 +53,12 @@ export default function StorefrontDetailPage() {
       `/api/storefronts/${storefront.id}`,
       { method: "PATCH", body: { isActive: !storefront.isActive } },
     );
-    setStorefront({ ...storefront, ...updated.storefront });
+    setStorefront({
+      ...storefront,
+      ...updated.storefront,
+      shapes: updated.storefront.shapes ?? storefront.shapes,
+      pricing: updated.storefront.pricing ?? storefront.pricing,
+    });
   }
 
   async function handleDelete() {
@@ -84,6 +85,11 @@ export default function StorefrontDetailPage() {
     } catch {
       /* clipboard API not available */
     }
+  }
+
+  async function handlePricingUpdate(pricing: PricingRule[]) {
+    if (!storefront) return;
+    setStorefront({ ...storefront, pricing });
   }
 
   if (loading) {
@@ -145,12 +151,12 @@ export default function StorefrontDetailPage() {
       </div>
       </div>
 
-      {(storefront.shapes.length === 0 || storefront.pricing.length === 0) && (
+      {(storefront.shapes.length === 0 || (storefront.pricing ?? []).length === 0) && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm font-medium text-amber-800">Store is not ready yet</p>
           <ul className="mt-1 list-inside list-disc text-sm text-amber-700">
             {storefront.shapes.length === 0 && <li>Add at least one shape</li>}
-            {storefront.pricing.length === 0 && <li>Configure pricing</li>}
+            {(storefront.pricing ?? []).length === 0 && <li>Configure pricing</li>}
           </ul>
         </div>
       )}
@@ -237,13 +243,19 @@ export default function StorefrontDetailPage() {
       {/* Pricing */}
       <div>
         <h2 className="text-lg font-medium text-[#111111]">Pricing</h2>
-        {storefront.pricing.length === 0 ? (
+        {(storefront.pricing ?? []).length === 0 ? (
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             Pricing not configured — customers cannot create orders until pricing is set.
           </p>
         ) : (
-          <PricingPreview pricing={storefront.pricing} />
+          <PricingPreview pricing={storefront.pricing ?? []} />
         )}
+        <PricingEditor
+          contextType="storefront"
+          contextId={storefront.id}
+          initialPricing={storefront.pricing ?? []}
+          onUpdate={handlePricingUpdate}
+        />
       </div>
     </div>
   );
@@ -314,31 +326,6 @@ function AddShapeForm({
         {adding ? "Adding…" : "Add"}
       </button>
       {error && <p className="text-sm text-[#DC2626]">{error}</p>}
-    </div>
-  );
-}
-
-function PricingPreview({ pricing }: { pricing: { type: string; price: string; quantity: number | null; id: string }[] }) {
-  const isPer = pricing[0]?.type === "PER_ITEM";
-
-  return (
-    <div className="mt-3 rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-3">
-      <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-[#6B7280]">
-        Customer sees
-      </p>
-      {isPer ? (
-        <p className="text-sm font-medium text-[#111111]">
-          €{Number(pricing[0].price).toFixed(2)} per magnet
-        </p>
-      ) : (
-        <ul className="space-y-1">
-          {pricing.map((p) => (
-            <li key={p.id} className="text-sm font-medium text-[#111111]">
-              {p.quantity} for €{Number(p.price).toFixed(2)}
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

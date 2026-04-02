@@ -12,7 +12,7 @@ type Event = {
   endDate: string;
   isActive: boolean;
   isOpen: boolean;
-  status: "upcoming" | "active" | "ended";
+  status: "upcoming" | "active" | "ended" | "inactive";
   createdAt: string;
 };
 
@@ -28,6 +28,10 @@ const STATUS_BADGE: Record<Event["status"], { label: string; className: string }
   ended: {
     label: "Ended",
     className: "bg-gray-100 text-[#6B7280]",
+  },
+  inactive: {
+    label: "Inactive",
+    className: "bg-amber-50 text-[#B45309]",
   },
 };
 

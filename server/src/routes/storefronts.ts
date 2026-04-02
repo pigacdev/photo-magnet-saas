@@ -81,7 +81,19 @@ storefrontsRouter.patch("/:id", async (req, res) => {
     },
   });
 
-  res.json({ storefront: { ...storefront, ...enrichStorefront(storefront) } });
+  const shapes = await prisma.allowedShape.findMany({
+    where: { contextType: "STOREFRONT", contextId: storefront.id },
+    orderBy: { displayOrder: "asc" },
+  });
+
+  const pricing = await prisma.pricing.findMany({
+    where: { contextType: "STOREFRONT", contextId: storefront.id, deletedAt: null },
+    orderBy: { displayOrder: "asc" },
+  });
+
+  res.json({
+    storefront: { ...storefront, ...enrichStorefront(storefront), shapes, pricing },
+  });
 });
 
 storefrontsRouter.delete("/:id", async (req, res) => {
