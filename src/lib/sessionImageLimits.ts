@@ -4,5 +4,8 @@
  */
 export const MAX_MULTIPART_FILES_PER_REQUEST = 1000;
 
-/** Minimum edge length (px) for full-quality flag; below this → `isLowResolution` on SessionImage. Safe default until crop uses shape mm. */
-export const SESSION_IMAGE_MIN_EDGE_PX = 800;
+/** Fallback when shape tier is unknown. Upload uses `getMinRequiredPx` for low-res flag. */
+export const MIN_PRINT_SIZE = 800;
+
+/** Alias of MIN_PRINT_SIZE for older references. */
+export const SESSION_IMAGE_MIN_EDGE_PX = MIN_PRINT_SIZE;

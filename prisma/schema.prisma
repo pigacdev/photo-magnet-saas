@@ -166,7 +166,7 @@ model SessionImage {
   createdAt   DateTime           @default(now())
   /// Order within the session (crop / print). Assigned on upload: lastPosition + 1 per file.
   position    Int
-  /// True when width or height is below SESSION_IMAGE_MIN_EDGE_PX (800) at upload; non-blocking. Crop may refine later.
+  /// True when width or height is below shape-aware minimum (see getMinRequiredPx); non-blocking. Crop may refine later.
   isLowResolution Boolean @default(false)
 
   session OrderSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

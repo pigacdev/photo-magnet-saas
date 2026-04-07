@@ -21,10 +21,8 @@ import {
   readImageDimensions,
   SESSION_UPLOAD_MAX_BYTES,
 } from "../lib/sessionImageStorage";
-import {
-  MAX_MULTIPART_FILES_PER_REQUEST,
-  SESSION_IMAGE_MIN_EDGE_PX,
-} from "../../../src/lib/sessionImageLimits";
+import { MAX_MULTIPART_FILES_PER_REQUEST } from "../../../src/lib/sessionImageLimits";
+import { getMinRequiredPx } from "../../../src/lib/minRequiredPxForShape";
 import { getMaxImagesAllowed } from "../lib/sessionImageMaxFromSession";
 
 export const sessionImagesRouter = Router();
@@ -222,6 +220,12 @@ sessionImagesRouter.post(
     const images: ApiSessionImage[] = [];
     const errors: { filename: string; error: string }[] = [];
 
+    const minRequiredPx = getMinRequiredPx({
+      shapeType: allowedShape.shapeType,
+      widthMm: allowedShape.widthMm,
+      heightMm: allowedShape.heightMm,
+    });
+
     const maxPosAgg = await prisma.sessionImage.aggregate({
       where: { sessionId: session.id },
       _max: { position: true },
@@ -249,8 +253,7 @@ sessionImagesRouter.post(
           file.mimetype,
         );
         const isLowResolution =
-          width < SESSION_IMAGE_MIN_EDGE_PX ||
-          height < SESSION_IMAGE_MIN_EDGE_PX;
+          width < minRequiredPx || height < minRequiredPx;
         const { originalUrl } = await putSessionImageObject({
           sessionId: session.id,
           imageId,

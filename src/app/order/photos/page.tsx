@@ -9,6 +9,7 @@ import {
   formatUploadLimitExceededMessage,
   formatUploadLimitHint,
 } from "@/lib/orderSessionUploadLimit";
+import { getIsLowResolution } from "@/lib/sessionImageLowResolution";
 import type {
   GetSessionImagesResponse,
   GetSessionResponse,
@@ -115,6 +116,11 @@ export default function OrderPhotosPage() {
 
   const atPhotoLimit =
     maxUploadImages != null && images.length >= maxUploadImages;
+
+  const hasAnyLowResolution = useMemo(
+    () => images.some((img) => getIsLowResolution(img)),
+    [images],
+  );
 
   const onPickPhotos = () => {
     if (uploadingPhotos || atPhotoLimit || maxUploadImages == null) return;
@@ -252,37 +258,58 @@ export default function OrderPhotosPage() {
         <p className="text-center text-sm text-[#6B7280]">Loading photos…</p>
       )}
 
+      {hasAnyLowResolution && images.length > 0 && (
+        <p
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-snug text-amber-950"
+          role="status"
+        >
+          Some images may print blurry. You can continue or replace them.
+        </p>
+      )}
+
       {images.length > 0 && (
         <div
           className="image-list flex flex-col gap-3"
           role="list"
           aria-label="Uploaded photos"
         >
-          {images.map((img) => (
-            <div
-              key={img.id}
-              className="image-item relative w-full overflow-hidden rounded-[12px] border border-gray-200 bg-gray-100"
-              data-low-resolution={img.isLowResolution ? "true" : "false"}
-              role="listitem"
-            >
-              {/* Future: surface warning when img.isLowResolution */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={img.originalUrl}
-                alt=""
-                className="block h-auto w-full max-h-[200px] object-cover"
-              />
-              <button
-                type="button"
-                disabled={uploadingPhotos}
-                onClick={() => void deleteSessionImage(img.id)}
-                className="delete absolute right-2 top-2 flex min-h-11 min-w-11 items-center justify-center rounded-full bg-black/60 text-xl font-bold leading-none text-white shadow-md transition-colors hover:bg-black/75 active:bg-black/80 disabled:opacity-50"
-                aria-label="Remove photo"
-              >
-                ×
-              </button>
-            </div>
-          ))}
+          {images.map((img) => {
+            const low = getIsLowResolution(img);
+            return (
+              <div key={img.id} className="image-item flex flex-col gap-1.5">
+                <div
+                  className="relative w-full overflow-hidden rounded-[12px] border border-gray-200 bg-gray-100"
+                  data-low-resolution={low ? "true" : "false"}
+                  role="listitem"
+                >
+                  {low && (
+                    <span className="absolute left-2 top-2 z-10 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-950 shadow-sm">
+                      Low quality
+                    </span>
+                  )}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.originalUrl}
+                    alt=""
+                    className="block h-auto w-full max-h-[200px] object-cover"
+                  />
+                  <button
+                    type="button"
+                    disabled={uploadingPhotos}
+                    onClick={() => void deleteSessionImage(img.id)}
+                    className="delete absolute right-2 top-2 z-10 flex min-h-11 min-w-11 items-center justify-center rounded-full bg-black/60 text-xl font-bold leading-none text-white shadow-md transition-colors hover:bg-black/75 active:bg-black/80 disabled:opacity-50"
+                    aria-label="Remove photo"
+                  >
+                    ×
+                  </button>
+                </div>
+                <p className="px-0.5 text-xs text-[#6B7280]">
+                  {img.width} × {img.height} px
+                  {low ? " • Low quality" : ""}
+                </p>
+              </div>
+            );
+          })}
         </div>
       )}
 
