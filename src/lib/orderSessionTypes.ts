@@ -53,6 +53,14 @@ export type SessionImage = {
   position: number;
   isLowResolution: boolean;
   createdAt: string;
+  cropX: number | null;
+  cropY: number | null;
+  cropWidth: number | null;
+  cropHeight: number | null;
+  cropScale: number | null;
+  cropTranslateX: number | null;
+  cropTranslateY: number | null;
+  cropRotation: number;
 };
 
 export type GetSessionImagesResponse = {

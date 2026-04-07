@@ -169,6 +169,19 @@ model SessionImage {
   /// True when width or height is below shape-aware minimum (see getMinRequiredPx); non-blocking. Crop may refine later.
   isLowResolution Boolean @default(false)
 
+  /// Crop rectangle in original image pixels (fixed-frame editor); set when user saves/adjusts.
+  cropX      Int?
+  cropY      Int?
+  cropWidth  Int?
+  cropHeight Int?
+  /// Zoom factor relative to minimum cover scale (>= 1). Optional UI restore / debug.
+  cropScale         Float?
+  /// Pan in frame CSS px (relative to frame center). Optional UI restore.
+  cropTranslateX    Float?
+  cropTranslateY    Float?
+  /// Placeholder for future rotation (degrees); print pipeline not implemented yet.
+  cropRotation      Float @default(0)
+
   session OrderSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])

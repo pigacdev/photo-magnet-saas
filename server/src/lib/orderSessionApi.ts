@@ -63,6 +63,15 @@ export type ApiSessionImage = {
   position: number;
   isLowResolution: boolean;
   createdAt: string;
+  /** Pixel crop in original image space; null until saved from crop step. */
+  cropX: number | null;
+  cropY: number | null;
+  cropWidth: number | null;
+  cropHeight: number | null;
+  cropScale: number | null;
+  cropTranslateX: number | null;
+  cropTranslateY: number | null;
+  cropRotation: number;
 };
 
 export function serializeSessionImage(img: SessionImage): ApiSessionImage {
@@ -77,6 +86,14 @@ export function serializeSessionImage(img: SessionImage): ApiSessionImage {
     position: img.position,
     isLowResolution: Boolean(img.isLowResolution),
     createdAt: img.createdAt.toISOString(),
+    cropX: img.cropX ?? null,
+    cropY: img.cropY ?? null,
+    cropWidth: img.cropWidth ?? null,
+    cropHeight: img.cropHeight ?? null,
+    cropScale: img.cropScale ?? null,
+    cropTranslateX: img.cropTranslateX ?? null,
+    cropTranslateY: img.cropTranslateY ?? null,
+    cropRotation: Number(img.cropRotation ?? 0),
   };
 }
 

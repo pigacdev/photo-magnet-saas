@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "SessionImage" ADD COLUMN     "cropHeight" INTEGER,
+ADD COLUMN     "cropRotation" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "cropScale" DOUBLE PRECISION,
+ADD COLUMN     "cropTranslateX" DOUBLE PRECISION,
+ADD COLUMN     "cropTranslateY" DOUBLE PRECISION,
+ADD COLUMN     "cropWidth" INTEGER,
+ADD COLUMN     "cropX" INTEGER,
+ADD COLUMN     "cropY" INTEGER;
