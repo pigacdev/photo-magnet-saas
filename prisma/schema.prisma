@@ -39,6 +39,11 @@ enum OrderSessionStatus {
   CONVERTED
 }
 
+enum SessionImageStatus {
+  UPLOADED
+  FAILED
+}
+
 enum ShapeType {
   SQUARE
   CIRCLE
@@ -72,6 +77,8 @@ model Event {
   startDate DateTime
   endDate   DateTime
   isActive  Boolean   @default(true)
+  /// Business cap on magnets per order; null = no business limit (system cap still applies).
+  maxMagnetsPerOrder Int?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -86,6 +93,8 @@ model Storefront {
   userId    String
   name      String
   isActive  Boolean   @default(true)
+  /// Business cap on magnets per order; null = no business limit (system cap still applies).
+  maxMagnetsPerOrder Int?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -139,9 +148,31 @@ model OrderSession {
   bundleId        String?
   totalPrice      Decimal?        @db.Decimal(10, 2)
 
+  sessionImages SessionImage[]
+
   @@index([contextType, contextId])
   @@index([expiresAt])
   @@index([lastActiveAt])
+}
+
+model SessionImage {
+  id          String             @id @default(uuid())
+  sessionId   String
+  originalUrl String
+  width       Int
+  height      Int
+  fileSize    Int
+  status      SessionImageStatus @default(UPLOADED)
+  createdAt   DateTime           @default(now())
+  /// Order within the session (crop / print). Assigned on upload: lastPosition + 1 per file.
+  position    Int
+  /// True when width or height is below SESSION_IMAGE_MIN_EDGE_PX (800) at upload; non-blocking. Crop may refine later.
+  isLowResolution Boolean @default(false)
+
+  session OrderSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([sessionId, position])
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,7 @@
 import type { OrderSession } from "../../../src/generated/prisma/client";
+import { SYSTEM_MAX_MAGNETS_PER_ORDER } from "../config/system";
 import { prisma } from "./prisma";
+import { getPerItemEffectiveMaxMagnetsPerOrder } from "./maxMagnetsPerOrder";
 
 type PatchBody = {
   selectedShapeId?: unknown;
@@ -95,10 +97,12 @@ export async function applySessionSelectionPatch(
       return { ok: false, status: 400, error: "Per-item pricing is not available" };
     }
 
-    const qty = body.quantity;
-    if (typeof qty !== "number" || !Number.isInteger(qty) || qty < 1) {
+    const qtyRaw = body.quantity;
+    if (typeof qtyRaw !== "number" || !Number.isInteger(qtyRaw) || qtyRaw < 1) {
       return { ok: false, status: 400, error: "quantity must be a positive integer" };
     }
+    const effectiveMax = await getPerItemEffectiveMaxMagnetsPerOrder(session);
+    const qty = Math.min(qtyRaw, effectiveMax);
 
     const unit = Number(perRow.price);
     const total = roundMoney(unit * qty);
@@ -128,6 +132,18 @@ export async function applySessionSelectionPatch(
   );
   if (!bundleRow) {
     return { ok: false, status: 400, error: "Bundle not found" };
+  }
+
+  const bq = bundleRow.quantity;
+  if (bq == null || bq < 1) {
+    return { ok: false, status: 400, error: "Bundle quantity is invalid" };
+  }
+  if (bq > SYSTEM_MAX_MAGNETS_PER_ORDER) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Bundle cannot exceed ${SYSTEM_MAX_MAGNETS_PER_ORDER} magnets`,
+    };
   }
 
   const total = roundMoney(Number(bundleRow.price));

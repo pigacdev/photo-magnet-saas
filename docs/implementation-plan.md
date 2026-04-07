@@ -1,5 +1,24 @@
 ## Step-by-step build sequence (tiny, mindless tasks)
 
+### Phase X — SaaS foundation (multi-tenant)
+
+- Create Organization model
+- Link User → Organization
+- Link:
+  - Event → Organization
+  - Storefront → Organization
+  - Order → Organization
+
+- Add capabilities:
+  - hasStorefront (boolean)
+  - eventCredits (int)
+
+- Enforce:
+  - 1 storefront per organization
+  - events require available credits
+
+---
+
 ### Phase 0 — Setup (Day 1–2)
 
 - Create repo
@@ -149,6 +168,12 @@ To avoid bugs and ensure pixel-perfect print accuracy, Phase 5 is implemented in
 - Store crop coordinates
 - Crop = print (strict rule)
 
+IMPORTANT RULE:
+
+- Crop coordinates are stored in pixels
+- No percentages allowed
+- Output must match print exactly
+
 ---
 
 ### Phase 5E — Review screen
@@ -160,11 +185,20 @@ To avoid bugs and ensure pixel-perfect print accuracy, Phase 5 is implemented in
 
 ### Phase 5F — Order creation (FIRST COMMIT)
 
-- Convert session → order
-- Persist:
-  - images
-  - crops
-  - pricing snapshot
+- Validate session is complete
+- Create Order:
+  - contextType
+  - contextId
+  - organizationId
+
+- Copy SessionImages → OrderImages:
+  - originalUrl
+  - crop data
+  - dimensions
+
+- OrderImages are immutable
+
+- Save pricing snapshot
 
 ---
 

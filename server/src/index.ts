@@ -1,4 +1,6 @@
 import "./load-env";
+import fs from "node:fs";
+import path from "node:path";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -10,6 +12,7 @@ import { storefrontsRouter } from "./routes/storefronts";
 import { pricingRouter } from "./routes/pricing";
 import { publicRouter } from "./routes/public";
 import { sessionRouter } from "./routes/session";
+import { systemRouter } from "./routes/system";
 import { authenticate, requireRole } from "./middleware/auth";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -26,10 +29,15 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
+const uploadsDir = path.join(process.cwd(), "uploads");
+fs.mkdirSync(uploadsDir, { recursive: true });
+app.use("/uploads", express.static(uploadsDir));
+
 // --- Public routes ---
 app.use("/api/health", healthRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/public", publicRouter);
+app.use("/api/system", systemRouter);
 app.use("/api/session", sessionRouter);
 
 // --- Protected routes ---

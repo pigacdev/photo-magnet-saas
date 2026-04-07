@@ -1,12 +1,19 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { enrichEvent } from "../lib/event";
+import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
 
 export const eventsRouter = Router();
 
 eventsRouter.post("/", async (req, res) => {
   const userId = req.user!.userId;
-  const { name, startDate, endDate, shapes } = req.body;
+  const { name, startDate, endDate, shapes, maxMagnetsPerOrder } = req.body as {
+    name?: unknown;
+    startDate?: unknown;
+    endDate?: unknown;
+    shapes?: unknown;
+    maxMagnetsPerOrder?: unknown;
+  };
 
   if (!name || !startDate || !endDate) {
     res.status(400).json({ error: "Name, start date, and end date are required" });
@@ -36,12 +43,23 @@ eventsRouter.post("/", async (req, res) => {
     return;
   }
 
+  let maxMagnets: number | null | undefined;
+  if (maxMagnetsPerOrder !== undefined) {
+    const parsed = parseMaxMagnetsPerOrderInput(maxMagnetsPerOrder);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    maxMagnets = parsed.value;
+  }
+
   const event = await prisma.event.create({
     data: {
       userId,
       name,
       startDate: start,
       endDate: end,
+      ...(maxMagnets !== undefined && { maxMagnetsPerOrder: maxMagnets }),
     },
   });
 
@@ -149,6 +167,16 @@ eventsRouter.patch("/:id", async (req, res) => {
     return;
   }
 
+  let maxMagnetsUpdate: number | null | undefined;
+  if (maxMagnetsPerOrder !== undefined) {
+    const parsed = parseMaxMagnetsPerOrderInput(maxMagnetsPerOrder);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    maxMagnetsUpdate = parsed.value;
+  }
+
   const event = await prisma.event.update({
     where: { id },
     data: {
@@ -156,6 +184,7 @@ eventsRouter.patch("/:id", async (req, res) => {
       ...(startDate && { startDate: start }),
       ...(endDate && { endDate: end }),
       ...(isActive !== undefined && { isActive }),
+      ...(maxMagnetsUpdate !== undefined && { maxMagnetsPerOrder: maxMagnetsUpdate }),
     },
   });
 

@@ -5,10 +5,15 @@ const apiInternal =
 
 const nextConfig: NextConfig = {
   async rewrites() {
+    const base = apiInternal.replace(/\/$/, "");
     return [
       {
+        source: "/uploads/:path*",
+        destination: `${base}/uploads/:path*`,
+      },
+      {
         source: "/api/:path*",
-        destination: `${apiInternal.replace(/\/$/, "")}/api/:path*`,
+        destination: `${base}/api/:path*`,
       },
     ];
   },

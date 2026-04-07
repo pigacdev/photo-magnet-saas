@@ -2,6 +2,7 @@ import type {
   AllowedShape,
   OrderSession,
   Pricing,
+  SessionImage,
 } from "../../../src/generated/prisma/client";
 import type { Response } from "express";
 import {
@@ -9,8 +10,10 @@ import {
   getSessionCookieSetOptions,
   sessionConfig,
 } from "../config/session";
+import { getEffectiveMaxMagnetsPerOrder } from "./maxMagnetsPerOrder";
+import { getMaxImagesAllowed } from "./sessionImageMaxFromSession";
 
-export type ApiOrderSession = {
+export type SerializedOrderSession = {
   id: string;
   contextType: "event" | "storefront";
   contextId: string;
@@ -24,6 +27,12 @@ export type ApiOrderSession = {
   quantity: number | null;
   bundleId: string | null;
   totalPrice: number | null;
+};
+
+export type ApiOrderSession = SerializedOrderSession & {
+  maxImagesAllowed: number;
+  /** Per-item quantity input max; for bundle sessions equals system cap (not shown in UI). */
+  maxMagnetsAllowed: number;
 };
 
 export type ApiCatalogShape = {
@@ -43,13 +52,43 @@ export type ApiCatalogPricing = {
   displayOrder: number | null;
 };
 
-export function serializeOrderSession(session: OrderSession): ApiOrderSession {
+export type ApiSessionImage = {
+  id: string;
+  sessionId: string;
+  originalUrl: string;
+  width: number;
+  height: number;
+  fileSize: number;
+  status: "uploaded" | "failed";
+  position: number;
+  isLowResolution: boolean;
+  createdAt: string;
+};
+
+export function serializeSessionImage(img: SessionImage): ApiSessionImage {
+  return {
+    id: img.id,
+    sessionId: img.sessionId,
+    originalUrl: img.originalUrl,
+    width: img.width,
+    height: img.height,
+    fileSize: img.fileSize,
+    status: img.status === "UPLOADED" ? "uploaded" : "failed",
+    position: img.position,
+    isLowResolution: Boolean(img.isLowResolution),
+    createdAt: img.createdAt.toISOString(),
+  };
+}
+
+export function serializeOrderSession(
+  session: OrderSession,
+): SerializedOrderSession {
   const pt = session.pricingType;
   return {
     id: session.id,
     contextType: session.contextType === "EVENT" ? "event" : "storefront",
     contextId: session.contextId,
-    status: session.status.toLowerCase() as ApiOrderSession["status"],
+    status: session.status.toLowerCase() as SerializedOrderSession["status"],
     createdAt: session.createdAt.toISOString(),
     startedAt: session.startedAt.toISOString(),
     lastActiveAt: session.lastActiveAt.toISOString(),
@@ -61,6 +100,19 @@ export function serializeOrderSession(session: OrderSession): ApiOrderSession {
     bundleId: session.bundleId ?? null,
     totalPrice:
       session.totalPrice != null ? Number(session.totalPrice) : null,
+  };
+}
+
+export async function buildOrderSessionResponse(
+  session: OrderSession,
+): Promise<ApiOrderSession> {
+  const base = serializeOrderSession(session);
+  const max = await getMaxImagesAllowed(session);
+  const maxMagnetsAllowed = await getEffectiveMaxMagnetsPerOrder(session);
+  return {
+    ...base,
+    maxImagesAllowed: max ?? 0,
+    maxMagnetsAllowed,
   };
 }
 

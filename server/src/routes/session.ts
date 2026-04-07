@@ -9,10 +9,10 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { sessionConfig } from "../config/session";
 import {
+  buildOrderSessionResponse,
   clearSessionCookie,
   serializeCatalogPricing,
   serializeCatalogShape,
-  serializeOrderSession,
   setSessionCookie,
 } from "../lib/orderSessionApi";
 import { applySessionSelectionPatch } from "../lib/sessionSelectionPatch";
@@ -21,8 +21,11 @@ import {
   validateOrderSessionContext,
   validateStorefrontOrderContext,
 } from "../lib/sessionContextValidation";
+import { sessionImagesRouter } from "./sessionImages";
 
 export const sessionRouter = Router();
+
+sessionRouter.use("/images", sessionImagesRouter);
 
 sessionRouter.post("/start", async (req, res) => {
   const { contextType, contextId } = req.body as {
@@ -100,7 +103,9 @@ sessionRouter.post("/start", async (req, res) => {
         }
 
         setSessionCookie(res, existing.id);
-        res.status(200).json({ session: serializeOrderSession(existing) });
+        res.status(200).json({
+          session: await buildOrderSessionResponse(existing),
+        });
         return;
       } else {
         if (existing.status === "ACTIVE") {
@@ -139,7 +144,9 @@ sessionRouter.post("/start", async (req, res) => {
     });
 
     setSessionCookie(res, session.id);
-    res.status(201).json({ session: serializeOrderSession(session) });
+    res.status(201).json({
+      session: await buildOrderSessionResponse(session),
+    });
     return;
   }
 
@@ -167,7 +174,9 @@ sessionRouter.post("/start", async (req, res) => {
   });
 
   setSessionCookie(res, session.id);
-  res.status(201).json({ session: serializeOrderSession(session) });
+  res.status(201).json({
+    session: await buildOrderSessionResponse(session),
+  });
 });
 
 sessionRouter.get("/", async (req, res) => {
@@ -240,7 +249,7 @@ sessionRouter.get("/", async (req, res) => {
   });
 
   res.json({
-    session: serializeOrderSession(touched),
+    session: await buildOrderSessionResponse(touched),
     shapes: shapes.map(serializeCatalogShape),
     pricing: pricing.map(serializeCatalogPricing),
   });
@@ -300,7 +309,9 @@ sessionRouter.patch("/", async (req, res) => {
     return;
   }
 
-  res.json({ session: serializeOrderSession(result.session) });
+  res.json({
+    session: await buildOrderSessionResponse(result.session),
+  });
 });
 
 sessionRouter.delete("/", async (req, res) => {

@@ -46,3 +46,6 @@ next-env.d.ts
 
 # server build
 /server/dist
+
+# local session uploads (API serves from /uploads)
+/uploads

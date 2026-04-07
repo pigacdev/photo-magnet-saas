@@ -1,5 +1,7 @@
 import { Router } from "express";
+import { SYSTEM_MAX_MAGNETS_PER_ORDER } from "../config/system";
 import { prisma } from "../lib/prisma";
+import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
 
 export const pricingRouter = Router();
 
@@ -34,7 +36,12 @@ pricingRouter.get("/:contextType/:contextId", async (req, res) => {
 pricingRouter.put("/:contextType/:contextId", async (req, res) => {
   const userId = req.user!.userId;
   const { contextType, contextId } = req.params;
-  const { mode, price, bundles } = req.body;
+  const { mode, price, bundles, maxMagnetsPerOrder: maxMagBody } = req.body as {
+    mode?: unknown;
+    price?: unknown;
+    bundles?: unknown;
+    maxMagnetsPerOrder?: unknown;
+  };
 
   const ct = contextType.toUpperCase();
   if (ct !== "EVENT" && ct !== "STOREFRONT") {
@@ -77,7 +84,40 @@ pricingRouter.put("/:contextType/:contextId", async (req, res) => {
       },
     });
 
-    res.json({ pricing: [created] });
+    if (maxMagBody !== undefined) {
+      const parsed = parseMaxMagnetsPerOrderInput(maxMagBody);
+      if (!parsed.ok) {
+        res.status(400).json({ error: parsed.error });
+        return;
+      }
+      if (ct === "EVENT") {
+        await prisma.event.update({
+          where: { id: contextId, userId, deletedAt: null },
+          data: { maxMagnetsPerOrder: parsed.value },
+        });
+      } else {
+        await prisma.storefront.update({
+          where: { id: contextId, userId, deletedAt: null },
+          data: { maxMagnetsPerOrder: parsed.value },
+        });
+      }
+    }
+
+    const ctxRow =
+      ct === "EVENT"
+        ? await prisma.event.findUnique({
+            where: { id: contextId, userId, deletedAt: null },
+            select: { maxMagnetsPerOrder: true },
+          })
+        : await prisma.storefront.findUnique({
+            where: { id: contextId, userId, deletedAt: null },
+            select: { maxMagnetsPerOrder: true },
+          });
+
+    res.json({
+      pricing: [created],
+      maxMagnetsPerOrder: ctxRow?.maxMagnetsPerOrder ?? null,
+    });
     return;
   }
 
@@ -94,6 +134,12 @@ pricingRouter.put("/:contextType/:contextId", async (req, res) => {
   for (const b of bundles) {
     if (!b.quantity || b.quantity <= 0 || !b.price || b.price <= 0) {
       res.status(400).json({ error: "Each bundle must have quantity and price greater than 0" });
+      return;
+    }
+    if (b.quantity > SYSTEM_MAX_MAGNETS_PER_ORDER) {
+      res.status(400).json({
+        error: `Bundle cannot exceed ${SYSTEM_MAX_MAGNETS_PER_ORDER} magnets`,
+      });
       return;
     }
   }

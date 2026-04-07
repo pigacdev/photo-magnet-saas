@@ -1,3 +1,25 @@
+## Dashboard layout (admin)
+
+Layout:
+
+- Top header:
+  - App name (left)
+  - User menu (right)
+
+- Left sidebar:
+  - Dashboard
+  - Storefront (if enabled)
+  - Events (if enabled)
+  - Orders
+  - (Future) Analytics
+
+Rules:
+
+- No mode switching
+- Features shown based on capabilities
+
+---
+
 ## Site map (top-level pages only)
 
 ### Customer (QR flow)
@@ -75,41 +97,34 @@
 
 ---
 
-## User roles and access levels
+## User roles
 
-### 1. Admin (primary user)
+- SaaS Owner (you)
+  - manages platform (outside dashboard)
 
-- Full access:
-  - Create events
-  - View all orders
-  - Access all images
-  - Generate print sheets
-  - Export data
+- Client (Organization admin)
+  - manages:
+    - storefront
+    - events
+    - orders
 
----
+- Staff (optional)
+  - limited access (future)
 
-### 2. Staff (optional, future-ready)
-
-- Limited access:
-  - View orders
-  - Access images
-  - Generate print sheets
-- Cannot:
-  - Delete events
-  - Manage billing
+- Customer (end-user)
+  - anonymous
+  - creates orders via QR / link
 
 ---
 
-### 3. Customer (QR user)
+## Context-based behavior
 
-- No account required
-- Can:
-  - Create order
-  - Upload + edit images
-  - Pay
-- Cannot:
-  - Access dashboard
-  - See other orders
+- Orders always belong to:
+  - event OR storefront
+
+- UI adapts automatically:
+  - Event → allows cash
+  - Storefront → Stripe only
 
 ---
 

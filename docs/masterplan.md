@@ -30,6 +30,31 @@
 
 ---
 
+## SaaS architecture (multi-tenant)
+
+- System is multi-tenant
+- Each client = Organization
+
+Organization contains:
+
+- Users (admin, staff)
+- 1 Storefront (max)
+- 0..N Events
+- Orders (from both contexts)
+
+Capabilities:
+
+- Storefront:
+  - Enabled via monthly subscription
+- Events:
+  - Enabled via event credits / licenses
+
+No mode switching:
+
+- Event and Storefront are features, not separate apps
+
+---
+
 ## Business model
 
 ### Subscription types
@@ -155,20 +180,56 @@
 
 ## Conceptual data model (in plain English)
 
+- Organization
+  - id, name
 - User
-  - email, role (admin, staff)
+  - belongs to Organization
+  - role (admin, staff)
+
+- Storefront
+  - belongs to Organization
+  - active
+
 - Event
-  - name, start/end date, allowed shapes
+  - belongs to Organization
+  - start/end date
+
 - Order
-  - order_id, customer_name, payment_status
-  - context_type: event | storefront
-  - context_id
-- Image
-  - file_url, crop_data, shape, printed_flag
+  - organizationId
+  - contextType: event | storefront
+  - contextId
+  - paymentType (cash | stripe)
+
+- SessionImage
+  - belongs to OrderSession
+  - temporary
+  - editable
+
+- OrderImage
   - belongs to Order
-- PrintBatch
-  - list of images
-  - generated_pdf
+  - immutable
+  - used for printing
+
+---
+
+## Image pipeline (critical)
+
+- SessionImage:
+  - uploaded by user
+  - editable (crop, delete, replace)
+
+- OrderImage:
+  - created at order commit
+  - snapshot of SessionImage
+  - NEVER changes
+
+Flow:
+
+SessionImage → Crop → Order created → OrderImage → Print
+
+Rule:
+
+- Crop = print (pixel-perfect, server-side)
 
 ---
 

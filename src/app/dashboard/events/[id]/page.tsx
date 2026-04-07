@@ -26,6 +26,7 @@ type Event = {
   isActive: boolean;
   isOpen: boolean;
   status: "upcoming" | "active" | "ended" | "inactive";
+  maxMagnetsPerOrder: number | null;
   shapes: AllowedShape[];
   pricing: PricingRule[];
 };
@@ -93,9 +94,16 @@ export default function EventDetailPage() {
     }
   }
 
-  async function handlePricingUpdate(pricing: PricingRule[]) {
+  function handlePricingUpdate(
+    pricing: PricingRule[],
+    meta?: { maxMagnetsPerOrder: number | null },
+  ) {
     if (!event) return;
-    setEvent({ ...event, pricing });
+    setEvent({
+      ...event,
+      pricing,
+      ...(meta && { maxMagnetsPerOrder: meta.maxMagnetsPerOrder }),
+    });
   }
 
   function formatDate(iso: string) {
@@ -215,6 +223,7 @@ export default function EventDetailPage() {
           contextType="event"
           contextId={event.id}
           initialPricing={event.pricing ?? []}
+          initialMaxMagnetsPerOrder={event.maxMagnetsPerOrder ?? null}
           onUpdate={handlePricingUpdate}
         />
       </div>

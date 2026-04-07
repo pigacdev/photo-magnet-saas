@@ -13,6 +13,10 @@ export type OrderSessionPayload = {
   quantity: number | null;
   bundleId: string | null;
   totalPrice: number | null;
+  /** min(magnet count from pricing, effective per-order cap). From GET/PATCH /api/session. */
+  maxImagesAllowed: number;
+  /** Per-item: cap for quantity input. Bundle: system cap (unused in bundle UI). */
+  maxMagnetsAllowed: number;
 };
 
 export type CatalogShape = {
@@ -36,4 +40,28 @@ export type GetSessionResponse = {
   session: OrderSessionPayload | null;
   shapes: CatalogShape[];
   pricing: CatalogPricing[];
+};
+
+export type SessionImage = {
+  id: string;
+  sessionId: string;
+  originalUrl: string;
+  width: number;
+  height: number;
+  fileSize: number;
+  status: "uploaded" | "failed";
+  position: number;
+  isLowResolution: boolean;
+  createdAt: string;
+};
+
+export type GetSessionImagesResponse = {
+  images: SessionImage[];
+  /** Present when the cookie session is missing, expired, or no longer valid. */
+  error?: "SESSION_INVALID";
+};
+
+export type PostSessionImagesResponse = {
+  images: SessionImage[];
+  errors?: { filename: string; error: string }[];
 };

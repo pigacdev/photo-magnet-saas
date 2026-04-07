@@ -1,7 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
 import { bestBundleId, shapeLabel } from "@/lib/orderSelectionUi";
@@ -45,6 +52,7 @@ function selectionComplete(s: OrderSessionPayload): boolean {
 }
 
 export default function OrderPage() {
+  const router = useRouter();
   const [session, setSession] = useState<OrderSessionPayload | null>(null);
   const [shapes, setShapes] = useState<CatalogShape[]>([]);
   const [pricing, setPricing] = useState<CatalogPricing[]>([]);
@@ -52,15 +60,16 @@ export default function OrderPage() {
   const [entryHref, setEntryHref] = useState("/");
   const [patchError, setPatchError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [acknowledged, setAcknowledged] = useState(false);
   const initRef = useRef(false);
   const sessionRef = useRef<OrderSessionPayload | null>(null);
   sessionRef.current = session;
 
-  /** Monotonic id for PATCH calls — only the latest completion may update state (out-of-order responses ignored). */
   const patchGenRef = useRef(0);
-  /** How many PATCH requests are in flight (rapid taps can overlap). */
   const patchInFlightRef = useRef(0);
+
+  const quantityInputFocusedRef = useRef(false);
+  const quantityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [quantityInputStr, setQuantityInputStr] = useState("1");
 
   const patchSession = useCallback(async (body: Record<string, unknown>) => {
     if (!sessionRef.current) return;
@@ -93,7 +102,96 @@ export default function OrderPage() {
     }
   }, []);
 
-  /** Shape change: backend clears pricing first; then we re-apply default pricing for the mode. */
+  useEffect(() => {
+    if (!session || session.pricingType !== "per_item") return;
+    if (!quantityInputFocusedRef.current) {
+      setQuantityInputStr(String(session.quantity ?? 1));
+    }
+  }, [session]);
+
+  useEffect(() => {
+    return () => {
+      if (quantityDebounceRef.current) clearTimeout(quantityDebounceRef.current);
+    };
+  }, []);
+
+  const flushQuantityInput = useCallback(
+    (raw: string) => {
+      const trimmed = raw.trim();
+      if (trimmed === "") return;
+      let n = parseInt(trimmed, 10);
+      if (Number.isNaN(n)) return;
+      const cap = sessionRef.current?.maxMagnetsAllowed ?? 1;
+      n = Math.min(cap, Math.max(1, n));
+      setQuantityInputStr(String(n));
+      const cur = sessionRef.current?.quantity ?? 1;
+      const sid = sessionRef.current?.selectedShapeId ?? shapes[0]?.id;
+      if (!sid) return;
+      if (n !== cur) {
+        void patchSession({
+          selectedShapeId: sid,
+          pricingType: "per_item",
+          quantity: n,
+        });
+      }
+    },
+    [patchSession, shapes],
+  );
+
+  const scheduleQuantityFlush = useCallback(
+    (raw: string) => {
+      if (quantityDebounceRef.current) clearTimeout(quantityDebounceRef.current);
+      quantityDebounceRef.current = setTimeout(() => {
+        quantityDebounceRef.current = null;
+        flushQuantityInput(raw);
+      }, 300);
+    },
+    [flushQuantityInput],
+  );
+
+  const handleQuantityInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (v !== "" && !/^\d+$/.test(v)) return;
+    setQuantityInputStr(v);
+    scheduleQuantityFlush(v);
+  };
+
+  const handleQuantityFocus = () => {
+    quantityInputFocusedRef.current = true;
+  };
+
+  const handleQuantityBlur = () => {
+    quantityInputFocusedRef.current = false;
+    if (quantityDebounceRef.current) {
+      clearTimeout(quantityDebounceRef.current);
+      quantityDebounceRef.current = null;
+    }
+    const trimmed = quantityInputStr.trim();
+    if (trimmed === "") {
+      setQuantityInputStr(String(sessionRef.current?.quantity ?? 1));
+      return;
+    }
+    flushQuantityInput(trimmed);
+  };
+
+  const adjustQuantity = (delta: number) => {
+    if (quantityDebounceRef.current) {
+      clearTimeout(quantityDebounceRef.current);
+      quantityDebounceRef.current = null;
+    }
+    const cur = sessionRef.current?.quantity ?? 1;
+    const cap = sessionRef.current?.maxMagnetsAllowed ?? 1;
+    const n = Math.min(cap, Math.max(1, cur + delta));
+    setQuantityInputStr(String(n));
+    const sid = sessionRef.current?.selectedShapeId ?? shapes[0]?.id;
+    if (!sid) return;
+    void patchSession({
+      selectedShapeId: sid,
+      pricingType: "per_item",
+      quantity: n,
+    });
+  };
+
   const selectShape = useCallback(
     async (s: CatalogShape) => {
       const cur = sessionRef.current;
@@ -201,6 +299,13 @@ export default function OrderPage() {
 
   const canContinue = session ? selectionComplete(session) : false;
 
+  const goToPhotos = () => {
+    if (!canContinue || saving) return;
+    const q =
+      typeof window !== "undefined" ? window.location.search : "";
+    router.push(`/order/photos${q}`);
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFA] px-4">
@@ -276,39 +381,41 @@ export default function OrderPage() {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
             Quantity
           </h2>
-          <div className="mt-3 flex items-center justify-center gap-6">
+          <div className="mt-3 flex max-w-md items-center justify-center gap-3 sm:gap-4">
             <button
               type="button"
               aria-label="Decrease quantity"
-              disabled={saving || (session.quantity ?? 1) <= 1}
-              onClick={() => {
-                const q = Math.max(1, (session.quantity ?? 1) - 1);
-                void patchSession({
-                  selectedShapeId: session.selectedShapeId ?? shapes[0]?.id,
-                  pricingType: "per_item",
-                  quantity: q,
-                });
-              }}
-              className="flex h-14 min-w-14 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-2xl font-medium text-[#111111] disabled:opacity-40"
+              disabled={
+                saving || (session.quantity ?? 1) <= 1
+              }
+              onClick={() => adjustQuantity(-1)}
+              className="flex h-14 min-w-[3.5rem] shrink-0 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-3xl font-medium leading-none text-[#111111] disabled:opacity-40"
             >
               −
             </button>
-            <span className="min-w-[3ch] text-center text-3xl font-semibold tabular-nums text-[#111111]">
-              {session.quantity ?? 1}
-            </span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={session.maxMagnetsAllowed}
+              step={1}
+              value={quantityInputStr}
+              onChange={handleQuantityInputChange}
+              onFocus={handleQuantityFocus}
+              onBlur={handleQuantityBlur}
+              disabled={saving}
+              aria-label="Quantity"
+              className="min-h-14 min-w-0 flex-1 rounded-2xl border-2 border-gray-300 bg-white px-3 py-3 text-center text-3xl font-semibold tabular-nums text-[#111111] outline-none ring-[#2563EB] focus:border-[#2563EB] focus:ring-2 disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [appearance:textfield]"
+            />
             <button
               type="button"
               aria-label="Increase quantity"
-              disabled={saving || (session.quantity ?? 1) >= 999}
-              onClick={() => {
-                const q = Math.min(999, (session.quantity ?? 1) + 1);
-                void patchSession({
-                  selectedShapeId: session.selectedShapeId ?? shapes[0]?.id,
-                  pricingType: "per_item",
-                  quantity: q,
-                });
-              }}
-              className="flex h-14 min-w-14 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-2xl font-medium text-[#111111] disabled:opacity-40"
+              disabled={
+                saving ||
+                (session.quantity ?? 1) >= session.maxMagnetsAllowed
+              }
+              onClick={() => adjustQuantity(1)}
+              className="flex h-14 min-w-[3.5rem] shrink-0 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-3xl font-medium leading-none text-[#111111] disabled:opacity-40"
             >
               +
             </button>
@@ -324,10 +431,6 @@ export default function OrderPage() {
           <div className="mt-3 flex flex-col gap-3">
             {bundles.map((b) => {
               const selected = session.bundleId === b.id;
-              const perMag =
-                b.quantity && b.quantity > 0
-                  ? Number(b.price) / b.quantity
-                  : null;
               return (
                 <button
                   key={b.id}
@@ -348,18 +451,13 @@ export default function OrderPage() {
                   }`}
                 >
                   <span className="text-base font-medium text-[#111111]">
-                    {b.quantity} magnets
+                    {b.quantity} for {formatMoney(Number(b.price), b.currency)}
                   </span>
-                  <span className="text-right">
-                    <span className="block text-lg font-semibold text-[#111111]">
-                      {formatMoney(Number(b.price), b.currency)}
-                    </span>
-                    {perMag != null && (
-                      <span className="text-xs text-[#6B7280]">
-                        {formatMoney(perMag, b.currency)} / magnet
-                      </span>
-                    )}
-                  </span>
+                  {selected ? (
+                    <span className="text-sm font-medium text-[#2563EB]">Selected</span>
+                  ) : (
+                    <span className="text-sm text-[#6B7280]">Choose</span>
+                  )}
                 </button>
               );
             })}
@@ -386,17 +484,11 @@ export default function OrderPage() {
       <button
         type="button"
         disabled={!canContinue || saving}
-        onClick={() => setAcknowledged(true)}
+        onClick={goToPhotos}
         className="w-full rounded-2xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50"
       >
         Continue
       </button>
-
-      {acknowledged && canContinue && (
-        <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-900">
-          ✓ Ready to upload photos
-        </p>
-      )}
 
       <Link
         href={entryHref}

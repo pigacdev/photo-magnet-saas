@@ -14,11 +14,20 @@ export type PricingRule = {
 
 export type PricingContextType = "event" | "storefront";
 
+export type PricingEditorOnUpdateMeta = {
+  maxMagnetsPerOrder: number | null;
+};
+
 type PricingEditorProps = {
   contextType: PricingContextType;
   contextId: string;
   initialPricing: PricingRule[];
-  onUpdate: (pricing: PricingRule[]) => void;
+  /** Business cap for per-item orders; only saved with PER_ITEM pricing. */
+  initialMaxMagnetsPerOrder?: number | null;
+  onUpdate: (
+    pricing: PricingRule[],
+    meta?: PricingEditorOnUpdateMeta,
+  ) => void;
 };
 
 function pricingApiSegment(contextType: PricingContextType): string {
@@ -29,6 +38,7 @@ export function PricingEditor({
   contextType,
   contextId,
   initialPricing,
+  initialMaxMagnetsPerOrder = null,
   onUpdate,
 }: PricingEditorProps) {
   const segment = pricingApiSegment(contextType);
@@ -51,8 +61,17 @@ export function PricingEditor({
         }))
       : [{ quantity: "", price: "" }],
   );
+  /** Persisted when switching PER_ITEM ↔ BUNDLE (hidden, not cleared). */
+  const [maxMagnetsStr, setMaxMagnetsStr] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [systemMaxMagnets, setSystemMaxMagnets] = useState<number | null>(null);
+
+  useEffect(() => {
+    api<{ maxMagnetsPerOrder: number }>("/api/system/config")
+      .then((r) => setSystemMaxMagnets(r.maxMagnetsPerOrder))
+      .catch(() => setSystemMaxMagnets(null));
+  }, []);
 
   useEffect(() => {
     const m =
@@ -69,6 +88,15 @@ export function PricingEditor({
     );
   }, [initialPricing, contextId, contextType]);
 
+  useEffect(() => {
+    setMaxMagnetsStr(
+      initialMaxMagnetsPerOrder === null ||
+        initialMaxMagnetsPerOrder === undefined
+        ? ""
+        : String(initialMaxMagnetsPerOrder),
+    );
+  }, [initialMaxMagnetsPerOrder, contextId]);
+
   function addBundle() {
     setBundles([...bundles, { quantity: "", price: "" }]);
   }
@@ -84,6 +112,28 @@ export function PricingEditor({
     setBundles(next);
   }
 
+  function validateMaxMagnetsForPerItem():
+    | { ok: true; value: number | null }
+    | { ok: false; message: string } {
+    const t = maxMagnetsStr.trim();
+    if (t === "") return { ok: true, value: null };
+    const n = parseInt(t, 10);
+    if (Number.isNaN(n) || n < 1) {
+      return {
+        ok: false,
+        message:
+          "Max magnets per order must be a positive integer or empty",
+      };
+    }
+    if (systemMaxMagnets !== null && n > systemMaxMagnets) {
+      return {
+        ok: false,
+        message: `Maximum allowed is ${systemMaxMagnets} magnets per order`,
+      };
+    }
+    return { ok: true, value: n };
+  }
+
   async function handleSave() {
     setError("");
     setSaving(true);
@@ -97,11 +147,27 @@ export function PricingEditor({
           return;
         }
 
-        const data = await api<{ pricing: PricingRule[] }>(basePath, {
+        const maxCheck = validateMaxMagnetsForPerItem();
+        if (!maxCheck.ok) {
+          setError(maxCheck.message);
+          setSaving(false);
+          return;
+        }
+
+        const data = await api<{
+          pricing: PricingRule[];
+          maxMagnetsPerOrder: number | null;
+        }>(basePath, {
           method: "PUT",
-          body: { mode: "PER_ITEM", price },
+          body: {
+            mode: "PER_ITEM",
+            price,
+            maxMagnetsPerOrder: maxCheck.value,
+          },
         });
-        onUpdate(data.pricing);
+        onUpdate(data.pricing, {
+          maxMagnetsPerOrder: data.maxMagnetsPerOrder,
+        });
       } else {
         const parsed = bundles.map((b) => ({
           quantity: parseInt(b.quantity, 10),
@@ -114,6 +180,17 @@ export function PricingEditor({
           )
         ) {
           setError("Each bundle must have quantity and price greater than 0");
+          setSaving(false);
+          return;
+        }
+
+        if (
+          systemMaxMagnets !== null &&
+          parsed.some((b) => b.quantity > systemMaxMagnets)
+        ) {
+          setError(
+            `Bundle cannot exceed ${systemMaxMagnets} magnets`,
+          );
           setSaving(false);
           return;
         }
@@ -146,6 +223,7 @@ export function PricingEditor({
   }
 
   const inputId = `perItemPrice-${contextType}-${contextId}`;
+  const maxMagnetsId = `maxMagnetsPerOrder-${contextType}-${contextId}`;
 
   return (
     <div className="mt-4 space-y-4">
@@ -174,76 +252,112 @@ export function PricingEditor({
         </button>
       </div>
 
-      {mode === "PER_ITEM" ? (
-        <div>
-          <label
-            htmlFor={inputId}
-            className="block text-sm font-medium text-[#111111]"
-          >
-            Price per magnet (EUR)
-          </label>
-          <input
-            id={inputId}
-            type="number"
-            step="0.01"
-            min="0.01"
-            value={perItemPrice}
-            onChange={(e) => setPerItemPrice(e.target.value)}
-            className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none"
-            placeholder="e.g. 4.00"
-          />
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {bundles.map((bundle, i) => (
-            <div key={i} className="flex items-end gap-3">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-[#111111]">
-                  Quantity
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={bundle.quantity}
-                  onChange={(e) => updateBundle(i, "quantity", e.target.value)}
-                  className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none"
-                  placeholder="e.g. 3"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-[#111111]">
-                  Price (EUR)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={bundle.price}
-                  onChange={(e) => updateBundle(i, "price", e.target.value)}
-                  className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none"
-                  placeholder="e.g. 10.00"
-                />
-              </div>
-              {bundles.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeBundle(i)}
-                  className="mb-0.5 rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
-                >
-                  Remove
-                </button>
-              )}
+      <div className="min-h-[260px]">
+        {mode === "PER_ITEM" ? (
+          <div className="per-item-section space-y-4">
+            <div>
+              <label
+                htmlFor={inputId}
+                className="block text-sm font-medium text-[#111111]"
+              >
+                Price per magnet (EUR)
+              </label>
+              <input
+                id={inputId}
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={perItemPrice}
+                onChange={(e) => setPerItemPrice(e.target.value)}
+                className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none"
+                placeholder="e.g. 4.00"
+              />
             </div>
-          ))}
-          <button
-            type="button"
-            onClick={addBundle}
-            className="text-sm font-medium text-[#2563EB] hover:text-[#1d4ed8]"
-          >
-            + Add bundle option
-          </button>
-        </div>
-      )}
+
+            <div>
+              <label
+                htmlFor={maxMagnetsId}
+                className="block text-sm font-medium text-[#111111]"
+              >
+                Max magnets per order
+              </label>
+              <p className="mt-1 text-xs text-[#6B7280]">
+                Optional. Limits how many magnets a customer can order.
+                {systemMaxMagnets !== null && (
+                  <> System cap is {systemMaxMagnets}.</>
+                )}
+              </p>
+              <input
+                id={maxMagnetsId}
+                type="number"
+                min={1}
+                max={systemMaxMagnets ?? undefined}
+                step={1}
+                value={maxMagnetsStr}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v !== "" && !/^\d*$/.test(v)) return;
+                  setMaxMagnetsStr(v);
+                }}
+                disabled={systemMaxMagnets === null}
+                className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none disabled:opacity-50"
+                placeholder="No limit (system cap still applies)"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="bundle-section space-y-3">
+            {bundles.map((bundle, i) => (
+              <div key={i} className="flex items-end gap-3">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-[#111111]">
+                    Quantity
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={systemMaxMagnets ?? undefined}
+                    value={bundle.quantity}
+                    onChange={(e) => updateBundle(i, "quantity", e.target.value)}
+                    className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none"
+                    placeholder="e.g. 3"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-[#111111]">
+                    Price (EUR)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={bundle.price}
+                    onChange={(e) => updateBundle(i, "price", e.target.value)}
+                    className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none"
+                    placeholder="e.g. 10.00"
+                  />
+                </div>
+                {bundles.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeBundle(i)}
+                    className="mb-0.5 rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addBundle}
+              className="text-sm font-medium text-[#2563EB] hover:text-[#1d4ed8]"
+            >
+              + Add bundle option
+            </button>
+          </div>
+        )}
+      </div>
 
       {error && <p className="text-sm text-[#DC2626]">{error}</p>}
 

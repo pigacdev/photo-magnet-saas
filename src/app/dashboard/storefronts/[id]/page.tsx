@@ -24,6 +24,7 @@ type Storefront = {
   isActive: boolean;
   isOpen: boolean;
   createdAt: string;
+  maxMagnetsPerOrder: number | null;
   shapes: AllowedShape[];
   pricing: PricingRule[];
 };
@@ -87,9 +88,16 @@ export default function StorefrontDetailPage() {
     }
   }
 
-  async function handlePricingUpdate(pricing: PricingRule[]) {
+  function handlePricingUpdate(
+    pricing: PricingRule[],
+    meta?: { maxMagnetsPerOrder: number | null },
+  ) {
     if (!storefront) return;
-    setStorefront({ ...storefront, pricing });
+    setStorefront({
+      ...storefront,
+      pricing,
+      ...(meta && { maxMagnetsPerOrder: meta.maxMagnetsPerOrder }),
+    });
   }
 
   if (loading) {
@@ -254,6 +262,7 @@ export default function StorefrontDetailPage() {
           contextType="storefront"
           contextId={storefront.id}
           initialPricing={storefront.pricing ?? []}
+          initialMaxMagnetsPerOrder={storefront.maxMagnetsPerOrder ?? null}
           onUpdate={handlePricingUpdate}
         />
       </div>
