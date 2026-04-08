@@ -10,6 +10,10 @@ import { prisma } from "../lib/prisma";
 import { sessionConfig } from "../config/session";
 import { clearSessionCookie } from "../lib/orderSessionApi";
 import { SESSION_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
+import {
+  copySessionImageToOrder,
+  orderImageStorageKindFromSessionUrl,
+} from "../lib/orderImageStorage";
 
 export const ordersRouter = Router();
 
@@ -151,6 +155,11 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
 
   const totalPrice = session.totalPrice!;
 
+  const orderImageStorageKind =
+    sessionImages.length > 0
+      ? orderImageStorageKindFromSessionUrl(sessionImages[0].originalUrl)
+      : "local";
+
   try {
     const result = await prisma.$transaction(async (tx) => {
       const sessionRowId = String(session.id);
@@ -195,11 +204,18 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
         },
       });
 
-      await tx.orderImage.createMany({
-        data: sessionImages.map((img) => ({
-          id: randomUUID(),
+      const orderImageRows = [];
+      for (const img of sessionImages) {
+        const orderImageId = randomUUID();
+        const copiedUrl = await copySessionImageToOrder({
+          sessionImageUrl: img.originalUrl,
           orderId,
-          originalUrl: img.originalUrl,
+          imageId: orderImageId,
+        });
+        orderImageRows.push({
+          id: orderImageId,
+          orderId,
+          originalUrl: copiedUrl,
           croppedUrl: null,
           cropX: img.cropX!,
           cropY: img.cropY!,
@@ -209,7 +225,11 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
           width: img.width,
           height: img.height,
           position: img.position,
-        })),
+        });
+      }
+
+      await tx.orderImage.createMany({
+        data: orderImageRows,
       });
 
       await tx.orderSession.update({
@@ -241,6 +261,7 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
         orderId: result.orderId,
         imageCount: result.imageCount,
         status: result.status,
+        storage: orderImageStorageKind,
       });
     }
 

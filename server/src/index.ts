@@ -32,6 +32,7 @@ app.use(cookieParser());
 
 const uploadsDir = path.join(process.cwd(), "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
+fs.mkdirSync(path.join(uploadsDir, "order-images"), { recursive: true });
 app.use("/uploads", express.static(uploadsDir));
 
 // --- Public routes ---

@@ -55,7 +55,7 @@ export async function readImageDimensions(
   }
 }
 
-function getS3Client(): S3Client {
+export function getS3Client(): S3Client {
   return new S3Client({
     region: s3Config.region,
     endpoint: s3Config.endpoint,
@@ -70,7 +70,7 @@ function getS3Client(): S3Client {
   });
 }
 
-function buildS3PublicUrl(key: string): string {
+export function buildS3PublicUrl(key: string): string {
   const { bucket, region, endpoint } = s3Config;
   if (endpoint) {
     const base = endpoint.replace(/\/$/, "");
@@ -79,7 +79,7 @@ function buildS3PublicUrl(key: string): string {
   return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
 }
 
-function extractS3KeyFromPublicUrl(originalUrl: string): string | null {
+export function extractS3KeyFromPublicUrl(originalUrl: string): string | null {
   const { bucket, region, endpoint } = s3Config;
   if (!bucket) return null;
   try {
