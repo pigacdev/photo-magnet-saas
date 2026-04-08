@@ -244,6 +244,12 @@ Always:
 
 # 4. PDF print generation (CORE SYSTEM)
 
+## Magnet image sequence (position)
+
+- Each magnet in a session or committed order has integer **`position`** (display / print order: magnet 1 → 2 → 3).
+- **Server:** any query that returns multiple `SessionImage` or `OrderImage` rows must use **`ORDER BY position ASC, createdAt ASC`** (tie-break). Shared constants: `SESSION_IMAGE_LIST_ORDER_BY` and `ORDER_IMAGE_LIST_ORDER_BY` in `server/src/lib/magnetImageOrderBy.ts`.
+- **Client:** when re-sorting API payloads, use the same rule (`src/lib/magnetImageSort.ts`).
+
 ## 4.1 Sheet basics
 
 - Format: A4 (default)

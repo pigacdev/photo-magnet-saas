@@ -27,6 +27,7 @@ import {
 import { MAX_MULTIPART_FILES_PER_REQUEST } from "../../../src/lib/sessionImageLimits";
 import { getMinRequiredPx } from "../../../src/lib/minRequiredPxForShape";
 import { getMaxImagesAllowed } from "../lib/sessionImageMaxFromSession";
+import { SESSION_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
 
 export const sessionImagesRouter = Router();
 
@@ -259,7 +260,7 @@ sessionImagesRouter.get("/", async (req, res) => {
 
   const images = await prisma.sessionImage.findMany({
     where: { sessionId: session.id },
-    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    orderBy: SESSION_IMAGE_LIST_ORDER_BY,
   });
 
   await prisma.orderSession.update({

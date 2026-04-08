@@ -13,6 +13,7 @@ import { pricingRouter } from "./routes/pricing";
 import { publicRouter } from "./routes/public";
 import { sessionRouter } from "./routes/session";
 import { systemRouter } from "./routes/system";
+import { ordersRouter } from "./routes/orders";
 import { authenticate, requireRole } from "./middleware/auth";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -39,15 +40,13 @@ app.use("/api/auth", authRouter);
 app.use("/api/public", publicRouter);
 app.use("/api/system", systemRouter);
 app.use("/api/session", sessionRouter);
+app.use("/api/orders", ordersRouter);
 
 // --- Protected routes ---
 app.use("/api/admin", authenticate, requireRole("ADMIN", "STAFF"));
 app.use("/api/events", authenticate, requireRole("ADMIN", "STAFF"), eventsRouter);
 app.use("/api/storefronts", authenticate, requireRole("ADMIN", "STAFF"), storefrontsRouter);
 app.use("/api/pricing", authenticate, requireRole("ADMIN", "STAFF"), pricingRouter);
-app.use("/api/orders", authenticate, requireRole("ADMIN", "STAFF"));
-app.use("/api/images", authenticate, requireRole("ADMIN", "STAFF"));
-app.use("/api/print", authenticate, requireRole("ADMIN", "STAFF"));
 
 app.use(errorHandler);
 

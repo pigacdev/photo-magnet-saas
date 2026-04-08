@@ -15,6 +15,7 @@ import {
   FixedCropCanvas,
   type SessionImageCropPayload,
 } from "@/components/order/FixedCropCanvas";
+import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
 import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
 import type {
   CatalogShape,
@@ -106,7 +107,7 @@ function OrderCropPageInner() {
           return;
         }
 
-        const sorted = [...imagesRes.images].sort((a, b) => a.position - b.position);
+        const sorted = sortMagnetImagesByPosition(imagesRes.images);
         setImages(sorted);
         setShapes(sessionRes.shapes);
         setSelectedShapeId(sessionRes.session.selectedShapeId);

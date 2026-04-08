@@ -73,3 +73,9 @@ export type PostSessionImagesResponse = {
   images: SessionImage[];
   errors?: { filename: string; error: string }[];
 };
+
+/** POST /api/orders — Phase 5F order commit. */
+export type PostOrderCommitResponse = {
+  orderId: string;
+  status: "PENDING_CASH" | "PENDING_PAYMENT";
+};

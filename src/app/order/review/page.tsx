@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { CroppedShapePreview } from "@/components/order/CroppedShapePreview";
+import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
 import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
 import { getIsLowResolution } from "@/lib/sessionImageLowResolution";
 import type {
@@ -20,6 +21,7 @@ import type {
   GetSessionImagesResponse,
   GetSessionResponse,
   OrderSessionPayload,
+  PostOrderCommitResponse,
   SessionImage,
 } from "@/lib/orderSessionTypes";
 
@@ -54,6 +56,7 @@ export default function OrderReviewPage() {
   const [actionError, setActionError] = useState("");
   /** Set after a successful DELETE so empty `images` redirects only post-delete, not during initial load. */
   const [hasDeleted, setHasDeleted] = useState(false);
+  const [committing, setCommitting] = useState(false);
 
   const reviewItemRefs = useRef<Map<string, HTMLLIElement | null>>(new Map());
 
@@ -91,7 +94,7 @@ export default function OrderReviewPage() {
           return;
         }
 
-        const sorted = [...imagesRes.images].sort((a, b) => a.position - b.position);
+        const sorted = sortMagnetImagesByPosition(imagesRes.images);
         if (sorted.length === 0) {
           router.replace(photosHref);
           return;
@@ -203,10 +206,27 @@ export default function OrderReviewPage() {
     }
   };
 
-  const onProceed = () => {
-    if (!canProceed) return;
+  const onProceed = async () => {
+    if (!canProceed || committing) return;
+    setActionError("");
+    setCommitting(true);
     const q = linkSearch || window.location.search;
-    router.push(`/order/payment${q}`);
+    try {
+      const result = await api<PostOrderCommitResponse>("/api/orders", {
+        method: "POST",
+      });
+      if (result.status === "PENDING_CASH") {
+        router.push(`/order/confirmation${q}`);
+        return;
+      }
+      router.push(`/order/payment${q}`);
+    } catch (e) {
+      setActionError(
+        e instanceof Error ? e.message : "Could not place order. Try again.",
+      );
+    } finally {
+      setCommitting(false);
+    }
   };
 
   if (loading) {
@@ -335,11 +355,11 @@ export default function OrderReviewPage() {
           </p>
           <button
             type="button"
-            disabled={!canProceed}
-            onClick={onProceed}
+            disabled={!canProceed || committing}
+            onClick={() => void onProceed()}
             className="w-full rounded-2xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Proceed to payment
+            {committing ? "Placing order…" : "Proceed to payment"}
           </button>
         </div>
       </div>

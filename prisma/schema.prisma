@@ -44,6 +44,12 @@ enum SessionImageStatus {
   FAILED
 }
 
+/// Customer order after session commit (event = cash pending, storefront = pay online).
+enum OrderCommitStatus {
+  PENDING_CASH
+  PENDING_PAYMENT
+}
+
 enum ShapeType {
   SQUARE
   CIRCLE
@@ -67,7 +73,7 @@ model User {
 
   events       Event[]
   storefronts  Storefront[]
-  printBatches PrintBatch[]
+  orders       Order[]
 }
 
 model Event {
@@ -147,6 +153,9 @@ model OrderSession {
   /// Pricing row id when pricingType is BUNDLE.
   bundleId        String?
   totalPrice      Decimal?        @db.Decimal(10, 2)
+  /// Set when session is committed to an Order (idempotency + link).
+  orderId         String?         @unique
+  order           Order?          @relation(fields: [orderId], references: [id])
 
   sessionImages SessionImage[]
 
@@ -165,6 +174,7 @@ model SessionImage {
   status      SessionImageStatus @default(UPLOADED)
   createdAt   DateTime           @default(now())
   /// Order within the session (crop / print). Assigned on upload: lastPosition + 1 per file.
+  /// List queries: always ORDER BY position ASC, createdAt ASC (see server magnetImageOrderBy.ts).
   position    Int
   /// True when width or height is below shape-aware minimum (see getMinRequiredPx); non-blocking. Crop may refine later.
   isLowResolution Boolean @default(false)
@@ -189,96 +199,58 @@ model SessionImage {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Orders (polymorphic: belongs to Event OR Storefront)
+// 3. Orders (session commit — immutable snapshot; seller org via User)
 // ---------------------------------------------------------------------------
 
 model Order {
-  id            String        @id @default(uuid())
-  orderNumber   String        @unique
-  customerName  String
-  paymentStatus PaymentStatus @default(PENDING)
-  totalPrice    Decimal       @db.Decimal(10, 2)
-  contextType   ContextType
-  contextId     String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  deletedAt     DateTime?
+  id             String            @id @default(uuid())
+  organizationId String
+  contextType    ContextType
+  contextId      String
+  status         OrderCommitStatus
+  totalPrice     Decimal           @db.Decimal(10, 2)
+  currency       String            @default("EUR")
+  /// Snapshot from OrderSession at commit (immutable); never re-derived from live Pricing rows.
+  pricingType    PricingType
+  quantity       Int?
+  bundleId       String?
+  createdAt      DateTime          @default(now())
 
-  images Image[]
+  organization User        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  orderImages  OrderImage[]
+  /// At most one session may reference this order (commit link).
+  committedFromSession OrderSession?
 
+  @@index([organizationId])
   @@index([contextType, contextId])
-  @@index([paymentStatus])
+  @@index([status])
 }
 
-// ---------------------------------------------------------------------------
-// 4. Images (CRITICAL TABLE — carries print-production data)
-// ---------------------------------------------------------------------------
+/// Immutable print snapshot copied from SessionImage at commit time.
+model OrderImage {
+  id          String   @id @default(uuid())
+  orderId     String
+  originalUrl String
+  croppedUrl  String?
+  cropX       Int
+  cropY       Int
+  cropWidth   Int
+  cropHeight  Int
+  rotation    Float    @default(0)
+  width       Int
+  height      Int
+  /// Magnet sequence for print / exports; list queries: ORDER BY position ASC, createdAt ASC.
+  position    Int
+  createdAt   DateTime @default(now())
 
-model Image {
-  id      String @id @default(uuid())
-  orderId String
-
-  // File data
-  originalImageUrl    String
-  originalImageWidth  Int
-  originalImageHeight Int
-
-  // Crop data (CRITICAL — normalized values)
-  cropX     Float
-  cropY     Float
-  zoomLevel Float
-  rotation  Float @default(0)
-
-  // Output config
-  shapeType     ShapeType
-  outputWidthPx Int
-  outputHeightPx Int
-
-  // Status
-  printedFlag Boolean @default(false)
-
-  // Metadata
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  order           Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  printBatchItems PrintBatchItem[]
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
-  @@index([printedFlag])
+  @@index([orderId, position])
 }
 
 // ---------------------------------------------------------------------------
-// 5. Print system
-// ---------------------------------------------------------------------------
-
-model PrintBatch {
-  id        String   @id @default(uuid())
-  userId    String
-  pdfUrl    String
-  createdAt DateTime @default(now())
-
-  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items PrintBatchItem[]
-
-  @@index([userId])
-}
-
-model PrintBatchItem {
-  id           String @id @default(uuid())
-  printBatchId String
-  imageId      String
-
-  printBatch PrintBatch @relation(fields: [printBatchId], references: [id], onDelete: Cascade)
-  image      Image      @relation(fields: [imageId], references: [id], onDelete: Cascade)
-
-  @@index([printBatchId])
-  @@index([imageId])
-}
-
-// ---------------------------------------------------------------------------
-// 6. Allowed shapes (polymorphic: belongs to Event OR Storefront)
+// 4. Allowed shapes (polymorphic: belongs to Event OR Storefront)
 // ---------------------------------------------------------------------------
 
 model AllowedShape {
