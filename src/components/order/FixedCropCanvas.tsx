@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { catalogShapeAspectRatio } from "@/lib/catalogShapeAspectRatio";
 import {
   MAX_CROP_ZOOM_FACTOR,
   clampPan,
@@ -32,15 +33,6 @@ type Props = {
   shape: CatalogShape;
   onChange: (payload: SessionImageCropPayload) => void;
 };
-
-function shapeAspectRatio(shape: CatalogShape): number {
-  const t = shape.shapeType.toUpperCase();
-  if (t === "RECTANGLE") {
-    const ar = shape.widthMm / shape.heightMm;
-    return ar > 0 ? ar : 1;
-  }
-  return 1;
-}
 
 function isCircleShape(shape: CatalogShape): boolean {
   return shape.shapeType.toUpperCase() === "CIRCLE";
@@ -218,7 +210,7 @@ export function FixedCropCanvas({ image, shape, onChange }: Props) {
   const imgLeft = fw / 2 + panClamped.tx - (ow * k) / 2;
   const imgTop = fh / 2 + panClamped.ty - (oh * k) / 2;
 
-  const ar = shapeAspectRatio(shape);
+  const ar = catalogShapeAspectRatio(shape);
   const circle = isCircleShape(shape);
 
   const zoomOut = useCallback(() => {

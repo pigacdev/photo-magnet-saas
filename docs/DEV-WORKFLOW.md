@@ -21,3 +21,14 @@
 - PDF generation
 
 → Must be double-checked before implementation
+
+### Session image URLs & canvas (review / crop previews)
+
+Review uses a **canvas** to draw the stored crop (`CroppedShapePreview`). Behavior by URL type:
+
+| URL | `crossOrigin` | Requirement |
+|-----|---------------|-------------|
+| Same-origin path (e.g. local `/uploads/...`) | not set | Works without extra headers. |
+| Absolute `https://` (e.g. public S3 object URL) | `anonymous` | Storage must respond with **CORS** so the image is a CORS-enabled resource: include `Access-Control-Allow-Origin` for your app origin (or `*` for public reads). If missing, the image load can fail or the canvas stays security-tainted. |
+
+Configure the bucket / CDN **before** relying on remote session image URLs in production.

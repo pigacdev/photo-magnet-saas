@@ -69,6 +69,12 @@ export default function OrderCropPage() {
         setImages(sorted);
         setShapes(sessionRes.shapes);
         setSelectedShapeId(sessionRes.session.selectedShapeId);
+
+        const imageId = params.get("imageId");
+        if (imageId) {
+          const idx = sorted.findIndex((i) => i.id === imageId);
+          if (idx >= 0) setIndex(idx);
+        }
       } catch {
         if (!cancelled) window.location.replace(fallback);
       } finally {
@@ -158,7 +164,7 @@ export default function OrderCropPage() {
         await persistCrop(current, payload);
       }
       if (index + 1 >= total) {
-        router.push(`/order${q}`);
+        router.push(`/order/review${q}`);
         return;
       }
       lastPayloadRef.current = null;
