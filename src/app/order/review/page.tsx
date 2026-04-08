@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -47,6 +54,8 @@ export default function OrderReviewPage() {
   const [actionError, setActionError] = useState("");
   /** Set after a successful DELETE so empty `images` redirects only post-delete, not during initial load. */
   const [hasDeleted, setHasDeleted] = useState(false);
+
+  const reviewItemRefs = useRef<Map<string, HTMLLIElement | null>>(new Map());
 
   useEffect(() => {
     setLinkSearch(window.location.search);
@@ -120,6 +129,29 @@ export default function OrderReviewPage() {
       linkSearch || (typeof window !== "undefined" ? window.location.search : "");
     router.replace(`/order/photos${q}`);
   }, [hasDeleted, images.length, loading, linkSearch, router, session]);
+
+  /** After returning from crop (edit mode), scroll to the edited row and drop `scrollTo` from the URL. */
+  useLayoutEffect(() => {
+    if (loading || images.length === 0) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const scrollToId = params.get("scrollTo");
+    if (!scrollToId) return;
+
+    const runScroll = () => {
+      reviewItemRefs.current
+        .get(scrollToId)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    };
+    runScroll();
+    requestAnimationFrame(runScroll);
+
+    params.delete("scrollTo");
+    const next = params.toString();
+    const path = `${window.location.pathname}${next ? `?${next}` : ""}`;
+    router.replace(path);
+    setLinkSearch(next ? `?${next}` : "");
+  }, [loading, images.length, router]);
 
   const selectedShape = useMemo(() => {
     if (!session?.selectedShapeId) return null;
@@ -237,7 +269,14 @@ export default function OrderReviewPage() {
           {images.map((img, i) => {
             const low = getIsLowResolution(img, selectedShape);
             return (
-            <li key={img.id} className="flex flex-col gap-3">
+            <li
+              key={img.id}
+              ref={(el) => {
+                if (el) reviewItemRefs.current.set(img.id, el);
+                else reviewItemRefs.current.delete(img.id);
+              }}
+              className="flex flex-col gap-3 scroll-mt-4"
+            >
               <Link
                 href={cropEditHref(img.id)}
                 aria-label={`Edit magnet ${i + 1} — adjust crop`}

@@ -1,8 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import {
   FixedCropCanvas,
@@ -16,8 +23,40 @@ import type {
   SessionImage,
 } from "@/lib/orderSessionTypes";
 
-export default function OrderCropPage() {
+/** Minimum time the primary button stays on "Saving…" before leaving the screen (trust / double-tap guard). */
+const MIN_SAVE_FEEDBACK_MS = 260;
+
+async function ensureMinSaveFeedbackMs(startedAtMs: number): Promise<void> {
+  const elapsed = Date.now() - startedAtMs;
+  const remaining = MIN_SAVE_FEEDBACK_MS - elapsed;
+  if (remaining > 0) {
+    await new Promise<void>((resolve) => setTimeout(resolve, remaining));
+  }
+}
+
+/** True if save would be a no-op (same crop + transform). */
+function cropPayloadsEqual(
+  a: SessionImageCropPayload,
+  b: SessionImageCropPayload,
+): boolean {
+  return (
+    a.cropX === b.cropX &&
+    a.cropY === b.cropY &&
+    a.cropWidth === b.cropWidth &&
+    a.cropHeight === b.cropHeight &&
+    Math.abs(a.cropScale - b.cropScale) < 1e-5 &&
+    Math.abs(a.cropTranslateX - b.cropTranslateX) < 0.01 &&
+    Math.abs(a.cropTranslateY - b.cropTranslateY) < 0.01 &&
+    Math.abs(a.cropRotation - b.cropRotation) < 1e-5
+  );
+}
+
+function OrderCropPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const imageIdFromQuery = searchParams.get("imageId");
+  const isEditMode = Boolean(imageIdFromQuery);
+
   const [loading, setLoading] = useState(true);
   const [images, setImages] = useState<SessionImage[]>([]);
   const [shapes, setShapes] = useState<CatalogShape[]>([]);
@@ -28,6 +67,8 @@ export default function OrderCropPage() {
   const [saveError, setSaveError] = useState("");
 
   const lastPayloadRef = useRef<SessionImageCropPayload | null>(null);
+  /** First stable canvas payload in edit mode — skip redundant PATCH if unchanged at save. */
+  const editBaselineRef = useRef<SessionImageCropPayload | null>(null);
 
   useEffect(() => {
     setOrderBackHref(`/order/photos${window.location.search}`);
@@ -97,6 +138,10 @@ export default function OrderCropPage() {
   const q =
     typeof window !== "undefined" ? window.location.search : "";
 
+  useEffect(() => {
+    if (isEditMode) editBaselineRef.current = null;
+  }, [current?.id, isEditMode]);
+
   const persistCrop = useCallback(
     async (img: SessionImage, payload: SessionImageCropPayload) => {
       setSaveError("");
@@ -126,10 +171,13 @@ export default function OrderCropPage() {
   const onCropChange = useCallback(
     (payload: SessionImageCropPayload) => {
       if (!current) return;
+      if (isEditMode && editBaselineRef.current === null) {
+        editBaselineRef.current = { ...payload };
+      }
       lastPayloadRef.current = payload;
       void persistCrop(current, payload);
     },
-    [current, persistCrop],
+    [current, isEditMode, persistCrop],
   );
 
   function fallbackPayloadFromRow(img: SessionImage): SessionImageCropPayload | null {
@@ -155,15 +203,40 @@ export default function OrderCropPage() {
 
   const goNext = async () => {
     if (!current || !selectedShape) return;
+    if (saving) return;
+    const saveStartedAt = Date.now();
     setSaving(true);
     setSaveError("");
     try {
       const payload =
         lastPayloadRef.current ?? fallbackPayloadFromRow(current);
+
+      if (isEditMode) {
+        const baseline =
+          editBaselineRef.current ?? fallbackPayloadFromRow(current);
+        const dirty =
+          !payload ||
+          !baseline ||
+          !cropPayloadsEqual(payload, baseline);
+        if (dirty && payload) {
+          await persistCrop(current, payload);
+        }
+        await ensureMinSaveFeedbackMs(saveStartedAt);
+        const p = new URLSearchParams(q.replace(/^\?/, ""));
+        p.set("scrollTo", current.id);
+        const reviewQ = p.toString();
+        router.push(
+          `/order/review${reviewQ ? `?${reviewQ}` : ""}`,
+        );
+        return;
+      }
+
       if (payload) {
         await persistCrop(current, payload);
       }
+
       if (index + 1 >= total) {
+        await ensureMinSaveFeedbackMs(saveStartedAt);
         router.push(`/order/review${q}`);
         return;
       }
@@ -181,6 +254,21 @@ export default function OrderCropPage() {
     lastPayloadRef.current = null;
     setIndex((i) => i - 1);
   };
+
+  const primaryLabel = (() => {
+    if (saving) return "Saving…";
+    if (isEditMode) return "Save editing";
+    if (index + 1 < total) return "Next";
+    return "Continue";
+  })();
+
+  const reviewBackHref = useMemo(() => {
+    const p = new URLSearchParams(q.replace(/^\?/, ""));
+    p.delete("imageId");
+    p.delete("from");
+    const s = p.toString();
+    return `/order/review${s ? `?${s}` : ""}`;
+  }, [q]);
 
   if (loading) {
     return (
@@ -246,11 +334,11 @@ export default function OrderCropPage() {
           onClick={() => void goNext()}
           className="w-full rounded-2xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
         >
-          {saving ? "Saving…" : index + 1 < total ? "Next" : "Continue"}
+          {primaryLabel}
         </button>
 
         <div className="flex gap-3">
-          {index > 0 && (
+          {index > 0 && !isEditMode && (
             <button
               type="button"
               disabled={saving}
@@ -263,6 +351,15 @@ export default function OrderCropPage() {
         </div>
       </div>
 
+      {isEditMode && (
+        <Link
+          href={reviewBackHref}
+          className="text-center text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
+        >
+          Back to review
+        </Link>
+      )}
+
       <Link
         href={orderBackHref}
         className="text-center text-sm text-[#2563EB] underline-offset-4 hover:underline"
@@ -270,5 +367,19 @@ export default function OrderCropPage() {
         Back to photos
       </Link>
     </div>
+  );
+}
+
+export default function OrderCropPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFA] px-4">
+          <p className="text-sm text-[#6B7280]">Loading…</p>
+        </div>
+      }
+    >
+      <OrderCropPageInner />
+    </Suspense>
   );
 }
