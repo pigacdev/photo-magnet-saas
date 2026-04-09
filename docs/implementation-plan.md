@@ -1,24 +1,5 @@
 ## Step-by-step build sequence (tiny, mindless tasks)
 
-### Phase X — SaaS foundation (multi-tenant)
-
-- Create Organization model
-- Link User → Organization
-- Link:
-  - Event → Organization
-  - Storefront → Organization
-  - Order → Organization
-
-- Add capabilities:
-  - hasStorefront (boolean)
-  - eventCredits (int)
-
-- Enforce:
-  - 1 storefront per organization
-  - events require available credits
-
----
-
 ### Phase 0 — Setup (Day 1–2)
 
 - Create repo
@@ -213,63 +194,20 @@ IMPORTANT RULE:
 
 ---
 
-### Phase 6 — Orders dashboard (Day 17–20)
+### Phase 6 — Print rendering (CORE)
 
-### Table view
-
-- Columns:
-    - Order ID
-    - Customer name
-    - Payment status
-    - Created time
-
-### Features
-
-- Pagination
-- Search:
-    - by name
-    - by order ID
-    - by status
-
-### Order detail page
-
-- Show:
-    - Images
-    - Payment info
+- Generate final cropped images using Sharp
+- Trigger after payment webhook
+- Store rendered images
+- Ensure pixel-perfect match with crop preview
 
 ✅ Checkpoint:
 
-- Seller can find any order in <5 seconds
+- Seller can access final print-ready images
 
 ---
 
-### Phase 7 — Image management (Day 21–24)
-
-### Global image page
-
-- Grid of all images
-- Each image shows:
-    - Order ID
-    - Printed / Not printed
-
-### Filters
-
-- Show:
-    - Only not printed
-    - Only printed
-
-### Data model update
-
-- Add:
-    - printed_flag (true/false)
-
-✅ Checkpoint:
-
-- Seller sees all images clearly grouped
-
----
-
-### Phase 8 — Print sheet generator (CORE FEATURE) (Day 25–30)
+### Phase 7 — Print sheet generator (CORE FEATURE)
 
 ### Selection
 
@@ -307,7 +245,77 @@ IMPORTANT RULE:
 
 ---
 
-### Phase 9 — Data export & cleanup (Day 31–33)
+### Phase 8 — Orders dashboard
+
+### Table view
+
+- Columns:
+    - Order ID
+    - Customer name
+    - Payment status
+    - Created time
+
+### Features
+
+- Pagination
+- Search:
+    - by name
+    - by order ID
+    - by status
+
+### Order detail page
+
+- Show:
+    - Images
+    - Payment info
+
+✅ Checkpoint:
+
+- Seller can find any order in <5 seconds
+
+---
+
+### Phase 9 — Image management
+
+### Global image page
+
+- Grid of all images
+- Each image shows:
+    - Order ID
+    - Printed / Not printed
+
+### Filters
+
+- Show:
+    - Only not printed
+    - Only printed
+
+### Data model update
+
+- Add:
+    - printed_flag (true/false)
+
+✅ Checkpoint:
+
+- Seller sees all images clearly grouped
+
+---
+
+### Phase 10 — SaaS multi-tenant system
+
+- Organizations (tenants)
+- 1 storefront per organization
+- Event-based licensing
+- Subscription billing (Stripe)
+- Role-based access
+
+✅ Checkpoint:
+
+- Users only see data within their organization
+
+---
+
+### Phase 11 — Data export & cleanup
 
 ### Export
 
@@ -334,10 +342,13 @@ IMPORTANT RULE:
 
 ## Timeline with checkpoints (simple view)
 
+**Priority order: PRINT FIRST → DASHBOARD SECOND → SAAS LAST**
+
 - Week 1 → Auth + Events
 - Week 2 → Customer ordering flow
-- Week 3 → Dashboard + images
-- Week 4 → Print system + polish
+- Week 3 → Print pipeline (rendering + sheet generator)
+- Week 4 → Dashboard + image management
+- Week 5 → SaaS multi-tenant system (+ export & cleanup)
 
 ---
 
