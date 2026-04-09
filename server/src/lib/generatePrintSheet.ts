@@ -1,6 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { PDFDocument, rgb, type PDFPage } from "pdf-lib";
+import {
+  PDFDocument,
+  rgb,
+  StandardFonts,
+  type PDFPage,
+} from "pdf-lib";
 import { prisma } from "./prisma";
 
 export type PrintSheetImageInput = {
@@ -46,6 +51,41 @@ async function loadMagnetMmForOrder(
 function resolveUploadFilePath(publicUrl: string): string {
   const rel = publicUrl.replace(/^\/+/, "");
   return path.join(process.cwd(), rel);
+}
+
+/** Stroked octagonal cut guide (corner cuts); matches square `size * 0.2` when width === height. */
+function drawOctagon(
+  page: PDFPage,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  const cut = Math.min(width, height) * 0.2;
+  const c = Math.min(cut, width / 2, height / 2);
+
+  const points: [number, number][] = [
+    [x + c, y],
+    [x + width - c, y],
+    [x + width, y + c],
+    [x + width, y + height - c],
+    [x + width - c, y + height],
+    [x + c, y + height],
+    [x, y + height - c],
+    [x, y + c],
+  ];
+
+  const stroke = rgb(0.5, 0.5, 0.5);
+  for (let i = 0; i < 8; i++) {
+    const [x0, y0] = points[i]!;
+    const [x1, y1] = points[(i + 1) % 8]!;
+    page.drawLine({
+      start: { x: x0, y: y0 },
+      end: { x: x1, y: y1 },
+      thickness: 1,
+      color: stroke,
+    });
+  }
 }
 
 /**
@@ -101,6 +141,8 @@ export async function generatePrintSheet(
 
     const slotsPerPage = cols * rows;
 
+    const labelFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
     let page!: PDFPage;
     let globalIndex = 0;
 
@@ -133,20 +175,21 @@ export async function generatePrintSheet(
         pdfImage = await pdfDoc.embedJpg(imageBytes);
       }
 
-      page.drawRectangle({
-        x,
-        y,
-        width: cellWidth,
-        height: cellHeight,
-        borderWidth: 0.75,
-        borderColor: rgb(0.7, 0.7, 0.7),
-      });
+      drawOctagon(page, x, y, cellWidth, cellHeight);
 
       page.drawImage(pdfImage, {
         x: x + offsetX,
         y: y + offsetY,
         width: magnetWidth,
         height: magnetHeight,
+      });
+
+      page.drawText("magnetoo", {
+        x: x + cellWidth / 2 - 20,
+        y: y + cellHeight - 10,
+        size: 6,
+        font: labelFont,
+        color: rgb(0.45, 0.45, 0.45),
       });
 
       globalIndex += 1;
