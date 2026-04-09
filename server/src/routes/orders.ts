@@ -280,3 +280,41 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Could not create order" });
   }
 });
+
+/** GET /api/orders/:id — payment status for the current session (Stripe success polling). */
+ordersRouter.get("/:id", async (req: Request, res: Response) => {
+  const orderId = String(req.params.id ?? "").trim();
+  if (!orderId) {
+    res.status(400).json({ error: "Order id required" });
+    return;
+  }
+
+  const sessionId = req.cookies?.[sessionConfig.cookieName] as string | undefined;
+  if (!sessionId) {
+    res.status(401).json({ error: "Session required" });
+    return;
+  }
+
+  const orderSession = await prisma.orderSession.findUnique({
+    where: { id: String(sessionId) },
+  });
+  if (!orderSession?.orderId || orderSession.orderId !== orderId) {
+    res.status(403).json({ error: "Invalid order for this session" });
+    return;
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, status: true },
+  });
+
+  if (!order) {
+    res.status(404).json({ error: "Order not found" });
+    return;
+  }
+
+  res.json({
+    orderId: order.id,
+    status: order.status,
+  });
+});

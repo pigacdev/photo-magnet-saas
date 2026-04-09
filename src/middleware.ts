@@ -5,6 +5,22 @@ import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
 /** Fail fast if the API is slow or unreachable (avoids hanging middleware). */
 const SESSION_CHECK_TIMEOUT_MS = 2500;
 
+function isOrderPathExemptFromSessionCheck(pathname: string): boolean {
+  if (pathname === "/order/payment" || pathname.startsWith("/order/payment/")) {
+    return true;
+  }
+  if (pathname === "/order/success" || pathname.startsWith("/order/success/")) {
+    return true;
+  }
+  if (
+    pathname === "/order/confirmation" ||
+    pathname.startsWith("/order/confirmation/")
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function noSessionRedirect(request: NextRequest): NextResponse {
   const raw = request.nextUrl.searchParams.get("returnTo");
   const path = getSafeOrderReturnTo(raw);
@@ -17,8 +33,22 @@ function noSessionRedirect(request: NextRequest): NextResponse {
  *
  * Fail-safe: any API failure (timeout, non-OK, bad JSON, thrown error) → redirect via
  * `noSessionRedirect` (entry page from `returnTo` when valid, else `/`).
+ *
+ * After commit, session is CONVERTED — payment / success / confirmation must still load.
  */
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  if (isOrderPathExemptFromSessionCheck(pathname)) {
+    if (pathname.startsWith("/order/payment")) {
+      const orderId = request.nextUrl.searchParams.get("orderId")?.trim();
+      if (!orderId) {
+        return NextResponse.redirect(new URL("/", request.url));
+      }
+    }
+    return NextResponse.next();
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(),

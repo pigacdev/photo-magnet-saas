@@ -219,7 +219,9 @@ export default function OrderReviewPage() {
         router.push(`/order/confirmation${q}`);
         return;
       }
-      router.push(`/order/payment${q}`);
+      const paymentParams = new URLSearchParams(q.replace(/^\?/, ""));
+      paymentParams.set("orderId", result.orderId);
+      router.push(`/order/payment?${paymentParams.toString()}`);
     } catch (e) {
       setActionError(
         e instanceof Error ? e.message : "Could not place order. Try again.",

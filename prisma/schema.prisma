@@ -48,6 +48,7 @@ enum SessionImageStatus {
 enum OrderCommitStatus {
   PENDING_CASH
   PENDING_PAYMENT
+  PAID
 }
 
 enum ShapeType {
@@ -214,6 +215,8 @@ model Order {
   pricingType    PricingType
   quantity       Int?
   bundleId       String?
+  /// Set when Stripe Checkout completes (webhook); optional until paid.
+  stripeCheckoutSessionId String?
   createdAt      DateTime          @default(now())
 
   organization User        @relation(fields: [organizationId], references: [id], onDelete: Restrict)

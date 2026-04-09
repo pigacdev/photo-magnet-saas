@@ -79,3 +79,9 @@ export type PostOrderCommitResponse = {
   orderId: string;
   status: "PENDING_CASH" | "PENDING_PAYMENT";
 };
+
+/** GET /api/orders/:id — session-scoped order status (e.g. payment polling). */
+export type GetOrderStatusResponse = {
+  orderId: string;
+  status: "PENDING_CASH" | "PENDING_PAYMENT" | "PAID";
+};

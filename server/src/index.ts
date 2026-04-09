@@ -14,6 +14,7 @@ import { publicRouter } from "./routes/public";
 import { sessionRouter } from "./routes/session";
 import { systemRouter } from "./routes/system";
 import { ordersRouter } from "./routes/orders";
+import { stripeRouter, stripeWebhookHandler } from "./routes/stripe";
 import { authenticate, requireRole } from "./middleware/auth";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -27,6 +28,15 @@ app.use(
     credentials: true,
   }),
 );
+
+app.post(
+  "/api/stripe/webhook",
+  express.raw({ type: "application/json" }),
+  (req, res, next) => {
+    void stripeWebhookHandler(req, res).catch(next);
+  },
+);
+
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
@@ -42,6 +52,7 @@ app.use("/api/public", publicRouter);
 app.use("/api/system", systemRouter);
 app.use("/api/session", sessionRouter);
 app.use("/api/orders", ordersRouter);
+app.use("/api/stripe", stripeRouter);
 
 // --- Protected routes ---
 app.use("/api/admin", authenticate, requireRole("ADMIN", "STAFF"));
