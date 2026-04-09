@@ -8,6 +8,9 @@ import { Router } from "express";
 import type { OrderCommitStatus } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { sessionConfig } from "../config/session";
+import { authConfig } from "../config/auth";
+import { verifyToken } from "../lib/auth";
+import { authenticate, requireRole } from "../middleware/auth";
 import { clearSessionCookie } from "../lib/orderSessionApi";
 import { SESSION_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
 import {
@@ -16,6 +19,50 @@ import {
 } from "../lib/orderImageStorage";
 
 export const ordersRouter = Router();
+
+/** Same rule as seller UI: printable now (paid online or event cash). */
+function isReadyToPrintForSeller(status: string): boolean {
+  return status === "PAID" || status === "PENDING_CASH";
+}
+
+/** GET /api/orders — seller: ready-to-print first, then newest within each band. */
+ordersRouter.get(
+  "/",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const orders = await prisma.order.findMany({
+      where: { organizationId: userId },
+      select: {
+        id: true,
+        status: true,
+        contextType: true,
+        totalPrice: true,
+        currency: true,
+        createdAt: true,
+        _count: { select: { orderImages: true } },
+      },
+    });
+    const sorted = [...orders].sort((a, b) => {
+      const ra = isReadyToPrintForSeller(a.status);
+      const rb = isReadyToPrintForSeller(b.status);
+      if (ra !== rb) return ra ? -1 : 1;
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
+    res.json(
+      sorted.map((o) => ({
+        id: o.id,
+        status: o.status,
+        contextType: o.contextType,
+        totalPrice: o.totalPrice.toString(),
+        currency: o.currency,
+        createdAt: o.createdAt.toISOString(),
+        imageCount: o._count.orderImages,
+      })),
+    );
+  },
+);
 
 function selectionComplete(session: {
   selectedShapeId: string | null;
@@ -282,12 +329,68 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
   }
 });
 
-/** GET /api/orders/:id — payment status for the current session (Stripe success polling). */
+/**
+ * GET /api/orders/:id
+ * - Seller (auth cookie): full order + images + print sheet URLs (same origin paths).
+ * - Customer (session cookie): payment status for Stripe success polling.
+ */
 ordersRouter.get("/:id", async (req: Request, res: Response) => {
   const orderId = String(req.params.id ?? "").trim();
   if (!orderId) {
     res.status(400).json({ error: "Order id required" });
     return;
+  }
+
+  const token = req.cookies?.[authConfig.cookieName] as string | undefined;
+  if (token) {
+    try {
+      const user = verifyToken(token);
+      const order = await prisma.order.findFirst({
+        where: { id: orderId, organizationId: user.userId },
+        include: {
+          orderImages: { orderBy: SESSION_IMAGE_LIST_ORDER_BY },
+        },
+      });
+      if (order) {
+        const shapeIds = [
+          ...new Set(order.orderImages.map((i) => i.shapeId)),
+        ];
+        const shapes = await prisma.allowedShape.findMany({
+          where: { id: { in: shapeIds } },
+          select: { id: true, widthMm: true, heightMm: true },
+        });
+        const shapeById = new Map(shapes.map((s) => [s.id, s]));
+        const printSheets = shapeIds.map((sid) => {
+          const sh = shapeById.get(sid);
+          return {
+            url: `/uploads/print-sheets/${order.id}-${sid}.pdf`,
+            widthMm: sh?.widthMm ?? 0,
+            heightMm: sh?.heightMm ?? 0,
+          };
+        });
+        res.json({
+          orderId: order.id,
+          status: order.status,
+          contextType: order.contextType,
+          contextId: order.contextId,
+          totalPrice: order.totalPrice.toString(),
+          currency: order.currency,
+          createdAt: order.createdAt.toISOString(),
+          images: order.orderImages.map((img) => ({
+            id: img.id,
+            renderedUrl: img.renderedUrl,
+            position: img.position,
+            shapeId: img.shapeId,
+          })),
+          printSheets,
+        });
+        return;
+      }
+      res.status(404).json({ error: "Order not found" });
+      return;
+    } catch {
+      /* invalid token — try session poll below */
+    }
   }
 
   const sessionId = req.cookies?.[sessionConfig.cookieName] as string | undefined;

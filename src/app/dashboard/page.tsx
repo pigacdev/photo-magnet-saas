@@ -14,6 +14,15 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Link
+          href="/dashboard/orders"
+          className="rounded-lg border border-gray-200 p-6 transition-colors hover:border-gray-300 hover:bg-[#F9FAFB]"
+        >
+          <h2 className="text-base font-medium text-[#111111]">Orders</h2>
+          <p className="mt-1 text-sm text-[#6B7280]">
+            View orders and download print sheets.
+          </p>
+        </Link>
+        <Link
           href="/dashboard/events"
           className="rounded-lg border border-gray-200 p-6 transition-colors hover:border-gray-300 hover:bg-[#F9FAFB]"
         >

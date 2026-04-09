@@ -7,6 +7,7 @@ import { getMe, logout, type User } from "@/lib/auth";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home" },
+  { href: "/dashboard/orders", label: "Orders" },
   { href: "/dashboard/events", label: "Events" },
   { href: "/dashboard/storefronts", label: "Storefronts" },
 ];
