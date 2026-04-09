@@ -17,29 +17,12 @@ const mm = (v: number) => v * 2.83465;
 
 const DEFAULT_MAGNET_MM = { widthMm: 50, heightMm: 50 };
 
-/** Resolve magnet size from order → committed session → AllowedShape (widthMm / heightMm). */
-async function loadMagnetMmForOrder(
-  orderId: string,
+/** Magnet size from AllowedShape (one PDF batch = one shape). */
+async function loadMagnetMmFromShape(
+  shapeId: string,
 ): Promise<{ widthMm: number; heightMm: number }> {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: {
-      committedFromSession: { select: { selectedShapeId: true } },
-    },
-  });
-  if (!order) {
-    throw new Error(`Order ${orderId} not found`);
-  }
-  const shapeId = order.committedFromSession?.selectedShapeId;
-  if (!shapeId) {
-    return { ...DEFAULT_MAGNET_MM };
-  }
-  const shape = await prisma.allowedShape.findFirst({
-    where: {
-      id: shapeId,
-      contextType: order.contextType,
-      contextId: order.contextId,
-    },
+  const shape = await prisma.allowedShape.findUnique({
+    where: { id: shapeId },
   });
   if (!shape) {
     return { ...DEFAULT_MAGNET_MM };
@@ -82,8 +65,9 @@ function drawOctagon(
     page.drawLine({
       start: { x: x0, y: y0 },
       end: { x: x1, y: y1 },
-      thickness: 1,
+      thickness: 1.2,
       color: stroke,
+      dashArray: [4, 3],
     });
   }
 }
@@ -95,6 +79,7 @@ function drawOctagon(
 export async function generatePrintSheet(
   orderId: string,
   images: PrintSheetImageInput[],
+  shapeId: string,
 ): Promise<string> {
   const onlyRendered = images.filter(
     (img): img is PrintSheetImageInput & { renderedUrl: string } =>
@@ -106,35 +91,39 @@ export async function generatePrintSheet(
   const pageWidth = mm(210);
   const pageHeight = mm(297);
 
-  const pageMargin = mm(20);
-  const usableWidth = pageWidth - pageMargin;
-  const usableHeight = pageHeight - pageMargin;
+  /** Symmetric page margin — room for alignment and trimming. */
+  const pageMarginMm = 12;
+  const pageMarginPt = mm(pageMarginMm);
+  const usableWidth = pageWidth - 2 * pageMarginPt;
+  const usableHeight = pageHeight - 2 * pageMarginPt;
 
-  const gap = mm(5);
-  const padding = mm(7);
+  const gap = mm(8);
+  const padding = mm(10);
 
   if (onlyRendered.length === 0) {
     pdfDoc.addPage([pageWidth, pageHeight]);
   } else {
-    const { widthMm, heightMm } = await loadMagnetMmForOrder(orderId);
+    const { widthMm, heightMm } = await loadMagnetMmFromShape(shapeId);
 
     const magnetWidth = mm(widthMm);
     const magnetHeight = mm(heightMm);
 
-    const cellWidth = magnetWidth + padding * 2;
-    const cellHeight = magnetHeight + padding * 2;
+    /** Square cell: octagon cut guide matches the cell; image centered in cell (not separate rectangular cell vs square octagon). */
+    const innerW = magnetWidth + padding * 2;
+    const innerH = magnetHeight + padding * 2;
+    const cellSize = Math.max(innerW, innerH);
 
     const cols = Math.max(
       1,
-      Math.floor((usableWidth + gap) / (cellWidth + gap)),
+      Math.floor((usableWidth + gap) / (cellSize + gap)),
     );
     const rows = Math.max(
       1,
-      Math.floor((usableHeight + gap) / (cellHeight + gap)),
+      Math.floor((usableHeight + gap) / (cellSize + gap)),
     );
 
-    const gridWidth = cols * cellWidth + (cols - 1) * gap;
-    const gridHeight = rows * cellHeight + (rows - 1) * gap;
+    const gridWidth = cols * cellSize + (cols - 1) * gap;
+    const gridHeight = rows * cellSize + (rows - 1) * gap;
 
     const startX = (pageWidth - gridWidth) / 2;
     const startY = (pageHeight - gridHeight) / 2;
@@ -155,15 +144,15 @@ export async function generatePrintSheet(
       const col = slotIndex % cols;
       const row = Math.floor(slotIndex / cols);
 
-      const x = startX + col * (cellWidth + gap);
+      const x = startX + col * (cellSize + gap);
       const y =
         pageHeight -
         startY -
-        (row + 1) * cellHeight -
+        (row + 1) * cellSize -
         row * gap;
 
-      const offsetX = (cellWidth - magnetWidth) / 2;
-      const offsetY = (cellHeight - magnetHeight) / 2;
+      const offsetX = (cellSize - magnetWidth) / 2;
+      const offsetY = (cellSize - magnetHeight) / 2;
 
       const filePath = resolveUploadFilePath(img.renderedUrl);
       const imageBytes = await fs.readFile(filePath);
@@ -175,7 +164,7 @@ export async function generatePrintSheet(
         pdfImage = await pdfDoc.embedJpg(imageBytes);
       }
 
-      drawOctagon(page, x, y, cellWidth, cellHeight);
+      drawOctagon(page, x, y, cellSize, cellSize);
 
       page.drawImage(pdfImage, {
         x: x + offsetX,
@@ -185,8 +174,8 @@ export async function generatePrintSheet(
       });
 
       page.drawText("magnetoo", {
-        x: x + cellWidth / 2 - 20,
-        y: y + cellHeight - 10,
+        x: x + cellSize / 2 - 20,
+        y: y + cellSize - 10,
         size: 6,
         font: labelFont,
         color: rgb(0.45, 0.45, 0.45),
@@ -199,9 +188,9 @@ export async function generatePrintSheet(
   const outputDir = path.join(process.cwd(), "uploads", "print-sheets");
   await fs.mkdir(outputDir, { recursive: true });
 
-  const outputPath = path.join(outputDir, `${orderId}.pdf`);
+  const outputPath = path.join(outputDir, `${orderId}-${shapeId}.pdf`);
   const pdfBytes = await pdfDoc.save();
   await fs.writeFile(outputPath, pdfBytes);
 
-  return `/uploads/print-sheets/${orderId}.pdf`;
+  return `/uploads/print-sheets/${orderId}-${shapeId}.pdf`;
 }

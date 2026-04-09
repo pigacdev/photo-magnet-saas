@@ -215,6 +215,7 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
         orderImageRows.push({
           id: orderImageId,
           orderId,
+          shapeId: String(locked.selectedShapeId),
           originalUrl: copiedUrl,
           croppedUrl: null,
           cropX: img.cropX!,

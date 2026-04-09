@@ -233,6 +233,8 @@ model Order {
 model OrderImage {
   id          String   @id @default(uuid())
   orderId     String
+  /// AllowedShape at commit time; print sheets are generated per shape (never mixed on one PDF).
+  shapeId     String
   originalUrl String
   croppedUrl  String?
   /// Final Sharp extract output for print (local `/uploads/...` path when rendered).
@@ -248,10 +250,12 @@ model OrderImage {
   position    Int
   createdAt   DateTime @default(now())
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  allowedShape AllowedShape @relation(fields: [shapeId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
   @@index([orderId, position])
+  @@index([shapeId])
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +270,8 @@ model AllowedShape {
   widthMm      Float
   heightMm     Float
   displayOrder Int       @default(0)
+
+  orderImages OrderImage[]
 
   @@unique([contextType, contextId, shapeType, widthMm, heightMm])
   @@index([contextType, contextId])

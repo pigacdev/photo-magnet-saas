@@ -250,7 +250,25 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
         where: { orderId },
         orderBy: ORDER_IMAGE_LIST_ORDER_BY,
       });
-      await generatePrintSheet(orderId, orderImagesForPdf);
+      const grouped: Record<
+        string,
+        (typeof orderImagesForPdf)[number][]
+      > = {};
+      for (const img of orderImagesForPdf) {
+        const key = img.shapeId;
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(img);
+      }
+      const pdfUrls: string[] = [];
+      for (const shapeId of Object.keys(grouped)) {
+        const images = grouped[shapeId];
+        if (!images?.length) continue;
+        const pdfUrl = await generatePrintSheet(orderId, images, shapeId);
+        pdfUrls.push(pdfUrl);
+      }
+      if (pdfUrls.length > 0) {
+        console.info("[stripe.webhook] print sheets", { orderId, pdfUrls });
+      }
     } catch (pdfErr) {
       console.error("[stripe.webhook] generatePrintSheet failed", pdfErr);
     }
