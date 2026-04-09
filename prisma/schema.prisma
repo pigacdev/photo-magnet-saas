@@ -235,6 +235,8 @@ model OrderImage {
   orderId     String
   originalUrl String
   croppedUrl  String?
+  /// Final Sharp extract output for print (local `/uploads/...` path when rendered).
+  renderedUrl String?
   cropX       Int
   cropY       Int
   cropWidth   Int

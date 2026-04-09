@@ -5,6 +5,8 @@ import type { Request, Response } from "express";
 import { Router } from "express";
 import Stripe from "stripe";
 import { prisma } from "../lib/prisma";
+import { ORDER_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
+import { renderOrderImages } from "../lib/renderOrderImages";
 import { getAppPublicUrl, getStripeOrNull } from "../lib/stripe";
 import { sessionConfig } from "../config/session";
 
@@ -221,6 +223,26 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
         stripeCheckoutSessionId: session.id,
       },
     });
+
+    const orderImages = await prisma.orderImage.findMany({
+      where: { orderId },
+      orderBy: ORDER_IMAGE_LIST_ORDER_BY,
+    });
+    try {
+      await renderOrderImages(
+        orderId,
+        orderImages.map((img) => ({
+          id: img.id,
+          originalUrl: img.originalUrl,
+          cropX: img.cropX,
+          cropY: img.cropY,
+          cropWidth: img.cropWidth,
+          cropHeight: img.cropHeight,
+        })),
+      );
+    } catch (renderErr) {
+      console.error("[stripe.webhook] renderOrderImages failed", renderErr);
+    }
 
     console.info("[stripe.webhook] order paid", {
       orderId,
