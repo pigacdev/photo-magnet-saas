@@ -262,6 +262,9 @@ model OrderImage {
   height      Int
   /// Magnet sequence for print / exports; list queries: ORDER BY position ASC, createdAt ASC.
   position    Int
+  /// Seller marked this line item produced (Phase 8; reprints do not clear).
+  printed     Boolean   @default(false)
+  printedAt   DateTime?
   createdAt   DateTime @default(now())
 
   order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)

@@ -13,6 +13,7 @@ import {
   shippingTypeLabel,
   type StorefrontShippingType,
 } from "@/lib/shippingTypes";
+import { isReadyToPrint } from "@/lib/sellerOrderPrintStatus";
 
 type SellerOrderDetail = {
   orderId: string;
@@ -34,6 +35,8 @@ type SellerOrderDetail = {
     renderedUrl: string | null;
     position: number;
     shapeId: string;
+    printed: boolean;
+    printedAt: string | null;
   }[];
   printSheets: { url: string; widthMm: number; heightMm: number }[];
 };
@@ -44,7 +47,9 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<SellerOrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionBusy, setActionBusy] = useState<"print" | "ship" | null>(null);
+  const [actionBusy, setActionBusy] = useState<
+    "printPreview" | "markPrinted" | "ship" | null
+  >(null);
   const [customerEditOpen, setCustomerEditOpen] = useState(false);
   const [customerSaving, setCustomerSaving] = useState(false);
   const [editName, setEditName] = useState("");
@@ -54,6 +59,8 @@ export default function OrderDetailPage() {
   const [editFullAddress, setEditFullAddress] = useState("");
   const [editAddressNotes, setEditAddressNotes] = useState("");
   const [editLockerId, setEditLockerId] = useState("");
+  /** After a successful "Print order", ask before marking — reinforces preview → confirm flow. */
+  const [printOutcomePrompt, setPrintOutcomePrompt] = useState(false);
 
   function loadOrder() {
     if (!id) return;
@@ -65,22 +72,71 @@ export default function OrderDetailPage() {
       .finally(() => setLoading(false));
   }
 
+  /** Reconcile order after mutations (e.g. partial mark-printed) without full-page loading. */
+  function refreshOrder() {
+    if (!id) return;
+    void api<SellerOrderDetail>(`/api/orders/${encodeURIComponent(id)}`)
+      .then(setOrder)
+      .catch((e: Error) => setError(e.message));
+  }
+
   useEffect(() => {
     loadOrder();
+    setPrintOutcomePrompt(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load when id changes
   }, [id]);
 
-  async function markPrinted() {
+  useEffect(() => {
+    if (order?.printedAt) {
+      setPrintOutcomePrompt(false);
+    }
+  }, [order?.printedAt]);
+
+  async function printOrderPreview() {
     if (!id) return;
-    setActionBusy("print");
+    setActionBusy("printPreview");
+    setError(null);
     try {
-      const data = await api<{ printedAt: string }>(
-        `/api/orders/${encodeURIComponent(id)}/print`,
-        { method: "PATCH" },
+      const data = await api<{ url: string | null; urls: string[] }>(
+        `/api/orders/${encodeURIComponent(id)}/print-preview`,
+        { method: "POST" },
       );
-      setOrder((o) =>
-        o ? { ...o, printedAt: data.printedAt } : null,
-      );
+      const list =
+        data.urls?.length > 0
+          ? data.urls
+          : data.url
+            ? [data.url]
+            : [];
+      for (let i = 0; i < list.length; i++) {
+        const u = list[i];
+        if (u) {
+          window.setTimeout(() => {
+            window.open(u, "_blank", "noopener,noreferrer");
+          }, i * 250);
+        }
+      }
+      setPrintOutcomePrompt(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not generate print preview");
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  async function markPrinted(body?: { imageIds?: string[] }) {
+    if (!id) return;
+    setActionBusy("markPrinted");
+    setError(null);
+    try {
+      await api<{
+        ok: boolean;
+        printedAt: string | null;
+        allImagesPrinted: boolean;
+      }>(`/api/orders/${encodeURIComponent(id)}/mark-printed`, {
+        method: "PATCH",
+        body: body?.imageIds?.length ? { imageIds: body.imageIds } : undefined,
+      });
+      refreshOrder();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update");
     } finally {
@@ -186,27 +242,12 @@ export default function OrderDetailPage() {
     }).format(n);
   }
 
-  function formatMm(n: number): string {
-    if (!Number.isFinite(n) || n <= 0) return "";
-    return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
-  }
-
-  /** Same PDF URL whether first print or reprint — `printedAt` is unchanged by opening the file. */
-  function printSheetButtonLabel(
-    sheet: { widthMm: number; heightMm: number },
-    multiple: boolean,
-    isReprint: boolean,
-  ): string {
-    const verb = isReprint ? "Reprint" : "Print";
-    if (!multiple) return `${verb} sheet`;
-    const w = formatMm(sheet.widthMm);
-    const h = formatMm(sheet.heightMm);
-    if (w && h) return `${verb} ${w}×${h}`;
-    return `${verb} sheet`;
-  }
-
-  const hasSheets = Boolean(order?.printSheets.length);
-  const showMarkPrinted = Boolean(order && !order.printedAt);
+  const canUsePrintFlow = Boolean(
+    order && isReadyToPrint(order.status) && order.images.length > 0,
+  );
+  const hasOrderPrinted = Boolean(order?.printedAt);
+  const showPrintOrder = canUsePrintFlow;
+  const showMarkPrinted = Boolean(canUsePrintFlow && !hasOrderPrinted);
   const showMarkShipped = Boolean(
     order && order.printedAt && !order.shippedAt,
   );
@@ -220,9 +261,7 @@ export default function OrderDetailPage() {
   );
 
   return (
-    <div
-      className={`flex flex-col gap-8 ${hasSheets ? "pb-28 md:pb-8" : "pb-8"}`}
-    >
+    <div className="flex flex-col gap-8 pb-8">
       <div>
         <Link
           href="/dashboard/orders"
@@ -289,27 +328,84 @@ export default function OrderDetailPage() {
               </div>
             </dl>
 
-            {(showMarkPrinted || showMarkShipped) && (
-              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                {showMarkPrinted && (
-                  <button
-                    type="button"
-                    disabled={actionBusy !== null}
-                    onClick={() => void markPrinted()}
-                    className="min-h-[48px] rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50 sm:min-w-[180px]"
-                  >
-                    {actionBusy === "print" ? "Updating…" : "Mark as printed"}
-                  </button>
+            {(showPrintOrder ||
+              showMarkPrinted ||
+              hasOrderPrinted ||
+              showMarkShipped) && (
+              <div className="mt-6 flex flex-col gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  {showPrintOrder && (
+                    <button
+                      type="button"
+                      disabled={actionBusy !== null}
+                      onClick={() => void printOrderPreview()}
+                      className="min-h-[48px] rounded-lg bg-[#2563EB] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[180px]"
+                    >
+                      {actionBusy === "printPreview"
+                        ? "Preparing…"
+                        : "Print order"}
+                    </button>
+                  )}
+                  {showMarkPrinted && !printOutcomePrompt && (
+                    <button
+                      type="button"
+                      disabled={actionBusy !== null}
+                      onClick={() => void markPrinted()}
+                      className="min-h-[48px] rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50 sm:min-w-[180px]"
+                    >
+                      {actionBusy === "markPrinted"
+                        ? "Updating…"
+                        : "Mark as printed"}
+                    </button>
+                  )}
+                  {hasOrderPrinted && (
+                    <p className="flex min-h-[48px] items-center text-sm font-medium text-[#16A34A] sm:px-1">
+                      Printed ✓
+                    </p>
+                  )}
+                  {showMarkShipped && (
+                    <button
+                      type="button"
+                      disabled={actionBusy !== null}
+                      onClick={() => void markShipped()}
+                      className="min-h-[48px] rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50 sm:min-w-[180px]"
+                    >
+                      {actionBusy === "ship" ? "Updating…" : "Mark as shipped"}
+                    </button>
+                  )}
+                </div>
+                {showPrintOrder && !hasOrderPrinted && !printOutcomePrompt && (
+                  <p className="text-xs text-[#6B7280]">
+                    Open the PDF preview, then confirm when production printing is
+                    done.
+                  </p>
                 )}
-                {showMarkShipped && (
-                  <button
-                    type="button"
-                    disabled={actionBusy !== null}
-                    onClick={() => void markShipped()}
-                    className="min-h-[48px] rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50 sm:min-w-[180px]"
-                  >
-                    {actionBusy === "ship" ? "Updating…" : "Mark as shipped"}
-                  </button>
+                {showMarkPrinted && printOutcomePrompt && (
+                  <div className="rounded-lg border border-gray-200 bg-[#FAFAFA] p-4 sm:p-5">
+                    <p className="text-sm font-medium text-[#111111]">
+                      Did everything print correctly?
+                    </p>
+                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      <button
+                        type="button"
+                        disabled={actionBusy !== null}
+                        onClick={() => void markPrinted()}
+                        className="min-h-[48px] rounded-lg bg-[#2563EB] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[200px]"
+                      >
+                        {actionBusy === "markPrinted"
+                          ? "Updating…"
+                          : "Yes → Mark all as printed"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionBusy !== null}
+                        onClick={() => setPrintOutcomePrompt(false)}
+                        className="min-h-[48px] rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50 sm:min-w-[220px]"
+                      >
+                        No → I&apos;ll reprint some later
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -598,35 +694,6 @@ export default function OrderDetailPage() {
         </>
       )}
 
-      {order && order.printSheets.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-10 border-t border-gray-200 bg-white p-4 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] md:relative md:z-0 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
-          <div className="mx-auto flex max-w-[1200px] flex-col gap-2">
-            {order.printedAt && (
-              <p className="text-xs text-[#6B7280]">
-                Opens the same PDF again (jams, misalignment, duplicates). Fulfillment
-                status stays the same.
-              </p>
-            )}
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-              {order.printSheets.map((sheet) => (
-                <a
-                  key={sheet.url}
-                  href={sheet.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex min-h-[48px] w-full items-center justify-center rounded-lg bg-[#2563EB] px-4 py-3 text-center text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] sm:w-auto sm:min-w-[180px]"
-                >
-                  {printSheetButtonLabel(
-                    sheet,
-                    order.printSheets.length > 1,
-                    Boolean(order.printedAt),
-                  )}
-                </a>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

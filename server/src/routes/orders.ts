@@ -22,6 +22,8 @@ import {
   orderImageStorageKindFromSessionUrl,
 } from "../lib/orderImageStorage";
 import { validateOrderCustomerBody } from "../lib/orderCustomerValidation";
+import { generatePrintSheet } from "../lib/generatePrintSheet";
+import { renderOrderImages } from "../lib/renderOrderImages";
 
 export const ordersRouter = Router();
 
@@ -70,9 +72,94 @@ ordersRouter.get(
   },
 );
 
-/** PATCH /api/orders/:id/print — seller: mark order printed (fulfillment). */
+/**
+ * POST /api/orders/:id/print-preview — generate PDF(s) only; does not set printed flags.
+ */
+ordersRouter.post(
+  "/:id/print-preview",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const orderId = String(req.params.id ?? "").trim();
+    if (!orderId) {
+      res.status(400).json({ error: "Order id required" });
+      return;
+    }
+    const owner = req.user!.userId;
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, organizationId: owner },
+      include: {
+        orderImages: { orderBy: ORDER_IMAGE_LIST_ORDER_BY },
+      },
+    });
+    if (!order) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+    if (!isReadyToPrintForSeller(order.status)) {
+      res.status(400).json({
+        error: "Order must be paid before printing",
+      });
+      return;
+    }
+    if (order.orderImages.length === 0) {
+      res.status(400).json({ error: "No images to print" });
+      return;
+    }
+
+    try {
+      await renderOrderImages(
+        orderId,
+        order.orderImages.map((img) => ({
+          id: img.id,
+          originalUrl: img.originalUrl,
+          cropX: img.cropX,
+          cropY: img.cropY,
+          cropWidth: img.cropWidth,
+          cropHeight: img.cropHeight,
+        })),
+      );
+    } catch (renderErr) {
+      console.warn("[print-preview] renderOrderImages", renderErr);
+    }
+
+    const refreshed = await prisma.orderImage.findMany({
+      where: { orderId },
+      orderBy: ORDER_IMAGE_LIST_ORDER_BY,
+    });
+    const grouped: Record<string, typeof refreshed> = {};
+    for (const img of refreshed) {
+      if (!grouped[img.shapeId]) grouped[img.shapeId] = [];
+      grouped[img.shapeId]!.push(img);
+    }
+
+    const urls: string[] = [];
+    for (const shapeId of Object.keys(grouped)) {
+      const imgs = grouped[shapeId];
+      if (!imgs?.length) continue;
+      const pdfUrl = await generatePrintSheet(
+        orderId,
+        imgs.map((img) => ({ id: img.id, renderedUrl: img.renderedUrl })),
+        shapeId,
+      );
+      urls.push(pdfUrl);
+    }
+
+    const first = urls[0] ?? null;
+    res.json({
+      url: first,
+      urls,
+    });
+  },
+);
+
+/**
+ * PATCH /api/orders/:id/mark-printed
+ * Body (optional): { imageIds?: string[] } — if non-empty, only those rows; else all images.
+ * Sets order.printedAt when every OrderImage has printed=true after the update.
+ */
 ordersRouter.patch(
-  "/:id/print",
+  "/:id/mark-printed",
   authenticate,
   requireRole("ADMIN", "STAFF"),
   async (req: Request, res: Response) => {
@@ -84,19 +171,96 @@ ordersRouter.patch(
     const owner = req.user!.userId;
     const existing = await prisma.order.findFirst({
       where: { id: orderId, organizationId: owner },
-      select: { id: true },
+      include: {
+        _count: { select: { orderImages: true } },
+      },
     });
     if (!existing) {
       res.status(404).json({ error: "Order not found" });
       return;
     }
-    const updated = await prisma.order.update({
+    if (!isReadyToPrintForSeller(existing.status)) {
+      res.status(400).json({
+        error: "Order must be paid before marking as printed",
+      });
+      return;
+    }
+    if (existing._count.orderImages === 0) {
+      res.status(400).json({ error: "No images to mark as printed" });
+      return;
+    }
+
+    const body = req.body as { imageIds?: unknown };
+    let imageIdList: string[] | null = null;
+    if (body?.imageIds !== undefined && body?.imageIds !== null) {
+      if (!Array.isArray(body.imageIds)) {
+        res.status(400).json({ error: "imageIds must be an array" });
+        return;
+      }
+      if (body.imageIds.length > 0) {
+        const raw = body.imageIds as unknown[];
+        const ids = raw
+          .map((x) => (typeof x === "string" ? x.trim() : ""))
+          .filter((s) => s.length > 0);
+        if (ids.length !== raw.length) {
+          res.status(400).json({ error: "imageIds must be non-empty strings" });
+          return;
+        }
+        imageIdList = [...new Set(ids)];
+      }
+    }
+
+    if (imageIdList && imageIdList.length > 0) {
+      const found = await prisma.orderImage.findMany({
+        where: { orderId, id: { in: imageIdList } },
+        select: { id: true },
+      });
+      if (found.length !== imageIdList.length) {
+        res.status(400).json({
+          error: "One or more images not found on this order",
+        });
+        return;
+      }
+    }
+
+    const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      if (imageIdList && imageIdList.length > 0) {
+        await tx.orderImage.updateMany({
+          where: { orderId, id: { in: imageIdList } },
+          data: { printed: true, printedAt: now },
+        });
+      } else {
+        await tx.orderImage.updateMany({
+          where: { orderId },
+          data: { printed: true, printedAt: now },
+        });
+      }
+
+      const unprinted = await tx.orderImage.count({
+        where: { orderId, printed: false },
+      });
+      if (unprinted === 0) {
+        await tx.order.update({
+          where: { id: orderId },
+          data: { printedAt: now },
+        });
+      }
+    });
+
+    const orderRow = await prisma.order.findUnique({
       where: { id: orderId },
-      data: { printedAt: new Date() },
       select: { printedAt: true },
     });
+    const allImagesPrinted =
+      (await prisma.orderImage.count({
+        where: { orderId, printed: false },
+      })) === 0;
+
     res.json({
-      printedAt: updated.printedAt!.toISOString(),
+      ok: true,
+      printedAt: orderRow?.printedAt?.toISOString() ?? null,
+      allImagesPrinted,
     });
   },
 );
@@ -541,6 +705,8 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
             renderedUrl: img.renderedUrl,
             position: img.position,
             shapeId: img.shapeId,
+            printed: img.printed,
+            printedAt: img.printedAt?.toISOString() ?? null,
           })),
           printSheets,
         });
