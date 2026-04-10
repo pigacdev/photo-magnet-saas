@@ -6,17 +6,22 @@ import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { Router } from "express";
 import type { OrderCommitStatus } from "../../../src/generated/prisma/client";
+import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { sessionConfig } from "../config/session";
 import { authConfig } from "../config/auth";
 import { verifyToken } from "../lib/auth";
 import { authenticate, requireRole } from "../middleware/auth";
 import { clearSessionCookie } from "../lib/orderSessionApi";
-import { SESSION_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
+import {
+  ORDER_IMAGE_LIST_ORDER_BY,
+  SESSION_IMAGE_LIST_ORDER_BY,
+} from "../lib/magnetImageOrderBy";
 import {
   copySessionImageToOrder,
   orderImageStorageKindFromSessionUrl,
 } from "../lib/orderImageStorage";
+import { validateOrderCustomerBody } from "../lib/orderCustomerValidation";
 
 export const ordersRouter = Router();
 
@@ -64,6 +69,152 @@ ordersRouter.get(
     );
   },
 );
+
+/** PATCH /api/orders/:id/print — seller: mark order printed (fulfillment). */
+ordersRouter.patch(
+  "/:id/print",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const orderId = String(req.params.id ?? "").trim();
+    if (!orderId) {
+      res.status(400).json({ error: "Order id required" });
+      return;
+    }
+    const owner = req.user!.userId;
+    const existing = await prisma.order.findFirst({
+      where: { id: orderId, organizationId: owner },
+      select: { id: true },
+    });
+    if (!existing) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: { printedAt: new Date() },
+      select: { printedAt: true },
+    });
+    res.json({
+      printedAt: updated.printedAt!.toISOString(),
+    });
+  },
+);
+
+/** PATCH /api/orders/:id/ship — seller: mark order shipped (requires printed first). */
+ordersRouter.patch(
+  "/:id/ship",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const orderId = String(req.params.id ?? "").trim();
+    if (!orderId) {
+      res.status(400).json({ error: "Order id required" });
+      return;
+    }
+    const owner = req.user!.userId;
+    const existing = await prisma.order.findFirst({
+      where: { id: orderId, organizationId: owner },
+      select: { id: true, printedAt: true },
+    });
+    if (!existing) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+    if (!existing.printedAt) {
+      res.status(400).json({ error: "Mark as printed before shipping" });
+      return;
+    }
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: { shippedAt: new Date() },
+      select: { shippedAt: true },
+    });
+    res.json({
+      shippedAt: updated.shippedAt!.toISOString(),
+    });
+  },
+);
+
+/**
+ * PATCH /api/orders/:id/customer — customer fields only (name / phone / shipping).
+ * - Buyer: order session cookie (same as checkout).
+ * - Seller: auth cookie (JWT), order must belong to org (ADMIN/STAFF).
+ * Allowed at any order status, including PAID (no price/images/shape via this route).
+ */
+ordersRouter.patch("/:id/customer", async (req: Request, res: Response) => {
+  const orderId = String(req.params.id ?? "").trim();
+  if (!orderId) {
+    res.status(400).json({ error: "Order id required" });
+    return;
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+  });
+  if (!order) {
+    res.status(404).json({ error: "Order not found" });
+    return;
+  }
+
+  let authorized = false;
+
+  const cookieSessionId = req.cookies?.[sessionConfig.cookieName] as
+    | string
+    | undefined;
+  if (cookieSessionId) {
+    const orderSession = await prisma.orderSession.findUnique({
+      where: { id: String(cookieSessionId) },
+    });
+    if (orderSession?.orderId === orderId) {
+      authorized = true;
+    }
+  }
+
+  if (!authorized) {
+    const authToken = req.cookies?.[authConfig.cookieName] as string | undefined;
+    if (authToken) {
+      try {
+        const user = verifyToken(authToken);
+        if (
+          (user.role === "ADMIN" || user.role === "STAFF") &&
+          user.userId === order.organizationId
+        ) {
+          authorized = true;
+        }
+      } catch {
+        /* invalid token */
+      }
+    }
+  }
+
+  if (!authorized) {
+    res.status(403).json({ error: "Not allowed to update this order" });
+    return;
+  }
+
+  const parsed = validateOrderCustomerBody(order.contextType, req.body);
+  if ("error" in parsed) {
+    res.status(400).json({ error: parsed.error });
+    return;
+  }
+  const { data } = parsed;
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      shippingType: data.shippingType,
+      shippingAddress:
+        data.shippingAddress === null
+          ? Prisma.DbNull
+          : (data.shippingAddress as Prisma.InputJsonValue),
+    },
+  });
+
+  res.json({ ok: true });
+});
 
 function selectionComplete(session: {
   selectedShapeId: string | null;
@@ -349,7 +500,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
       const order = await prisma.order.findFirst({
         where: { id: orderId, organizationId: user.userId },
         include: {
-          orderImages: { orderBy: SESSION_IMAGE_LIST_ORDER_BY },
+          orderImages: { orderBy: ORDER_IMAGE_LIST_ORDER_BY },
         },
       });
       if (order) {
@@ -376,7 +527,15 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
           contextId: order.contextId,
           totalPrice: order.totalPrice.toString(),
           currency: order.currency,
+          imageCount: order.orderImages.length,
           createdAt: order.createdAt.toISOString(),
+          customerName: order.customerName,
+          customerEmail: order.customerEmail,
+          customerPhone: order.customerPhone,
+          shippingType: order.shippingType,
+          shippingAddress: order.shippingAddress,
+          printedAt: order.printedAt?.toISOString() ?? null,
+          shippedAt: order.shippedAt?.toISOString() ?? null,
           images: order.orderImages.map((img) => ({
             id: img.id,
             renderedUrl: img.renderedUrl,
@@ -410,7 +569,18 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { id: true, status: true },
+    select: {
+      id: true,
+      status: true,
+      contextType: true,
+      customerName: true,
+      customerPhone: true,
+      shippingType: true,
+      shippingAddress: true,
+      totalPrice: true,
+      currency: true,
+      _count: { select: { orderImages: true } },
+    },
   });
 
   if (!order) {
@@ -421,5 +591,13 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
   res.json({
     orderId: order.id,
     status: order.status,
+    contextType: order.contextType,
+    customerName: order.customerName,
+    customerPhone: order.customerPhone,
+    shippingType: order.shippingType,
+    shippingAddress: order.shippingAddress,
+    totalPrice: order.totalPrice.toString(),
+    currency: order.currency,
+    imageCount: order._count.orderImages,
   });
 });

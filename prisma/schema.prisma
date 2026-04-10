@@ -217,6 +217,20 @@ model Order {
   bundleId       String?
   /// Set when Stripe Checkout completes (webhook); optional until paid.
   stripeCheckoutSessionId String?
+
+  customerName   String?
+  customerEmail  String?
+  customerPhone  String?
+  shippingType   String?
+  shippingAddress Json?
+
+  /// Seller marks production done. Reprints do not change this.
+  printedAt DateTime?
+  /// Order left for shipping / mail. Event pickup may use a different field later.
+  shippedAt DateTime?
+  /// Future: `pickedUpAt DateTime?` when customer collects at event. Not in DB yet.
+  /// Completion rule (when added): physically done ⇔ `shippedAt != null OR pickedUpAt != null`.
+
   createdAt      DateTime          @default(now())
 
   organization User        @relation(fields: [organizationId], references: [id], onDelete: Restrict)

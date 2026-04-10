@@ -80,8 +80,16 @@ export type PostOrderCommitResponse = {
   status: "PENDING_CASH" | "PENDING_PAYMENT";
 };
 
-/** GET /api/orders/:id — session-scoped order status (e.g. payment polling). */
+/** GET /api/orders/:id — session-scoped order status (e.g. payment polling) + customer prefill + summary. */
 export type GetOrderStatusResponse = {
   orderId: string;
   status: "PENDING_CASH" | "PENDING_PAYMENT" | "PAID";
+  contextType?: "EVENT" | "STOREFRONT";
+  customerName?: string | null;
+  customerPhone?: string | null;
+  shippingType?: string | null;
+  shippingAddress?: unknown | null;
+  totalPrice?: string;
+  currency?: string;
+  imageCount?: number;
 };

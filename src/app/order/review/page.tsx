@@ -215,13 +215,9 @@ export default function OrderReviewPage() {
       const result = await api<PostOrderCommitResponse>("/api/orders", {
         method: "POST",
       });
-      if (result.status === "PENDING_CASH") {
-        router.push(`/order/confirmation${q}`);
-        return;
-      }
-      const paymentParams = new URLSearchParams(q.replace(/^\?/, ""));
-      paymentParams.set("orderId", result.orderId);
-      router.push(`/order/payment?${paymentParams.toString()}`);
+      const customerParams = new URLSearchParams(q.replace(/^\?/, ""));
+      customerParams.set("orderId", result.orderId);
+      router.push(`/order/customer?${customerParams.toString()}`);
     } catch (e) {
       setActionError(
         e instanceof Error ? e.message : "Could not place order. Try again.",

@@ -19,7 +19,7 @@ function OrderPaymentInner() {
 
   useEffect(() => {
     const q = window.location.search;
-    setBackHref(`/order/review${q}`);
+    setBackHref(`/order/customer${q}`);
   }, []);
 
   const onPay = useCallback(async () => {

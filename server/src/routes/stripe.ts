@@ -10,6 +10,7 @@ import { ORDER_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
 import { renderOrderImages } from "../lib/renderOrderImages";
 import { getAppPublicUrl, getStripeOrNull } from "../lib/stripe";
 import { sessionConfig } from "../config/session";
+import { isStorefrontCustomerComplete } from "../lib/orderCustomerValidation";
 
 export const stripeRouter = Router();
 
@@ -60,6 +61,21 @@ stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
   }
   if (order.status !== "PENDING_PAYMENT") {
     res.status(400).json({ error: "Order is not awaiting payment" });
+    return;
+  }
+
+  if (!order.customerName?.trim()) {
+    res.status(400).json({
+      error:
+        "Add your details on the customer step before paying.",
+    });
+    return;
+  }
+  if (!isStorefrontCustomerComplete(order)) {
+    res.status(400).json({
+      error:
+        "Complete phone, shipping method, and (for delivery) address or (for BoxNow) locker id before paying.",
+    });
     return;
   }
 

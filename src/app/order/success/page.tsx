@@ -97,9 +97,17 @@ function OrderSuccessInner() {
       )}
 
       {phase === "paid" && (
-        <p className="text-sm text-[#6B7280]">
-          Your payment is confirmed. You can keep this order reference:
-        </p>
+        <>
+          <p className="text-sm text-[#6B7280]">
+            Your payment is confirmed. You can keep this order reference:
+          </p>
+          <Link
+            href={`/order/customer?orderId=${encodeURIComponent(orderId)}&from=success`}
+            className="inline-flex min-h-[44px] items-center text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
+          >
+            Edit customer info
+          </Link>
+        </>
       )}
 
       {(phase === "timeout" || phase === "error") && (
