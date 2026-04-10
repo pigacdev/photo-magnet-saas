@@ -9,6 +9,8 @@ import { SellerPrintStatusBadge } from "@/lib/sellerOrderPrintStatus";
 export type SellerOrderListItem = {
   id: string;
   status: string;
+  /** Server-derived: PAID or PENDING_CASH — OK to produce / print. */
+  readyToPrint: boolean;
   contextType: "EVENT" | "STOREFRONT";
   totalPrice: string;
   currency: string;
@@ -100,7 +102,14 @@ export default function OrdersListPage() {
                       {shortId(o.id)}
                     </td>
                     <td className="px-4 py-3">
-                      <SellerPrintStatusBadge status={o.status} />
+                      <div>
+                        <SellerPrintStatusBadge status={o.status} />
+                        {o.readyToPrint && (
+                          <p className="mt-1 text-xs font-medium text-[#16A34A]">
+                            Ready to print
+                          </p>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-[#111111]">
                       {o.contextType}
@@ -132,7 +141,14 @@ export default function OrdersListPage() {
                     <span className="font-mono text-xs text-[#111111]">
                       {shortId(o.id)}
                     </span>
-                    <SellerPrintStatusBadge status={o.status} />
+                    <div className="text-right">
+                      <SellerPrintStatusBadge status={o.status} />
+                      {o.readyToPrint && (
+                        <p className="mt-1 text-xs font-medium text-[#16A34A]">
+                          Ready to print
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                     <div>

@@ -12,18 +12,18 @@ export function sellerPrintBadge(status: string): {
 } {
   if (isReadyToPrint(status)) {
     return {
-      label: "Ready",
+      label: "READY",
       className: "bg-green-50 text-[#16A34A]",
     };
   }
   if (status === "PENDING_PAYMENT") {
     return {
-      label: "Needs payment",
+      label: "NEEDS PAYMENT",
       className: "bg-amber-50 text-[#B45309]",
     };
   }
   return {
-    label: "Pending",
+    label: "PENDING",
     className: "bg-gray-100 text-[#6B7280]",
   };
 }
@@ -32,7 +32,7 @@ export function SellerPrintStatusBadge({ status }: { status: string }) {
   const { label, className } = sellerPrintBadge(status);
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${className}`}
+      className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${className}`}
     >
       {label}
     </span>

@@ -54,6 +54,7 @@ ordersRouter.get(
       sorted.map((o) => ({
         id: o.id,
         status: o.status,
+        readyToPrint: isReadyToPrintForSeller(o.status),
         contextType: o.contextType,
         totalPrice: o.totalPrice.toString(),
         currency: o.currency,
