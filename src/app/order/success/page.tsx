@@ -5,6 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import type { GetOrderStatusResponse } from "@/lib/orderSessionTypes";
+import {
+  getSafeOrderReturnTo,
+  orderContextToEntryPath,
+} from "@/lib/orderReturnTo";
 
 const POLL_MS = 1500;
 const MAX_POLL_MS = 90_000;
@@ -20,6 +24,7 @@ type UiPhase =
 
 /**
  * After Stripe redirects here, the webhook may lag. Poll until DB shows PAID.
+ * No link to SaaS home — customers use entry event/store + order customer edit only.
  */
 function OrderSuccessInner() {
   const searchParams = useSearchParams();
@@ -28,8 +33,46 @@ function OrderSuccessInner() {
     [searchParams],
   );
 
+  const returnToFromQuery = useMemo(
+    () => getSafeOrderReturnTo(searchParams.get("returnTo")),
+    [searchParams],
+  );
+
   const [phase, setPhase] = useState<UiPhase>("idle");
   const [unexpectedStatus, setUnexpectedStatus] = useState<string | null>(null);
+  const [pollContext, setPollContext] = useState<{
+    contextType: "EVENT" | "STOREFRONT";
+    contextId: string;
+  } | null>(null);
+
+  const startNewOrderHref = useMemo(() => {
+    return (
+      returnToFromQuery ??
+      (pollContext
+        ? orderContextToEntryPath(
+            pollContext.contextType,
+            pollContext.contextId,
+          )
+        : null)
+    );
+  }, [returnToFromQuery, pollContext]);
+
+  const editOrderInfoHref = useMemo(() => {
+    if (!orderId) return "";
+    const p = new URLSearchParams();
+    p.set("orderId", orderId);
+    p.set("from", "success");
+    const rt =
+      returnToFromQuery ??
+      (pollContext
+        ? orderContextToEntryPath(
+            pollContext.contextType,
+            pollContext.contextId,
+          )
+        : null);
+    if (rt) p.set("returnTo", rt);
+    return `/order/customer?${p.toString()}`;
+  }, [orderId, returnToFromQuery, pollContext]);
 
   useEffect(() => {
     if (!orderId) {
@@ -49,6 +92,13 @@ function OrderSuccessInner() {
             `/api/orders/${encodeURIComponent(orderId)}`,
           );
           if (!alive) return;
+
+          if (data.contextType && data.contextId) {
+            setPollContext({
+              contextType: data.contextType,
+              contextId: data.contextId,
+            });
+          }
 
           if (data.status === "PAID") {
             setPhase("paid");
@@ -97,17 +147,9 @@ function OrderSuccessInner() {
       )}
 
       {phase === "paid" && (
-        <>
-          <p className="text-sm text-[#6B7280]">
-            Your payment is confirmed. You can keep this order reference:
-          </p>
-          <Link
-            href={`/order/customer?orderId=${encodeURIComponent(orderId)}&from=success`}
-            className="inline-flex min-h-[44px] items-center text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
-          >
-            Edit customer info
-          </Link>
-        </>
+        <p className="text-sm text-[#6B7280]">
+          Your payment is confirmed. You can keep this order reference:
+        </p>
       )}
 
       {(phase === "timeout" || phase === "error") && (
@@ -134,12 +176,28 @@ function OrderSuccessInner() {
         </p>
       ) : null}
 
-      <Link
-        href="/"
-        className="text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
-      >
-        Home
-      </Link>
+      {orderId && (
+        <div className="flex flex-col gap-3 border-t border-gray-200 pt-6">
+          <Link
+            href={editOrderInfoHref}
+            className="inline-flex min-h-[44px] items-center text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
+          >
+            Edit order info
+          </Link>
+          {startNewOrderHref ? (
+            <Link
+              href={startNewOrderHref}
+              className="inline-flex min-h-[44px] items-center text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
+            >
+              Start new order
+            </Link>
+          ) : (
+            <p className="text-xs text-[#9CA3AF]">
+              Start new order will appear once the order details load.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

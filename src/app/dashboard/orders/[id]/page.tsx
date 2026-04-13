@@ -13,11 +13,13 @@ import {
   shippingTypeLabel,
   type StorefrontShippingType,
 } from "@/lib/shippingTypes";
+import type { OrderDisplayStatus } from "@/lib/orderDisplayStatus";
 import { isReadyToPrint } from "@/lib/sellerOrderPrintStatus";
 
 type SellerOrderDetail = {
   orderId: string;
   status: string;
+  displayStatus: OrderDisplayStatus;
   contextType: "EVENT" | "STOREFRONT";
   contextId: string;
   totalPrice: string;

@@ -14,15 +14,15 @@ export function fulfillmentLabel(order: {
   status: string;
 }): { label: string; className: string } {
   if (order.shippedAt) {
-    return { label: "Shipped", className: "bg-blue-50 text-[#1D4ED8]" };
+    return { label: "Shipped", className: "text-[#16A34A]" };
   }
   if (order.printedAt) {
-    return { label: "Printed", className: "bg-violet-50 text-[#6D28D9]" };
+    return { label: "Printed", className: "text-[#C2410C]" };
   }
   if (isReadyToPrint(order.status)) {
-    return { label: "Ready to print", className: "bg-green-50 text-[#16A34A]" };
+    return { label: "Ready to print", className: "text-[#1D4ED8]" };
   }
-  return { label: "—", className: "bg-gray-100 text-[#6B7280]" };
+  return { label: "—", className: "text-[#6B7280]" };
 }
 
 export function FulfillmentStatusBadge(order: {
@@ -33,7 +33,7 @@ export function FulfillmentStatusBadge(order: {
   const { label, className } = fulfillmentLabel(order);
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${className}`}
+      className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide bg-gray-100 ${className}`}
     >
       {label}
     </span>

@@ -32,6 +32,28 @@ function isReadyToPrintForSeller(status: string): boolean {
   return status === "PAID" || status === "PENDING_CASH";
 }
 
+/** Computed for seller list/detail — not stored in DB. */
+function getDisplayStatus(order: {
+  status: string;
+  printedAt: Date | null;
+  shippedAt: Date | null;
+}):
+  | "SHIPPED"
+  | "PRINTED"
+  | "READY_TO_PRINT"
+  | "AWAITING_PAYMENT"
+  | "UNKNOWN" {
+  if (order.shippedAt) return "SHIPPED";
+  if (order.printedAt) return "PRINTED";
+  if (order.status === "PAID" || order.status === "PENDING_CASH") {
+    return "READY_TO_PRINT";
+  }
+  if (order.status === "PENDING_PAYMENT") {
+    return "AWAITING_PAYMENT";
+  }
+  return "UNKNOWN";
+}
+
 /** GET /api/orders — seller: ready-to-print first, then newest within each band. */
 ordersRouter.get(
   "/",
@@ -44,6 +66,8 @@ ordersRouter.get(
       select: {
         id: true,
         status: true,
+        printedAt: true,
+        shippedAt: true,
         contextType: true,
         totalPrice: true,
         currency: true,
@@ -61,7 +85,7 @@ ordersRouter.get(
       sorted.map((o) => ({
         id: o.id,
         status: o.status,
-        readyToPrint: isReadyToPrintForSeller(o.status),
+        displayStatus: getDisplayStatus(o),
         contextType: o.contextType,
         totalPrice: o.totalPrice.toString(),
         currency: o.currency,
@@ -692,6 +716,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
       res.json({
         orderId: order.id,
         status: order.status,
+        displayStatus: getDisplayStatus(order),
         contextType: order.contextType,
         contextId: order.contextId,
         totalPrice: order.totalPrice.toString(),
@@ -741,6 +766,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
       id: true,
       status: true,
       contextType: true,
+      contextId: true,
       customerName: true,
       customerPhone: true,
       shippingType: true,
@@ -760,6 +786,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
     orderId: order.id,
     status: order.status,
     contextType: order.contextType,
+    contextId: order.contextId,
     customerName: order.customerName,
     customerPhone: order.customerPhone,
     shippingType: order.shippingType,

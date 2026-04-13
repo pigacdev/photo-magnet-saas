@@ -85,6 +85,7 @@ export type GetOrderStatusResponse = {
   orderId: string;
   status: "PENDING_CASH" | "PENDING_PAYMENT" | "PAID";
   contextType?: "EVENT" | "STOREFRONT";
+  contextId?: string;
   customerName?: string | null;
   customerPhone?: string | null;
   shippingType?: string | null;

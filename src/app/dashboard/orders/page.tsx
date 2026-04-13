@@ -4,13 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { SellerPrintStatusBadge } from "@/lib/sellerOrderPrintStatus";
+import {
+  type OrderDisplayStatus,
+  OrderDisplayStatusBadge,
+} from "@/lib/orderDisplayStatus";
 
 export type SellerOrderListItem = {
   id: string;
   status: string;
-  /** Server-derived: PAID or PENDING_CASH — OK to produce / print. */
-  readyToPrint: boolean;
+  displayStatus: OrderDisplayStatus;
   contextType: "EVENT" | "STOREFRONT";
   totalPrice: string;
   currency: string;
@@ -102,14 +104,7 @@ export default function OrdersListPage() {
                       {shortId(o.id)}
                     </td>
                     <td className="px-4 py-3">
-                      <div>
-                        <SellerPrintStatusBadge status={o.status} />
-                        {o.readyToPrint && (
-                          <p className="mt-1 text-xs font-medium text-[#16A34A]">
-                            Ready to print
-                          </p>
-                        )}
-                      </div>
+                      <OrderDisplayStatusBadge displayStatus={o.displayStatus} />
                     </td>
                     <td className="px-4 py-3 text-[#111111]">
                       {o.contextType}
@@ -142,12 +137,7 @@ export default function OrdersListPage() {
                       {shortId(o.id)}
                     </span>
                     <div className="text-right">
-                      <SellerPrintStatusBadge status={o.status} />
-                      {o.readyToPrint && (
-                        <p className="mt-1 text-xs font-medium text-[#16A34A]">
-                          Ready to print
-                        </p>
-                      )}
+                      <OrderDisplayStatusBadge displayStatus={o.displayStatus} />
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">

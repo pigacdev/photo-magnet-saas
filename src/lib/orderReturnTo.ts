@@ -22,3 +22,16 @@ export function buildOrderUrlWithReturn(returnPath: string): string {
   if (!safe) return "/order";
   return `/order?returnTo=${encodeURIComponent(safe)}`;
 }
+
+/** Entry page for a committed order’s catalog context (same rules as `getSafeOrderReturnTo`). */
+export function orderContextToEntryPath(
+  contextType: "EVENT" | "STOREFRONT" | undefined,
+  contextId: string | undefined,
+): string | null {
+  if (!contextType || !contextId?.trim()) return null;
+  const path =
+    contextType === "EVENT"
+      ? `/event/${contextId.trim()}`
+      : `/store/${contextId.trim()}`;
+  return getSafeOrderReturnTo(path);
+}

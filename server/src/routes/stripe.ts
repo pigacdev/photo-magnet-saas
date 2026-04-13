@@ -14,6 +14,23 @@ import { isStorefrontCustomerComplete } from "../lib/orderCustomerValidation";
 
 export const stripeRouter = Router();
 
+/** Matches `getSafeOrderReturnTo` in `src/lib/orderReturnTo.ts` — safe `returnTo` for Stripe redirect URLs. */
+function safeReturnToQuery(order: {
+  contextType: string;
+  contextId: string;
+}): string {
+  const id = order.contextId?.trim() ?? "";
+  if (!id) return "";
+  const path =
+    order.contextType === "EVENT"
+      ? `/event/${id}`
+      : order.contextType === "STOREFRONT"
+        ? `/store/${id}`
+        : "";
+  if (!/^\/(event|store)\/[a-zA-Z0-9_-]+$/.test(path)) return "";
+  return `&returnTo=${encodeURIComponent(path)}`;
+}
+
 stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
   const s = getStripeOrNull();
   if (!s) {
@@ -124,6 +141,8 @@ stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
       }
     }
 
+    const returnToQ = safeReturnToQuery(order);
+
     const session = await s.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -142,8 +161,8 @@ stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
       metadata: {
         orderId: order.id,
       },
-      success_url: `${appUrl}/order/success?orderId=${encodeURIComponent(order.id)}`,
-      cancel_url: `${appUrl}/order/payment?orderId=${encodeURIComponent(order.id)}`,
+      success_url: `${appUrl}/order/success?orderId=${encodeURIComponent(order.id)}${returnToQ}`,
+      cancel_url: `${appUrl}/order/payment?orderId=${encodeURIComponent(order.id)}${returnToQ}`,
     });
 
     if (!session.url) {

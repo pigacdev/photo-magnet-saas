@@ -5,7 +5,7 @@
 import { fulfillmentLabel } from "@/lib/orderFulfillmentDisplay";
 import { isReadyToPrint } from "@/lib/sellerOrderPrintStatus";
 
-/** Human payment line — always distinct from fulfillment. */
+/** Human payment line — DB `Order.status` only (not fulfillment). */
 export function PaymentClarityRow({ status }: { status: string }) {
   if (status === "PAID") {
     return (
@@ -24,11 +24,11 @@ export function PaymentClarityRow({ status }: { status: string }) {
     return (
       <div className="flex items-start gap-2.5">
         <span className="text-lg leading-none" aria-hidden>
-          ✅
+          💵
         </span>
         <div>
-          <p className="text-sm font-semibold text-[#111111]">Paid</p>
-          <p className="text-xs text-[#6B7280]">Cash / event order</p>
+          <p className="text-sm font-semibold text-[#111111]">Cash</p>
+          <p className="text-xs text-[#6B7280]">Event / cash order</p>
         </div>
       </div>
     );
@@ -40,8 +40,8 @@ export function PaymentClarityRow({ status }: { status: string }) {
           ⏳
         </span>
         <div>
-          <p className="text-sm font-semibold text-[#B45309]">Needs payment</p>
-          <p className="text-xs text-[#6B7280]">Waiting for checkout</p>
+          <p className="text-sm font-semibold text-[#B45309]">Pending</p>
+          <p className="text-xs text-[#6B7280]">Awaiting online checkout</p>
         </div>
       </div>
     );
@@ -52,7 +52,7 @@ export function PaymentClarityRow({ status }: { status: string }) {
         ◻️
       </span>
       <div>
-        <p className="text-sm font-semibold text-[#6B7280]">Pending</p>
+        <p className="text-sm font-semibold text-[#6B7280]">—</p>
         <p className="text-xs text-[#6B7280]">Payment status updating</p>
       </div>
     </div>
@@ -68,7 +68,7 @@ function fulfillmentEmojiAndHint(
     case "printed":
       return { emoji: "🖨️", hint: "Packed or awaiting shipment" };
     case "ready":
-      return { emoji: "🟡", hint: "Print sheet ready — produce magnets" };
+      return { emoji: "🖨️", hint: "Ready to produce when you print" };
     case "waiting":
       return { emoji: "⏳", hint: "Complete payment before printing" };
     default:
@@ -82,7 +82,7 @@ export function FulfillmentClarityRow(order: {
   printedAt: string | null;
   status: string;
 }) {
-  const { label } = fulfillmentLabel(order);
+  const fl = fulfillmentLabel(order);
 
   let key: "shipped" | "printed" | "ready" | "waiting";
   if (order.shippedAt) key = "shipped";
@@ -98,7 +98,7 @@ export function FulfillmentClarityRow(order: {
         {emoji}
       </span>
       <div>
-        <p className="text-sm font-semibold text-[#111111]">{label}</p>
+        <p className={`text-sm font-semibold ${fl.className}`}>{fl.label}</p>
         <p className="text-xs text-[#6B7280]">{hint}</p>
       </div>
     </div>
