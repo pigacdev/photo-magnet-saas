@@ -178,6 +178,128 @@ ordersRouter.post(
 );
 
 /**
+ * POST /api/orders/:id/print-selected — PDFs for chosen images only; marks those rows printed.
+ */
+ordersRouter.post(
+  "/:id/print-selected",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const orderId = String(req.params.id ?? "").trim();
+    if (!orderId) {
+      res.status(400).json({ error: "Order id required" });
+      return;
+    }
+    const owner = req.user!.userId;
+
+    const body = req.body as { imageIds?: unknown };
+    if (!Array.isArray(body.imageIds) || body.imageIds.length === 0) {
+      res.status(400).json({ error: "imageIds must be a non-empty array" });
+      return;
+    }
+    const raw = body.imageIds as unknown[];
+    const imageIds = [
+      ...new Set(
+        raw
+          .map((x) => (typeof x === "string" ? x.trim() : ""))
+          .filter((s) => s.length > 0),
+      ),
+    ];
+    if (imageIds.length === 0) {
+      res.status(400).json({ error: "imageIds must be non-empty strings" });
+      return;
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, organizationId: owner },
+      select: { id: true, status: true },
+    });
+    if (!order) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+    if (!isReadyToPrintForSeller(order.status)) {
+      res.status(400).json({
+        error: "Order must be paid before printing",
+      });
+      return;
+    }
+
+    const images = await prisma.orderImage.findMany({
+      where: { orderId, id: { in: imageIds } },
+      orderBy: ORDER_IMAGE_LIST_ORDER_BY,
+    });
+    if (images.length !== imageIds.length) {
+      res.status(400).json({
+        error: "One or more images not found on this order",
+      });
+      return;
+    }
+
+    try {
+      await renderOrderImages(
+        orderId,
+        images.map((img) => ({
+          id: img.id,
+          originalUrl: img.originalUrl,
+          cropX: img.cropX,
+          cropY: img.cropY,
+          cropWidth: img.cropWidth,
+          cropHeight: img.cropHeight,
+        })),
+      );
+    } catch (renderErr) {
+      console.warn("[print-selected] renderOrderImages", renderErr);
+    }
+
+    const refreshed = await prisma.orderImage.findMany({
+      where: { orderId, id: { in: imageIds } },
+      orderBy: ORDER_IMAGE_LIST_ORDER_BY,
+    });
+
+    const grouped: Record<string, typeof refreshed> = {};
+    for (const img of refreshed) {
+      if (!grouped[img.shapeId]) grouped[img.shapeId] = [];
+      grouped[img.shapeId]!.push(img);
+    }
+
+    const urls: string[] = [];
+    for (const shapeId of Object.keys(grouped)) {
+      const groupImages = grouped[shapeId];
+      if (!groupImages?.length) continue;
+      const pdfUrl = await generatePrintSheet(
+        orderId,
+        groupImages.map((img) => ({
+          id: img.id,
+          renderedUrl: img.renderedUrl,
+        })),
+        shapeId,
+      );
+      urls.push(pdfUrl);
+    }
+
+    const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      await tx.orderImage.updateMany({
+        where: { orderId, id: { in: imageIds }, printed: false },
+        data: { printed: true, printedAt: now },
+      });
+      const unprinted = await tx.orderImage.count({
+        where: { orderId, printed: false },
+      });
+      if (unprinted === 0) {
+        await tx.order.update({
+          where: { id: orderId },
+          data: { printedAt: now },
+        });
+      }
+    });
+
+    res.json({ urls });
+  },
+);
+
+/**
  * PATCH /api/orders/:id/mark-printed
  * Body (optional): { imageIds?: string[] } — if non-empty, only those rows; else all images.
  * Sets order.printedAt when every OrderImage has printed=true after the update.
@@ -251,12 +373,12 @@ ordersRouter.patch(
     await prisma.$transaction(async (tx) => {
       if (imageIdList && imageIdList.length > 0) {
         await tx.orderImage.updateMany({
-          where: { orderId, id: { in: imageIdList } },
+          where: { orderId, id: { in: imageIdList }, printed: false },
           data: { printed: true, printedAt: now },
         });
       } else {
         await tx.orderImage.updateMany({
-          where: { orderId },
+          where: { orderId, printed: false },
           data: { printed: true, printedAt: now },
         });
       }

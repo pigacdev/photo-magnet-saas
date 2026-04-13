@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
@@ -50,8 +56,15 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<
-    "printPreview" | "markPrinted" | "ship" | null
+    "printPreview" | "printSelected" | "markPrinted" | "ship" | null
   >(null);
+  const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
+  /** Stays true until staggered PDF opens finish — avoids double POST / duplicate tabs. */
+  const [isPrintingSelected, setIsPrintingSelected] = useState(false);
+  const printSelectedLockRef = useRef(false);
+  const [printFeedbackToast, setPrintFeedbackToast] = useState<string | null>(
+    null,
+  );
   const [customerEditOpen, setCustomerEditOpen] = useState(false);
   const [customerSaving, setCustomerSaving] = useState(false);
   const [editName, setEditName] = useState("");
@@ -85,14 +98,86 @@ export default function OrderDetailPage() {
   useEffect(() => {
     loadOrder();
     setPrintOutcomePrompt(false);
+    setSelectedImageIds([]);
+    setIsPrintingSelected(false);
+    printSelectedLockRef.current = false;
+    setPrintFeedbackToast(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load when id changes
   }, [id]);
+
+  const toggleImageSelected = useCallback((imageId: string) => {
+    setSelectedImageIds((prev) =>
+      prev.includes(imageId)
+        ? prev.filter((i) => i !== imageId)
+        : [...prev, imageId],
+    );
+  }, []);
+
+  const unprintedImageIds = useMemo(
+    () =>
+      order?.images.filter((img) => !img.printed).map((img) => img.id) ?? [],
+    [order?.images],
+  );
 
   useEffect(() => {
     if (order?.printedAt) {
       setPrintOutcomePrompt(false);
     }
   }, [order?.printedAt]);
+
+  useEffect(() => {
+    if (!printFeedbackToast) return;
+    const t = window.setTimeout(() => setPrintFeedbackToast(null), 4500);
+    return () => clearTimeout(t);
+  }, [printFeedbackToast]);
+
+  function unlockPrintSelected() {
+    printSelectedLockRef.current = false;
+    setIsPrintingSelected(false);
+    setActionBusy(null);
+  }
+
+  async function printSelectedImages() {
+    if (!id || selectedImageIds.length === 0) return;
+    if (printSelectedLockRef.current || isPrintingSelected) return;
+    printSelectedLockRef.current = true;
+    setIsPrintingSelected(true);
+    setActionBusy("printSelected");
+    setError(null);
+    try {
+      const data = await api<{ urls: string[] }>(
+        `/api/orders/${encodeURIComponent(id)}/print-selected`,
+        {
+          method: "POST",
+          body: { imageIds: selectedImageIds },
+        },
+      );
+      const list = data.urls?.filter(Boolean) ?? [];
+      const markedCount = selectedImageIds.length;
+      for (let i = 0; i < list.length; i++) {
+        const u = list[i];
+        if (u) {
+          window.setTimeout(() => {
+            window.open(u, "_blank", "noopener,noreferrer");
+          }, i * 250);
+        }
+      }
+      setSelectedImageIds([]);
+      setPrintFeedbackToast(
+        markedCount === 1
+          ? "1 image marked as printed"
+          : `${markedCount} images marked as printed`,
+      );
+      refreshOrder();
+      const staggerMs = list.length <= 1 ? 0 : (list.length - 1) * 250;
+      window.setTimeout(unlockPrintSelected, staggerMs + 400);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Could not print selected images",
+      );
+      unlockPrintSelected();
+    }
+  }
 
   async function printOrderPreview() {
     if (!id) return;
@@ -263,7 +348,16 @@ export default function OrderDetailPage() {
   );
 
   return (
-    <div className="flex flex-col gap-8 pb-8">
+    <div className="relative flex flex-col gap-8 pb-8">
+      {printFeedbackToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed left-1/2 top-[4.75rem] z-[100] max-w-[min(90vw,20rem)] -translate-x-1/2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-center text-sm font-medium text-green-900 shadow-lg"
+        >
+          {printFeedbackToast}
+        </div>
+      )}
       <div>
         <Link
           href="/dashboard/orders"
@@ -281,6 +375,11 @@ export default function OrderDetailPage() {
         <p className="text-sm text-[#6B7280]">Order not found.</p>
       ) : (
         <>
+          <div
+            className={`flex flex-col gap-8 pb-8 ${
+              selectedImageIds.length > 0 ? "pb-28 sm:pb-24" : ""
+            }`}
+          >
           <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
             <h1 className="text-lg font-semibold text-[#111111] sm:text-xl">
               Order
@@ -666,33 +765,127 @@ export default function OrderDetailPage() {
 
           <div>
             <h2 className="text-base font-semibold text-[#111111]">Images</h2>
+            <p className="mt-1 text-xs text-[#6B7280]">
+              Use <span className="font-medium text-[#111111]">Select unprinted</span>{" "}
+              for the usual run, then print only those sheets. Tap cards to adjust.
+              Printed items are dimmed but can be included for reprint.
+            </p>
             {order.images.length === 0 ? (
               <p className="mt-3 text-sm text-[#6B7280]">
                 No images available.
               </p>
             ) : (
-              <ul className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-                {order.images.map((img) => (
-                  <li
-                    key={img.id}
-                    className="aspect-square overflow-hidden rounded-lg border border-gray-200 bg-[#F9FAFB]"
+              <>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={unprintedImageIds.length === 0}
+                    onClick={() => setSelectedImageIds(unprintedImageIds)}
+                    className="rounded-lg border border-[#2563EB] bg-[#EFF6FF] px-3 py-2 text-sm font-semibold text-[#1D4ED8] transition-colors hover:bg-[#DBEAFE] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:font-medium disabled:text-[#9CA3AF]"
                   >
-                    {img.renderedUrl ? (
-                      <img
-                        src={img.renderedUrl}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center p-2 text-center text-xs text-[#6B7280]">
-                        Not rendered
-                      </div>
-                    )}
-                  </li>
-                ))}
+                    Select unprinted
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedImageIds(order.images.map((img) => img.id))
+                    }
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB]"
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selectedImageIds.length === 0}
+                    onClick={() => setSelectedImageIds([])}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              <ul className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {order.images.map((img) => {
+                  const isSelected = selectedImageIds.includes(img.id);
+                  return (
+                    <li key={img.id} className="relative">
+                      <button
+                        type="button"
+                        aria-pressed={isSelected}
+                        aria-label={
+                          isSelected ? "Deselect image" : "Select image"
+                        }
+                        onClick={() => toggleImageSelected(img.id)}
+                        className={`group relative aspect-square w-full overflow-hidden rounded-lg border bg-[#F9FAFB] text-left transition-shadow ${
+                          isSelected
+                            ? "border-[#2563EB] ring-2 ring-[#2563EB]"
+                            : "border-gray-200"
+                        }`}
+                      >
+                        {img.renderedUrl ? (
+                          <img
+                            src={img.renderedUrl}
+                            alt=""
+                            className={`h-full w-full object-cover ${
+                              img.printed ? "opacity-60" : ""
+                            }`}
+                          />
+                        ) : (
+                          <div
+                            className={`flex h-full items-center justify-center p-2 text-center text-xs text-[#6B7280] ${
+                              img.printed ? "opacity-60" : ""
+                            }`}
+                          >
+                            Not rendered
+                          </div>
+                        )}
+                        <span
+                          className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md border text-sm font-semibold shadow-sm ${
+                            isSelected
+                              ? "border-[#2563EB] bg-[#2563EB] text-white"
+                              : "border-gray-200 bg-white/95 text-[#6B7280]"
+                          }`}
+                          aria-hidden
+                        >
+                          {isSelected ? "✓" : ""}
+                        </span>
+                        <span
+                          className={`pointer-events-none absolute bottom-2 left-2 max-w-[calc(100%-3rem)] truncate rounded-md border px-2 py-1 text-[10px] font-semibold leading-tight shadow-sm ${
+                            img.printed
+                              ? "border-green-200 bg-green-50/95 text-green-800"
+                              : "border-gray-200 bg-white/95 text-[#6B7280]"
+                          }`}
+                        >
+                          {img.printed ? "✅ Printed" : "⚪ Not printed"}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
+              </>
             )}
           </div>
+          </div>
+
+          {selectedImageIds.length > 0 && (
+            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-6">
+              <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3">
+                <p className="text-sm text-[#111111]">
+                  {selectedImageIds.length} selected
+                </p>
+                <button
+                  type="button"
+                  disabled={isPrintingSelected || actionBusy !== null}
+                  onClick={() => void printSelectedImages()}
+                  className="min-h-[48px] rounded-lg bg-[#2563EB] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
+                >
+                  {isPrintingSelected || actionBusy === "printSelected"
+                    ? "Preparing…"
+                    : `Print selected (${selectedImageIds.length})`}
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
