@@ -9,6 +9,7 @@ type CheckoutSessionResponse = {
   url: string;
 };
 
+/** Storefront Stripe step: driven only by `?orderId=` — middleware and API do not require an order session cookie. */
 function OrderPaymentInner() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId")?.trim() ?? "";

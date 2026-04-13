@@ -28,18 +28,21 @@ stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
   }
   const orderId = String(orderIdRaw);
 
+  /** Payment is authorized by `orderId` + order row checks below — no session cookie required
+   *  (user may open `/order/payment?orderId=…` without checkout cookies). If a session
+   *  cookie exists and is already bound to a different order, reject to avoid cross-order mistakes. */
   const cookieSessionId = req.cookies?.[sessionConfig.cookieName] as string | undefined;
-  if (!cookieSessionId) {
-    res.status(401).json({ error: "Session required" });
-    return;
-  }
-
-  const orderSession = await prisma.orderSession.findUnique({
-    where: { id: String(cookieSessionId) },
-  });
-  if (!orderSession?.orderId || orderSession.orderId !== orderId) {
-    res.status(403).json({ error: "Invalid order for this session" });
-    return;
+  if (cookieSessionId) {
+    const orderSession = await prisma.orderSession.findUnique({
+      where: { id: String(cookieSessionId) },
+    });
+    if (
+      orderSession?.orderId != null &&
+      orderSession.orderId !== orderId
+    ) {
+      res.status(403).json({ error: "Invalid order for this session" });
+      return;
+    }
   }
 
   const order = await prisma.order.findUnique({

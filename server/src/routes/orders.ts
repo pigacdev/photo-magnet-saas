@@ -10,7 +10,7 @@ import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { sessionConfig } from "../config/session";
 import { authConfig } from "../config/auth";
-import { verifyToken } from "../lib/auth";
+import { verifyToken, type JwtPayload } from "../lib/auth";
 import { authenticate, requireRole } from "../middleware/auth";
 import { clearSessionCookie } from "../lib/orderSessionApi";
 import {
@@ -658,65 +658,67 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
   }
 
   const token = req.cookies?.[authConfig.cookieName] as string | undefined;
+  let sellerUser: JwtPayload | null = null;
   if (token) {
     try {
-      const user = verifyToken(token);
-      const order = await prisma.order.findFirst({
-        where: { id: orderId, organizationId: user.userId },
-        include: {
-          orderImages: { orderBy: ORDER_IMAGE_LIST_ORDER_BY },
-        },
-      });
-      if (order) {
-        const shapeIds = [
-          ...new Set(order.orderImages.map((i) => i.shapeId)),
-        ];
-        const shapes = await prisma.allowedShape.findMany({
-          where: { id: { in: shapeIds } },
-          select: { id: true, widthMm: true, heightMm: true },
-        });
-        const shapeById = new Map(shapes.map((s) => [s.id, s]));
-        const printSheets = shapeIds.map((sid) => {
-          const sh = shapeById.get(sid);
-          return {
-            url: `/uploads/print-sheets/${order.id}-${sid}.pdf`,
-            widthMm: sh?.widthMm ?? 0,
-            heightMm: sh?.heightMm ?? 0,
-          };
-        });
-        res.json({
-          orderId: order.id,
-          status: order.status,
-          contextType: order.contextType,
-          contextId: order.contextId,
-          totalPrice: order.totalPrice.toString(),
-          currency: order.currency,
-          imageCount: order.orderImages.length,
-          createdAt: order.createdAt.toISOString(),
-          customerName: order.customerName,
-          customerEmail: order.customerEmail,
-          customerPhone: order.customerPhone,
-          shippingType: order.shippingType,
-          shippingAddress: order.shippingAddress,
-          printedAt: order.printedAt?.toISOString() ?? null,
-          shippedAt: order.shippedAt?.toISOString() ?? null,
-          images: order.orderImages.map((img) => ({
-            id: img.id,
-            renderedUrl: img.renderedUrl,
-            position: img.position,
-            shapeId: img.shapeId,
-            printed: img.printed,
-            printedAt: img.printedAt?.toISOString() ?? null,
-          })),
-          printSheets,
-        });
-        return;
-      }
-      res.status(404).json({ error: "Order not found" });
-      return;
+      sellerUser = verifyToken(token);
     } catch {
-      /* invalid token — try session poll below */
+      sellerUser = null;
     }
+  }
+
+  if (sellerUser) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, organizationId: sellerUser.userId },
+      include: {
+        orderImages: { orderBy: ORDER_IMAGE_LIST_ORDER_BY },
+      },
+    });
+    if (order) {
+      const shapeIds = [...new Set(order.orderImages.map((i) => i.shapeId))];
+      const shapes = await prisma.allowedShape.findMany({
+        where: { id: { in: shapeIds } },
+        select: { id: true, widthMm: true, heightMm: true },
+      });
+      const shapeById = new Map(shapes.map((s) => [s.id, s]));
+      const printSheets = shapeIds.map((sid) => {
+        const sh = shapeById.get(sid);
+        return {
+          url: `/uploads/print-sheets/${order.id}-${sid}.pdf`,
+          widthMm: sh?.widthMm ?? 0,
+          heightMm: sh?.heightMm ?? 0,
+        };
+      });
+      res.json({
+        orderId: order.id,
+        status: order.status,
+        contextType: order.contextType,
+        contextId: order.contextId,
+        totalPrice: order.totalPrice.toString(),
+        currency: order.currency,
+        imageCount: order.orderImages.length,
+        createdAt: order.createdAt.toISOString(),
+        customerName: order.customerName,
+        customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone,
+        shippingType: order.shippingType,
+        shippingAddress: order.shippingAddress,
+        printedAt: order.printedAt?.toISOString() ?? null,
+        shippedAt: order.shippedAt?.toISOString() ?? null,
+        images: order.orderImages.map((img) => ({
+          id: img.id,
+          renderedUrl: img.renderedUrl,
+          position: img.position,
+          shapeId: img.shapeId,
+          printed: img.printed,
+          printedAt: img.printedAt?.toISOString() ?? null,
+        })),
+        printSheets,
+      });
+      return;
+    }
+    res.status(404).json({ error: "Order not found" });
+    return;
   }
 
   const sessionId = req.cookies?.[sessionConfig.cookieName] as string | undefined;

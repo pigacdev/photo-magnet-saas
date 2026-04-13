@@ -199,13 +199,17 @@ sessionRouter.get("/", async (req, res) => {
     return;
   }
 
-  if (session.status !== "ACTIVE" || session.expiresAt <= now) {
-    if (session.status === "ACTIVE") {
-      await prisma.orderSession.update({
-        where: { id: session.id },
-        data: { status: "ABANDONED" },
-      });
-    }
+  if (session.status !== "ACTIVE" && session.status !== "CONVERTED") {
+    clearSessionCookie(res);
+    res.json({ session: null, shapes: [], pricing: [] });
+    return;
+  }
+
+  if (session.status === "ACTIVE" && session.expiresAt <= now) {
+    await prisma.orderSession.update({
+      where: { id: session.id },
+      data: { status: "ABANDONED" },
+    });
     clearSessionCookie(res);
     res.json({ session: null, shapes: [], pricing: [] });
     return;
