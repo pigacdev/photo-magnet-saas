@@ -194,233 +194,288 @@ IMPORTANT RULE:
 
 ---
 
-### Phase 6 — Print rendering (CORE)
-
-- Generate final cropped images using Sharp
-- Trigger after payment webhook
-- Store rendered images
-- Ensure pixel-perfect match with crop preview
-
-✅ Checkpoint:
-
-- Seller can access final print-ready images
-
----
-
-### Phase 7 — Print sheet generator (CORE FEATURE)
-
-### Selection
-
-- Checkbox on each image
-
-### Generate PDF
-
-- Input:
-    - Selected images
-- Output:
-    - PDF with:
-        - Correct size
-        - Correct shape
-        - Proper spacing
-
-### Layout rules (example)
-
-- 2x2 magnets:
-    - Grid layout
-- Circle:
-    - Mask applied
-
-### After generation
-
-- Mark images as:
-    - printed = true
-
-👉 Example:
-
-- Select 3 images → download PDF → those 3 become “Printed”
-
-✅ Checkpoint:
-
-- Seller can print batch in 1 click
-
----
-
-### Phase 8 — Orders dashboard
+## Phase 6 — Orders Dashboard (COMPLETED)
 
 ### Table view
 
-- Columns:
-    - Order ID
-    - Customer name
-    - Payment status
-    - Created time
+* Columns:
+
+  * Order ID (short version planned)
+  * Customer name
+  * Payment status (PAID / Pending)
+  * Fulfillment status (Ready → Printed → Shipped)
+  * Created time
 
 ### Features
 
-- Pagination
-- Search:
-    - by name
-    - by order ID
-    - by status
+* Pagination (basic)
+* Search (basic)
+* Mobile + desktop layout
+* Order detail page
 
 ### Order detail page
 
-- Show:
-    - Images
-    - Payment info
+* Images (grid)
+* Print actions:
+
+  * Print order (preview PDF)
+  * Print selected (partial print)
+* Fulfillment:
+
+  * Mark as printed
+  * Mark as shipped
+* Customer & shipping info
 
 ✅ Checkpoint:
 
-- Seller can find any order in <5 seconds
+* Seller can find and act on any order in <5 seconds
 
 ---
 
-### Phase 9 — Image management
+## Phase 7 — Print System (CORE) (COMPLETED)
 
-### Global image page
+### Rendering pipeline
 
-- Grid of all images
-- Each image shows:
-    - Order ID
-    - Printed / Not printed
+* SessionImages → OrderImages
+* Cropping persisted (pixel accurate)
+* Rendered images saved:
 
-### Filters
+  * `/uploads/order-images-rendered/`
 
-- Show:
-    - Only not printed
-    - Only printed
+### PDF generation
 
-### Data model update
+* A4 layout (pixel-perfect)
+* 6 magnets per page
+* Fixed layout (no dynamic grid)
+* Octagon cut guides:
 
-- Add:
-    - printed_flag (true/false)
+  * Real cutter dimensions (70mm)
+  * Correct line lengths
+* Image size:
 
-✅ Checkpoint:
+  * 50×50 mm (no distortion)
 
-- Seller sees all images clearly grouped
+### Positioning
 
----
-
-### Phase 10 — SaaS multi-tenant system
-
-- Organizations (tenants)
-- 1 storefront per organization
-- Event-based licensing
-- Subscription billing (Stripe)
-- Role-based access
-
-✅ Checkpoint:
-
-- Users only see data within their organization
-
----
-
-### Phase 11 — Data export & cleanup
-
-### Export
-
-- Download:
-    - All images (ZIP)
-    - Orders (CSV)
-
-### Auto-clean
-
-- After event ends:
-    - Disable new orders
-    - Schedule deletion
-
-✅ Checkpoint:
-
-- Seller can safely close event
-
-### Storefront data
-
-- No auto-delete
-- Seller can export data anytime
-
----
-
-## Timeline with checkpoints (simple view)
-
-**Priority order: PRINT FIRST → DASHBOARD SECOND → SAAS LAST**
-
-- Week 1 → Auth + Events
-- Week 2 → Customer ordering flow
-- Week 3 → Print pipeline (rendering + sheet generator)
-- Week 4 → Dashboard + image management
-- Week 5 → SaaS multi-tenant system (+ export & cleanup)
-
----
-
-## Team roles (lean setup)
-
-### 1. Product/Founder (you)
-
-- Defines flows
-- Tests usability weekly
-
-### 2. Frontend dev
-
-- Customer UI (mobile-first)
-- Dashboard UI
-
-### 3. Backend dev
-
-- API
-- Image processing
-- PDF generation
-
-### 4. Designer (optional but powerful)
-
-- Cropping UX (very important)
-- Visual clarity
-
----
-
-## Recommended rituals
-
-- Weekly:
-    - 30-min usability test (3 users)
-    - Ask:
-        - “Where did you hesitate?”
-        - “What confused you?”
-- Daily:
-    - Ship small features
-    - Avoid big rewrites
-
----
-
-## Optional integrations & stretch goals
-
-### Nice-to-have (early)
-
-- Google Drive upload
-- Email confirmation (order receipt)
-
-### Later (high impact)
-
-- AI auto-crop suggestion (center faces)
-- Analytics dashboard:
-    - Orders/hour
-    - Revenue
+* Page split into two halves
+* Each column centered
+* Vertical alignment centered
 
 ### Advanced
 
-- Multi-event dashboard
-- White-label mode
+* Multiple shapes supported (grouped PDFs)
+* Vertical cut line (optional visual guide)
+
+### Print flows
+
+* Print preview (no DB changes)
+* Print order (manual marking)
+* Print selected (partial printing)
+
+### Tracking
+
+* OrderImage:
+
+  * printed (boolean)
+  * printedAt (timestamp)
+
+* Order:
+
+  * printedAt
+  * shippedAt
+
+✅ Checkpoint:
+
+* Printed output matches real-world cutter perfectly
 
 ---
 
-## Critical success rule
+## Phase 8 — Payments & Order Flow (COMPLETED)
+
+### Order lifecycle
+
+1. Upload images
+2. Crop images
+3. Review
+4. Create order (PENDING_PAYMENT / PENDING_CASH)
+5. Customer info step
+6. Payment (Stripe)
+7. Webhook → mark PAID
+
+### Stripe
+
+* Checkout session
+* Webhook handling
+* Idempotent updates
+* Session validation
+
+### Email notifications
+
+* Optional per event/storefront
+* Sent AFTER customer info is saved
+* Includes:
+
+  * Name
+  * Phone
+  * Address
+  * Image count
+  * Total price
+* Clean SaaS layout
+* Dashboard link
+
+### Storage strategy
+
+* Original images → `/session-images`
+* Order images → `/order-images`
+* Rendered images → `/order-images-rendered`
+* Print sheets → `/print-sheets`
+
+✅ Checkpoint:
+
+* Payment + order creation fully reliable
+
+---
+
+## Phase 9 — Fulfillment & Operations (CURRENT)
+
+### Fulfillment model
+
+* Status flow:
+
+  * Ready to print
+  * Printed
+  * Shipped
+
+### Seller actions
+
+* Mark printed (full order)
+* Print selected (auto mark selected)
+* Mark shipped (after printed)
+
+### Rules
+
+* Cannot ship before printed
+* Order printedAt set only when all images printed
+
+### UX
+
+* Dashboard buttons reflect state
+* Visual badges for clarity
+
+🔜 NEXT:
+
+* Better filtering (Printed / Not printed)
+* Bulk operations
+
+---
+
+## Phase 10 — Image Management (NEXT)
+
+### Global image view
+
+* Grid of all images across orders
+
+### Filters
+
+* Printed / Not printed
+* By order
+* By date
+
+### Actions
+
+* Reprint specific images
+* Select multiple images → batch print
+
+✅ Goal:
+
+* Handle real-world printing mistakes easily
+
+---
+
+## Phase 11 — SaaS Layer (CRITICAL NEXT STEP)
+
+### Multi-tenant foundation
+
+* 1 storefront per organization ✅
+* Events + storefront separation ✅
+
+### To implement
+
+* Organization dashboard
+* Subscription model (Stripe Billing)
+* Plan limits:
+
+  * Number of events
+  * Storage
+  * Orders/month
+
+### Billing
+
+* Monthly subscription
+* Usage tracking (optional later)
+
+### Access control
+
+* Owner / Staff roles
+* Organization isolation
+
+✅ Goal:
+
+* Turn product into real SaaS business
+
+---
+
+## Phase 12 — Analytics (LATER)
+
+### Dashboard metrics
+
+* Orders per day
+* Revenue
+* Conversion rate
+* Images per order
+
+### Views
+
+* Per event
+* Per storefront
+
+---
+
+## Phase 13 — Data Export & Cleanup
+
+### Export
+
+* Orders → CSV
+* Images → ZIP
+
+### Cleanup
+
+* Event:
+
+  * Disable after end
+  * Optional auto-delete
+
+### Storefront
+
+* Persistent data
+
+---
+
+## Timeline (updated reality)
+
+* Phase 6–8 → DONE
+* Phase 9 → In progress
+* Phase 10 → Next
+* Phase 11 → HIGH PRIORITY (SaaS monetization)
+
+---
+
+## Critical success rule (unchanged)
 
 > If cropping is confusing → product fails
-> 
-> 
 > If printing is wrong → business fails
-> 
 
-So:
+Now also:
 
-- Invest extra time in:
-    - Crop UX
-    - Print accuracy
+> If operations are slow → seller won’t use it
+> If SaaS billing is unclear → you won’t make money
