@@ -21,6 +21,7 @@ type AllowedShape = {
 type Event = {
   id: string;
   name: string;
+  brandText: string | null;
   startDate: string;
   endDate: string;
   isActive: boolean;
@@ -56,13 +57,42 @@ export default function EventDetailPage() {
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [brandDraft, setBrandDraft] = useState("");
+  const [brandSaving, setBrandSaving] = useState(false);
 
   useEffect(() => {
     api<{ event: Event }>(`/api/events/${params.id}`)
-      .then((data) => setEvent(data.event))
+      .then((data) => {
+        setEvent(data.event);
+        setBrandDraft(data.event.brandText ?? "");
+      })
       .catch(() => setError("Event not found"))
       .finally(() => setLoading(false));
   }, [params.id]);
+
+  async function saveBrandText() {
+    if (!event) return;
+    setBrandSaving(true);
+    try {
+      const updated = await api<{ event: Event }>(`/api/events/${event.id}`, {
+        method: "PATCH",
+        body: {
+          brandText: brandDraft.trim() === "" ? null : brandDraft.trim(),
+        },
+      });
+      setEvent({
+        ...event,
+        ...updated.event,
+        shapes: updated.event.shapes ?? event.shapes,
+        pricing: updated.event.pricing ?? event.pricing,
+      });
+      setBrandDraft(updated.event.brandText ?? "");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setBrandSaving(false);
+    }
+  }
 
   async function handleToggleActive() {
     if (!event) return;
@@ -181,6 +211,35 @@ export default function EventDetailPage() {
           <dd className="text-[#111111]">{formatDate(event.endDate)}</dd>
         </div>
       </dl>
+
+      <div className="rounded-lg border border-gray-200 bg-[#FAFAFA] p-4">
+        <h2 className="text-sm font-semibold text-[#111111]">Print branding</h2>
+        <p className="mt-1 text-xs text-[#6B7280]">
+          Shown on seller PDF print sheets. Max 40 characters. Empty uses
+          default <span className="font-mono">@magnetooprints</span>.
+        </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-xs font-medium text-[#6B7280]">Brand line</span>
+            <input
+              type="text"
+              value={brandDraft}
+              onChange={(e) => setBrandDraft(e.target.value.slice(0, 40))}
+              maxLength={40}
+              placeholder="@magnetooprints"
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={brandSaving}
+            onClick={() => void saveBrandText()}
+            className="min-h-[44px] rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+          >
+            {brandSaving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
 
       <div>
         <h2 className="text-lg font-medium text-[#111111]">Shapes</h2>

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
+import { normalizeBrandTextInput } from "../lib/brandTextForOrder";
 import { enrichEvent } from "../lib/event";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
 
@@ -7,13 +8,15 @@ export const eventsRouter = Router();
 
 eventsRouter.post("/", async (req, res) => {
   const userId = req.user!.userId;
-  const { name, startDate, endDate, shapes, maxMagnetsPerOrder } = req.body as {
-    name?: unknown;
-    startDate?: unknown;
-    endDate?: unknown;
-    shapes?: unknown;
-    maxMagnetsPerOrder?: unknown;
-  };
+  const { name, startDate, endDate, shapes, maxMagnetsPerOrder, brandText } =
+    req.body as {
+      name?: unknown;
+      startDate?: unknown;
+      endDate?: unknown;
+      shapes?: unknown;
+      maxMagnetsPerOrder?: unknown;
+      brandText?: unknown;
+    };
 
   if (!name || !startDate || !endDate) {
     res.status(400).json({ error: "Name, start date, and end date are required" });
@@ -53,6 +56,10 @@ eventsRouter.post("/", async (req, res) => {
     maxMagnets = parsed.value;
   }
 
+  const brandNorm = normalizeBrandTextInput(brandText);
+  const brandCreate =
+    brandNorm === "omit" ? {} : { brandText: brandNorm.value };
+
   const event = await prisma.event.create({
     data: {
       userId,
@@ -60,6 +67,7 @@ eventsRouter.post("/", async (req, res) => {
       startDate: start,
       endDate: end,
       ...(maxMagnets !== undefined && { maxMagnetsPerOrder: maxMagnets }),
+      ...brandCreate,
     },
   });
 
@@ -138,7 +146,8 @@ eventsRouter.get("/:id", async (req, res) => {
 eventsRouter.patch("/:id", async (req, res) => {
   const userId = req.user!.userId;
   const { id } = req.params;
-  const { name, startDate, endDate, isActive } = req.body;
+  const { name, startDate, endDate, isActive, maxMagnetsPerOrder, brandText } =
+    req.body as Record<string, unknown>;
 
   const existing = await prisma.event.findUnique({
     where: { id, userId, deletedAt: null },
@@ -177,6 +186,10 @@ eventsRouter.patch("/:id", async (req, res) => {
     maxMagnetsUpdate = parsed.value;
   }
 
+  const brandNorm = normalizeBrandTextInput(brandText);
+  const brandPatch =
+    brandNorm === "omit" ? {} : { brandText: brandNorm.value };
+
   const event = await prisma.event.update({
     where: { id },
     data: {
@@ -185,6 +198,7 @@ eventsRouter.patch("/:id", async (req, res) => {
       ...(endDate && { endDate: end }),
       ...(isActive !== undefined && { isActive }),
       ...(maxMagnetsUpdate !== undefined && { maxMagnetsPerOrder: maxMagnetsUpdate }),
+      ...brandPatch,
     },
   });
 

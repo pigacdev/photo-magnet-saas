@@ -81,6 +81,8 @@ model Event {
   id        String    @id @default(uuid())
   userId    String
   name      String
+  /// Shown on seller print PDFs (magnets); max 40 chars.
+  brandText String?   @db.VarChar(40)
   startDate DateTime
   endDate   DateTime
   isActive  Boolean   @default(true)
@@ -99,6 +101,8 @@ model Storefront {
   id        String    @id @default(uuid())
   userId    String
   name      String
+  /// Shown on seller print PDFs (magnets); max 40 chars.
+  brandText String?   @db.VarChar(40)
   isActive  Boolean   @default(true)
   /// Business cap on magnets per order; null = no business limit (system cap still applies).
   maxMagnetsPerOrder Int?

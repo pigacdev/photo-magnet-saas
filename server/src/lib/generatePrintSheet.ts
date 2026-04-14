@@ -6,7 +6,7 @@ import {
   StandardFonts,
   type PDFPage,
 } from "pdf-lib";
-import { prisma } from "./prisma";
+import { getBrandTextForOrder } from "./brandTextForOrder";
 
 export type PrintSheetImageInput = {
   id: string;
@@ -15,32 +15,39 @@ export type PrintSheetImageInput = {
 
 const mm = (v: number) => v * 2.83465;
 
+// A4
 const PAGE_WIDTH = mm(210);
 const PAGE_HEIGHT = mm(297);
 
-/** Canva-like outer margins (tune 10–15 mm for visual rhythm). */
-const PAGE_MARGIN = mm(12);
+/** Regular octagon: length of every edge (physical cutter / blade segment). */
+const OCTAGON_SIDE_MM = 31;
+/** Printed image — square, centered inside octagon bounds. */
+const IMAGE_SIZE_MM = 52;
 
-/** Spacing between magnet cells. */
-const GAP = mm(6);
+/** Spacing between rows (vertical); tune 6–10 mm if layout feels tight. */
+const ROW_GAP_MM = 8;
 
-/** Padding inside each cut cell (around the magnet). */
-const CELL_PADDING = mm(6);
+const COLS = 2;
+const ROWS = 3;
+const slotsPerPage = COLS * ROWS;
 
-const DEFAULT_MAGNET_MM = { widthMm: 50, heightMm: 50 };
+const SQRT2 = Math.SQRT2;
+/** Edge length in PDF points. */
+const side = mm(OCTAGON_SIDE_MM);
+/** Bounding square of the regular octagon (flat top/bottom). */
+const octagonSize = side * (1 + SQRT2);
+/** Corner inset along axes so each drawn segment length = `side`. */
+const cut = side / SQRT2;
 
-/** Magnet size from AllowedShape (one PDF batch = one shape). */
-async function loadMagnetMmFromShape(
-  shapeId: string,
-): Promise<{ widthMm: number; heightMm: number }> {
-  const shape = await prisma.allowedShape.findUnique({
-    where: { id: shapeId },
-  });
-  if (!shape) {
-    return { ...DEFAULT_MAGNET_MM };
-  }
-  return { widthMm: shape.widthMm, heightMm: shape.heightMm };
-}
+const imageSize = mm(IMAGE_SIZE_MM);
+const rowGap = mm(ROW_GAP_MM);
+
+const totalHeight = ROWS * octagonSize + (ROWS - 1) * rowGap;
+const startY = (PAGE_HEIGHT - totalHeight) / 2;
+
+/** Center of each column within the left/right half of the page. */
+const halfWidth = PAGE_WIDTH / 2;
+const colCenters = [halfWidth / 2, halfWidth + halfWidth / 2];
 
 /** Local file path from a same-origin `/uploads/...` URL. */
 function resolveUploadFilePath(publicUrl: string): string {
@@ -48,45 +55,56 @@ function resolveUploadFilePath(publicUrl: string): string {
   return path.join(process.cwd(), rel);
 }
 
-/** Stroked octagonal cut guide (corner cuts); matches square `size * 0.2` when width === height. */
+/** Vertical center line — fold/cut guide between the two columns (subtle, dashed). */
+function drawVerticalCutLine(page: PDFPage): void {
+  const edgeMargin = mm(5);
+  page.drawLine({
+    start: { x: PAGE_WIDTH / 2, y: edgeMargin },
+    end: { x: PAGE_WIDTH / 2, y: PAGE_HEIGHT - edgeMargin },
+    thickness: 1,
+    color: rgb(0.75, 0.75, 0.75),
+    dashArray: [4, 4],
+  });
+}
+
+/**
+ * Regular octagon (all 8 edges equal length `side` in points). `size` must be `octagonSize`.
+ */
 function drawOctagon(
   page: PDFPage,
   x: number,
   y: number,
-  width: number,
-  height: number,
+  size: number,
 ): void {
-  const cut = Math.min(width, height) * 0.2;
-  const c = Math.min(cut, width / 2, height / 2);
+  const s = size;
+  const c = cut;
 
-  const points: [number, number][] = [
-    [x + c, y],
-    [x + width - c, y],
-    [x + width, y + c],
-    [x + width, y + height - c],
-    [x + width - c, y + height],
-    [x + c, y + height],
-    [x, y + height - c],
-    [x, y + c],
+  const points = [
+    { x: x + c, y: y },
+    { x: x + s - c, y: y },
+    { x: x + s, y: y + c },
+    { x: x + s, y: y + s - c },
+    { x: x + s - c, y: y + s },
+    { x: x + c, y: y + s },
+    { x: x, y: y + s - c },
+    { x: x, y: y + c },
   ];
 
-  const stroke = rgb(0.5, 0.5, 0.5);
-  for (let i = 0; i < 8; i++) {
-    const [x0, y0] = points[i]!;
-    const [x1, y1] = points[(i + 1) % 8]!;
+  const stroke = rgb(0.6, 0.6, 0.6);
+  for (let i = 0; i < points.length; i++) {
+    const p1 = points[i]!;
+    const p2 = points[(i + 1) % points.length]!;
     page.drawLine({
-      start: { x: x0, y: y0 },
-      end: { x: x1, y: y1 },
-      thickness: 1.2,
+      start: p1,
+      end: p2,
+      thickness: 1,
       color: stroke,
-      dashArray: [4, 3],
     });
   }
 }
 
 /**
- * A4 PDF: grid of **rendered** JPEGs only (`renderedUrl`). No stretch — magnets
- * sized from AllowedShape, centered grid with fixed margins/gaps. Multi-page by slots per page.
+ * A4 PDF: fixed 2×3 grid of **rendered** JPEGs. Regular octagon (30 mm edges); image centered inside.
  */
 export async function generatePrintSheet(
   orderId: string,
@@ -100,58 +118,33 @@ export async function generatePrintSheet(
 
   const pdfDoc = await PDFDocument.create();
 
-  const availableWidth = PAGE_WIDTH - PAGE_MARGIN * 2;
-  const availableHeight = PAGE_HEIGHT - PAGE_MARGIN * 2;
-
   if (onlyRendered.length === 0) {
-    pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    const emptyPage = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    drawVerticalCutLine(emptyPage);
   } else {
-    const { widthMm, heightMm } = await loadMagnetMmFromShape(shapeId);
-
-    const magnetWidth = mm(widthMm);
-    const magnetHeight = mm(heightMm);
-
-    const cellWidth = magnetWidth + CELL_PADDING * 2;
-    const cellHeight = magnetHeight + CELL_PADDING * 2;
-
-    const cols = Math.floor((availableWidth + GAP) / (cellWidth + GAP));
-    const rows = Math.floor((availableHeight + GAP) / (cellHeight + GAP));
-    const safeCols = Math.max(1, cols);
-    const safeRows = Math.max(1, rows);
-
-    const gridWidth =
-      safeCols * cellWidth + (safeCols - 1) * GAP;
-    const gridHeight =
-      safeRows * cellHeight + (safeRows - 1) * GAP;
-
-    const startX = (PAGE_WIDTH - gridWidth) / 2;
-    const startY = (PAGE_HEIGHT - gridHeight) / 2;
-
-    const slotsPerPage = safeCols * safeRows;
-
+    const brandText = await getBrandTextForOrder(orderId);
     const labelFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
+    const labelSize = 6;
     let page!: PDFPage;
     let globalIndex = 0;
 
     for (const img of onlyRendered) {
       if (globalIndex % slotsPerPage === 0) {
         page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+        drawVerticalCutLine(page);
       }
 
       const slotIndex = globalIndex % slotsPerPage;
-      const col = slotIndex % safeCols;
-      const row = Math.floor(slotIndex / safeCols);
+      const col = slotIndex % COLS;
+      const row = Math.floor(slotIndex / COLS);
 
-      const x = startX + col * (cellWidth + GAP);
+      const centerX = colCenters[col]!;
+      const x = centerX - octagonSize / 2;
       const y =
         PAGE_HEIGHT -
         startY -
-        (row + 1) * cellHeight -
-        row * GAP;
-
-      const offsetX = (cellWidth - magnetWidth) / 2;
-      const offsetY = (cellHeight - magnetHeight) / 2;
+        (row + 1) * octagonSize -
+        row * rowGap;
 
       const filePath = resolveUploadFilePath(img.renderedUrl);
       const imageBytes = await fs.readFile(filePath);
@@ -163,19 +156,21 @@ export async function generatePrintSheet(
         pdfImage = await pdfDoc.embedJpg(imageBytes);
       }
 
-      drawOctagon(page, x, y, cellWidth, cellHeight);
+      drawOctagon(page, x, y, octagonSize);
 
+      const offset = (octagonSize - imageSize) / 2;
       page.drawImage(pdfImage, {
-        x: x + offsetX,
-        y: y + offsetY,
-        width: magnetWidth,
-        height: magnetHeight,
+        x: x + offset,
+        y: y + offset,
+        width: imageSize,
+        height: imageSize,
       });
 
-      page.drawText("magnetoo", {
-        x: x + cellWidth / 2 - 20,
-        y: y + cellHeight - 10,
-        size: 6,
+      const labelWidth = labelFont.widthOfTextAtSize(brandText, labelSize);
+      page.drawText(brandText, {
+        x: x + octagonSize / 2 - labelWidth / 2,
+        y: y + octagonSize - 10,
+        size: labelSize,
         font: labelFont,
         color: rgb(0.45, 0.45, 0.45),
       });

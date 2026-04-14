@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
+import { normalizeBrandTextInput } from "../lib/brandTextForOrder";
 import { enrichStorefront } from "../lib/storefront";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
 
@@ -20,9 +21,10 @@ storefrontsRouter.get("/", async (req, res) => {
 
 storefrontsRouter.post("/", async (req, res) => {
   const userId = req.user!.userId;
-  const { name, maxMagnetsPerOrder } = req.body as {
+  const { name, maxMagnetsPerOrder, brandText } = req.body as {
     name?: unknown;
     maxMagnetsPerOrder?: unknown;
+    brandText?: unknown;
   };
 
   if (!name || !name.trim()) {
@@ -40,11 +42,16 @@ storefrontsRouter.post("/", async (req, res) => {
     maxMagnets = parsed.value;
   }
 
+  const brandNorm = normalizeBrandTextInput(brandText);
+  const brandCreate =
+    brandNorm === "omit" ? {} : { brandText: brandNorm.value };
+
   const storefront = await prisma.storefront.create({
     data: {
       userId,
       name: name.trim(),
       ...(maxMagnets !== undefined && { maxMagnetsPerOrder: maxMagnets }),
+      ...brandCreate,
     },
   });
 
@@ -80,10 +87,11 @@ storefrontsRouter.get("/:id", async (req, res) => {
 storefrontsRouter.patch("/:id", async (req, res) => {
   const userId = req.user!.userId;
   const { id } = req.params;
-  const { name, isActive, maxMagnetsPerOrder } = req.body as {
+  const { name, isActive, maxMagnetsPerOrder, brandText } = req.body as {
     name?: unknown;
     isActive?: unknown;
     maxMagnetsPerOrder?: unknown;
+    brandText?: unknown;
   };
 
   const existing = await prisma.storefront.findUnique({
@@ -105,12 +113,17 @@ storefrontsRouter.patch("/:id", async (req, res) => {
     maxMagnetsUpdate = parsed.value;
   }
 
+  const brandNorm = normalizeBrandTextInput(brandText);
+  const brandPatch =
+    brandNorm === "omit" ? {} : { brandText: brandNorm.value };
+
   const storefront = await prisma.storefront.update({
     where: { id },
     data: {
       ...(name !== undefined && { name: name.trim() }),
       ...(isActive !== undefined && { isActive }),
       ...(maxMagnetsUpdate !== undefined && { maxMagnetsPerOrder: maxMagnetsUpdate }),
+      ...brandPatch,
     },
   });
 

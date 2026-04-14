@@ -21,6 +21,7 @@ type AllowedShape = {
 type Storefront = {
   id: string;
   name: string;
+  brandText: string | null;
   isActive: boolean;
   isOpen: boolean;
   createdAt: string;
@@ -36,6 +37,8 @@ export default function StorefrontDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [brandDraft, setBrandDraft] = useState("");
+  const [brandSaving, setBrandSaving] = useState(false);
 
   const storeUrl = typeof window !== "undefined"
     ? `${window.location.origin}/store/${params.id}`
@@ -43,10 +46,40 @@ export default function StorefrontDetailPage() {
 
   useEffect(() => {
     api<{ storefront: Storefront }>(`/api/storefronts/${params.id}`)
-      .then((data) => setStorefront(data.storefront))
+      .then((data) => {
+        setStorefront(data.storefront);
+        setBrandDraft(data.storefront.brandText ?? "");
+      })
       .catch(() => setError("Storefront not found"))
       .finally(() => setLoading(false));
   }, [params.id]);
+
+  async function saveBrandText() {
+    if (!storefront) return;
+    setBrandSaving(true);
+    try {
+      const updated = await api<{ storefront: Storefront }>(
+        `/api/storefronts/${storefront.id}`,
+        {
+          method: "PATCH",
+          body: {
+            brandText: brandDraft.trim() === "" ? null : brandDraft.trim(),
+          },
+        },
+      );
+      setStorefront({
+        ...storefront,
+        ...updated.storefront,
+        shapes: updated.storefront.shapes ?? storefront.shapes,
+        pricing: updated.storefront.pricing ?? storefront.pricing,
+      });
+      setBrandDraft(updated.storefront.brandText ?? "");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setBrandSaving(false);
+    }
+  }
 
   async function handleToggleActive() {
     if (!storefront) return;
@@ -168,6 +201,35 @@ export default function StorefrontDetailPage() {
           </ul>
         </div>
       )}
+
+      <div className="rounded-lg border border-gray-200 bg-[#FAFAFA] p-4">
+        <h2 className="text-sm font-semibold text-[#111111]">Print branding</h2>
+        <p className="mt-1 text-xs text-[#6B7280]">
+          Shown on seller PDF print sheets. Max 40 characters. Empty uses
+          default <span className="font-mono">@magnetooprints</span>.
+        </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-xs font-medium text-[#6B7280]">Brand line</span>
+            <input
+              type="text"
+              value={brandDraft}
+              onChange={(e) => setBrandDraft(e.target.value.slice(0, 40))}
+              maxLength={40}
+              placeholder="@magnetooprints"
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={brandSaving}
+            onClick={() => void saveBrandText()}
+            className="min-h-[44px] rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+          >
+            {brandSaving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
 
       {/* Store link */}
       <div className="rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-4">
