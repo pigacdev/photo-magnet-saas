@@ -209,6 +209,8 @@ model SessionImage {
 
 model Order {
   id             String            @id @default(uuid())
+  /// Future: 6-char A–Z0–9 display id for UI and print (generated when implemented).
+  shortCode      String?           @unique
   organizationId String
   contextType    ContextType
   contextId      String

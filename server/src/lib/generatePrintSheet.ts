@@ -124,6 +124,8 @@ export async function generatePrintSheet(
   } else {
     const brandText = await getBrandTextForOrder(orderId);
     const labelFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    /** Future: load `Order.shortCode` for magnet bottom label (6-char). */
+    const orderLabel: string | null = null; // future: shortCode
     let page!: PDFPage;
     let globalIndex = 0;
 
@@ -188,6 +190,19 @@ export async function generatePrintSheet(
         font: labelFont,
         color: rgb(0.45, 0.45, 0.45),
       });
+
+      if (orderLabel) {
+        const width = labelFont.widthOfTextAtSize(orderLabel, 6);
+        const xPos = x + (octagonSize - width) / 2;
+
+        page.drawText(orderLabel, {
+          x: xPos,
+          y: y + 4,
+          size: 6,
+          font: labelFont,
+          color: rgb(0.5, 0.5, 0.5),
+        });
+      }
 
       globalIndex += 1;
     }
