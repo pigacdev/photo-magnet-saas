@@ -124,7 +124,6 @@ export async function generatePrintSheet(
   } else {
     const brandText = await getBrandTextForOrder(orderId);
     const labelFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const labelSize = 6;
     let page!: PDFPage;
     let globalIndex = 0;
 
@@ -166,11 +165,26 @@ export async function generatePrintSheet(
         height: imageSize,
       });
 
-      const labelWidth = labelFont.widthOfTextAtSize(brandText, labelSize);
+      /** Horizontal padding inside octagon so label never touches edges. */
+      const maxLabelWidth = octagonSize - 10;
+      let fontSize = 8;
+      let textWidth = labelFont.widthOfTextAtSize(brandText, fontSize);
+      if (textWidth > maxLabelWidth) {
+        fontSize = 6;
+        textWidth = labelFont.widthOfTextAtSize(brandText, fontSize);
+      }
+      if (textWidth > maxLabelWidth) {
+        fontSize = Math.max(2, fontSize * (maxLabelWidth / textWidth));
+        textWidth = labelFont.widthOfTextAtSize(brandText, fontSize);
+      }
+
+      const textX = x + (octagonSize - textWidth) / 2;
+      const textY = y + octagonSize - 12;
+
       page.drawText(brandText, {
-        x: x + octagonSize / 2 - labelWidth / 2,
-        y: y + octagonSize - 10,
-        size: labelSize,
+        x: textX,
+        y: textY,
+        size: fontSize,
         font: labelFont,
         color: rgb(0.45, 0.45, 0.45),
       });

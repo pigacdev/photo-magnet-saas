@@ -43,8 +43,12 @@ storefrontsRouter.post("/", async (req, res) => {
   }
 
   const brandNorm = normalizeBrandTextInput(brandText);
+  if (brandNorm.kind === "error") {
+    res.status(400).json({ error: brandNorm.error });
+    return;
+  }
   const brandCreate =
-    brandNorm === "omit" ? {} : { brandText: brandNorm.value };
+    brandNorm.kind === "omit" ? {} : { brandText: brandNorm.value };
 
   const storefront = await prisma.storefront.create({
     data: {
@@ -114,8 +118,12 @@ storefrontsRouter.patch("/:id", async (req, res) => {
   }
 
   const brandNorm = normalizeBrandTextInput(brandText);
+  if (brandNorm.kind === "error") {
+    res.status(400).json({ error: brandNorm.error });
+    return;
+  }
   const brandPatch =
-    brandNorm === "omit" ? {} : { brandText: brandNorm.value };
+    brandNorm.kind === "omit" ? {} : { brandText: brandNorm.value };
 
   const storefront = await prisma.storefront.update({
     where: { id },
