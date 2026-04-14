@@ -3,20 +3,34 @@ import { prisma } from "../lib/prisma";
 import { normalizeBrandTextInput } from "../lib/brandTextForOrder";
 import { enrichEvent } from "../lib/event";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
+import {
+  parseNotificationEmailInput,
+  parseSendOrderEmailsInput,
+} from "../lib/parseOrderNotificationSettings";
 
 export const eventsRouter = Router();
 
 eventsRouter.post("/", async (req, res) => {
   const userId = req.user!.userId;
-  const { name, startDate, endDate, shapes, maxMagnetsPerOrder, brandText } =
-    req.body as {
-      name?: unknown;
-      startDate?: unknown;
-      endDate?: unknown;
-      shapes?: unknown;
-      maxMagnetsPerOrder?: unknown;
-      brandText?: unknown;
-    };
+  const {
+    name,
+    startDate,
+    endDate,
+    shapes,
+    maxMagnetsPerOrder,
+    brandText,
+    notificationEmail,
+    sendOrderEmails,
+  } = req.body as {
+    name?: unknown;
+    startDate?: unknown;
+    endDate?: unknown;
+    shapes?: unknown;
+    maxMagnetsPerOrder?: unknown;
+    brandText?: unknown;
+    notificationEmail?: unknown;
+    sendOrderEmails?: unknown;
+  };
 
   if (!name || !startDate || !endDate) {
     res.status(400).json({ error: "Name, start date, and end date are required" });
@@ -64,6 +78,21 @@ eventsRouter.post("/", async (req, res) => {
   const brandCreate =
     brandNorm.kind === "omit" ? {} : { brandText: brandNorm.value };
 
+  const notifEmail = parseNotificationEmailInput(notificationEmail);
+  if (notifEmail.kind === "error") {
+    res.status(400).json({ error: notifEmail.error });
+    return;
+  }
+  const notifSend = parseSendOrderEmailsInput(sendOrderEmails);
+  if (notifSend.kind === "error") {
+    res.status(400).json({ error: notifSend.error });
+    return;
+  }
+  const notifCreate = {
+    ...(notifEmail.kind === "ok" && { notificationEmail: notifEmail.value }),
+    ...(notifSend.kind === "ok" && { sendOrderEmails: notifSend.value }),
+  };
+
   const event = await prisma.event.create({
     data: {
       userId,
@@ -72,6 +101,7 @@ eventsRouter.post("/", async (req, res) => {
       endDate: end,
       ...(maxMagnets !== undefined && { maxMagnetsPerOrder: maxMagnets }),
       ...brandCreate,
+      ...notifCreate,
     },
   });
 
@@ -150,8 +180,16 @@ eventsRouter.get("/:id", async (req, res) => {
 eventsRouter.patch("/:id", async (req, res) => {
   const userId = req.user!.userId;
   const { id } = req.params;
-  const { name, startDate, endDate, isActive, maxMagnetsPerOrder, brandText } =
-    req.body as Record<string, unknown>;
+  const {
+    name,
+    startDate,
+    endDate,
+    isActive,
+    maxMagnetsPerOrder,
+    brandText,
+    notificationEmail,
+    sendOrderEmails,
+  } = req.body as Record<string, unknown>;
 
   const existing = await prisma.event.findUnique({
     where: { id, userId, deletedAt: null },
@@ -198,6 +236,21 @@ eventsRouter.patch("/:id", async (req, res) => {
   const brandPatch =
     brandNorm.kind === "omit" ? {} : { brandText: brandNorm.value };
 
+  const notifEmail = parseNotificationEmailInput(notificationEmail);
+  if (notifEmail.kind === "error") {
+    res.status(400).json({ error: notifEmail.error });
+    return;
+  }
+  const notifSend = parseSendOrderEmailsInput(sendOrderEmails);
+  if (notifSend.kind === "error") {
+    res.status(400).json({ error: notifSend.error });
+    return;
+  }
+  const notifPatch = {
+    ...(notifEmail.kind === "ok" && { notificationEmail: notifEmail.value }),
+    ...(notifSend.kind === "ok" && { sendOrderEmails: notifSend.value }),
+  };
+
   const event = await prisma.event.update({
     where: { id },
     data: {
@@ -207,6 +260,7 @@ eventsRouter.patch("/:id", async (req, res) => {
       ...(isActive !== undefined && { isActive }),
       ...(maxMagnetsUpdate !== undefined && { maxMagnetsPerOrder: maxMagnetsUpdate }),
       ...brandPatch,
+      ...notifPatch,
     },
   });
 

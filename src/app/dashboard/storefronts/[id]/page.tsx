@@ -22,6 +22,8 @@ type Storefront = {
   id: string;
   name: string;
   brandText: string | null;
+  notificationEmail: string | null;
+  sendOrderEmails: boolean;
   isActive: boolean;
   isOpen: boolean;
   createdAt: string;
@@ -39,6 +41,9 @@ export default function StorefrontDetailPage() {
   const [copied, setCopied] = useState(false);
   const [brandDraft, setBrandDraft] = useState("");
   const [brandSaving, setBrandSaving] = useState(false);
+  const [notifEmailDraft, setNotifEmailDraft] = useState("");
+  const [notifSendDraft, setNotifSendDraft] = useState(false);
+  const [notifSaving, setNotifSaving] = useState(false);
 
   const storeUrl = typeof window !== "undefined"
     ? `${window.location.origin}/store/${params.id}`
@@ -49,10 +54,42 @@ export default function StorefrontDetailPage() {
       .then((data) => {
         setStorefront(data.storefront);
         setBrandDraft(data.storefront.brandText ?? "");
+        setNotifEmailDraft(data.storefront.notificationEmail ?? "");
+        setNotifSendDraft(data.storefront.sendOrderEmails ?? false);
       })
       .catch(() => setError("Storefront not found"))
       .finally(() => setLoading(false));
   }, [params.id]);
+
+  async function saveOrderNotifications() {
+    if (!storefront) return;
+    setNotifSaving(true);
+    try {
+      const updated = await api<{ storefront: Storefront }>(
+        `/api/storefronts/${storefront.id}`,
+        {
+          method: "PATCH",
+          body: {
+            sendOrderEmails: notifSendDraft,
+            notificationEmail:
+              notifEmailDraft.trim() === "" ? null : notifEmailDraft.trim(),
+          },
+        },
+      );
+      setStorefront({
+        ...storefront,
+        ...updated.storefront,
+        shapes: updated.storefront.shapes ?? storefront.shapes,
+        pricing: updated.storefront.pricing ?? storefront.pricing,
+      });
+      setNotifEmailDraft(updated.storefront.notificationEmail ?? "");
+      setNotifSendDraft(updated.storefront.sendOrderEmails ?? false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setNotifSaving(false);
+    }
+  }
 
   async function saveBrandText() {
     if (!storefront) return;
@@ -229,6 +266,41 @@ export default function StorefrontDetailPage() {
             {brandSaving ? "Saving…" : "Save"}
           </button>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-[#FAFAFA] p-4">
+        <h2 className="text-sm font-semibold text-[#111111]">Order notifications</h2>
+        <p className="mt-1 text-xs text-[#6B7280]">
+          When enabled, we email you at the address below each time a customer places an order.
+        </p>
+        <label className="mt-3 flex cursor-pointer items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
+            checked={notifSendDraft}
+            onChange={(e) => setNotifSendDraft(e.target.checked)}
+          />
+          <span className="text-sm text-[#111111]">Send new-order emails</span>
+        </label>
+        <label className="mt-3 flex flex-col gap-1">
+          <span className="text-xs font-medium text-[#6B7280]">Notification email</span>
+          <input
+            type="email"
+            value={notifEmailDraft}
+            onChange={(e) => setNotifEmailDraft(e.target.value)}
+            placeholder="seller@example.com"
+            autoComplete="email"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+          />
+        </label>
+        <button
+          type="button"
+          disabled={notifSaving}
+          onClick={() => void saveOrderNotifications()}
+          className="mt-3 min-h-[40px] rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+        >
+          {notifSaving ? "Saving…" : "Save notifications"}
+        </button>
       </div>
 
       {/* Store link */}

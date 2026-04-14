@@ -88,6 +88,9 @@ model Event {
   isActive  Boolean   @default(true)
   /// Business cap on magnets per order; null = no business limit (system cap still applies).
   maxMagnetsPerOrder Int?
+  /// Seller receives new-order emails when `sendOrderEmails` is true.
+  notificationEmail String?
+  sendOrderEmails   Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -106,6 +109,9 @@ model Storefront {
   isActive  Boolean   @default(true)
   /// Business cap on magnets per order; null = no business limit (system cap still applies).
   maxMagnetsPerOrder Int?
+  /// Seller receives new-order emails when `sendOrderEmails` is true.
+  notificationEmail String?
+  sendOrderEmails   Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?

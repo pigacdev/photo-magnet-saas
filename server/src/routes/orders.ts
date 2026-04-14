@@ -24,6 +24,12 @@ import {
 import { validateOrderCustomerBody } from "../lib/orderCustomerValidation";
 import { generatePrintSheet } from "../lib/generatePrintSheet";
 import { renderOrderImages } from "../lib/renderOrderImages";
+import {
+  buildOrderEmailHtml,
+  buildOrderEmailSubject,
+  sendNewOrderEmail,
+} from "../lib/email";
+import { loadOrderNotificationContext } from "../lib/orderNotificationContext";
 
 export const ordersRouter = Router();
 
@@ -523,6 +529,30 @@ ordersRouter.patch("/:id/customer", async (req: Request, res: Response) => {
     },
   });
 
+  try {
+    const orderFull = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        orderImages: true,
+      },
+    });
+
+    if (orderFull) {
+      const { contextName, sendOrderEmails, notificationEmail } =
+        await loadOrderNotificationContext(orderFull);
+
+      if (sendOrderEmails && notificationEmail) {
+        await sendNewOrderEmail({
+          to: notificationEmail,
+          subject: buildOrderEmailSubject(orderFull, contextName),
+          html: buildOrderEmailHtml(orderFull, contextName),
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[email] failed after customer step", err);
+  }
+
   res.json({ ok: true });
 });
 
@@ -632,6 +662,7 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
   if (session.contextType === "EVENT") {
     const event = await prisma.event.findFirst({
       where: { id: String(session.contextId), deletedAt: null },
+      select: { userId: true },
     });
     if (!event) {
       res.status(400).json({ error: "Event not found" });
@@ -641,6 +672,7 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
   } else {
     const storefront = await prisma.storefront.findFirst({
       where: { id: String(session.contextId), deletedAt: null },
+      select: { userId: true },
     });
     if (!storefront) {
       res.status(400).json({ error: "Storefront not found" });

@@ -3,6 +3,10 @@ import { prisma } from "../lib/prisma";
 import { normalizeBrandTextInput } from "../lib/brandTextForOrder";
 import { enrichStorefront } from "../lib/storefront";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
+import {
+  parseNotificationEmailInput,
+  parseSendOrderEmailsInput,
+} from "../lib/parseOrderNotificationSettings";
 
 export const storefrontsRouter = Router();
 
@@ -21,11 +25,14 @@ storefrontsRouter.get("/", async (req, res) => {
 
 storefrontsRouter.post("/", async (req, res) => {
   const userId = req.user!.userId;
-  const { name, maxMagnetsPerOrder, brandText } = req.body as {
-    name?: unknown;
-    maxMagnetsPerOrder?: unknown;
-    brandText?: unknown;
-  };
+  const { name, maxMagnetsPerOrder, brandText, notificationEmail, sendOrderEmails } =
+    req.body as {
+      name?: unknown;
+      maxMagnetsPerOrder?: unknown;
+      brandText?: unknown;
+      notificationEmail?: unknown;
+      sendOrderEmails?: unknown;
+    };
 
   if (!name || !name.trim()) {
     res.status(400).json({ error: "Name is required" });
@@ -50,12 +57,28 @@ storefrontsRouter.post("/", async (req, res) => {
   const brandCreate =
     brandNorm.kind === "omit" ? {} : { brandText: brandNorm.value };
 
+  const notifEmail = parseNotificationEmailInput(notificationEmail);
+  if (notifEmail.kind === "error") {
+    res.status(400).json({ error: notifEmail.error });
+    return;
+  }
+  const notifSend = parseSendOrderEmailsInput(sendOrderEmails);
+  if (notifSend.kind === "error") {
+    res.status(400).json({ error: notifSend.error });
+    return;
+  }
+  const notifCreate = {
+    ...(notifEmail.kind === "ok" && { notificationEmail: notifEmail.value }),
+    ...(notifSend.kind === "ok" && { sendOrderEmails: notifSend.value }),
+  };
+
   const storefront = await prisma.storefront.create({
     data: {
       userId,
       name: name.trim(),
       ...(maxMagnets !== undefined && { maxMagnetsPerOrder: maxMagnets }),
       ...brandCreate,
+      ...notifCreate,
     },
   });
 
@@ -91,11 +114,20 @@ storefrontsRouter.get("/:id", async (req, res) => {
 storefrontsRouter.patch("/:id", async (req, res) => {
   const userId = req.user!.userId;
   const { id } = req.params;
-  const { name, isActive, maxMagnetsPerOrder, brandText } = req.body as {
+  const {
+    name,
+    isActive,
+    maxMagnetsPerOrder,
+    brandText,
+    notificationEmail,
+    sendOrderEmails,
+  } = req.body as {
     name?: unknown;
     isActive?: unknown;
     maxMagnetsPerOrder?: unknown;
     brandText?: unknown;
+    notificationEmail?: unknown;
+    sendOrderEmails?: unknown;
   };
 
   const existing = await prisma.storefront.findUnique({
@@ -125,6 +157,21 @@ storefrontsRouter.patch("/:id", async (req, res) => {
   const brandPatch =
     brandNorm.kind === "omit" ? {} : { brandText: brandNorm.value };
 
+  const notifEmail = parseNotificationEmailInput(notificationEmail);
+  if (notifEmail.kind === "error") {
+    res.status(400).json({ error: notifEmail.error });
+    return;
+  }
+  const notifSend = parseSendOrderEmailsInput(sendOrderEmails);
+  if (notifSend.kind === "error") {
+    res.status(400).json({ error: notifSend.error });
+    return;
+  }
+  const notifPatch = {
+    ...(notifEmail.kind === "ok" && { notificationEmail: notifEmail.value }),
+    ...(notifSend.kind === "ok" && { sendOrderEmails: notifSend.value }),
+  };
+
   const storefront = await prisma.storefront.update({
     where: { id },
     data: {
@@ -132,6 +179,7 @@ storefrontsRouter.patch("/:id", async (req, res) => {
       ...(isActive !== undefined && { isActive }),
       ...(maxMagnetsUpdate !== undefined && { maxMagnetsPerOrder: maxMagnetsUpdate }),
       ...brandPatch,
+      ...notifPatch,
     },
   });
 
