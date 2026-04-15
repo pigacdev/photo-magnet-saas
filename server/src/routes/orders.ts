@@ -79,7 +79,9 @@ ordersRouter.get(
         totalPrice: true,
         currency: true,
         createdAt: true,
-        _count: { select: { orderImages: true } },
+        orderImages: {
+          select: { printed: true },
+        },
       },
     });
     const sorted = [...orders].sort((a, b) => {
@@ -89,16 +91,22 @@ ordersRouter.get(
       return b.createdAt.getTime() - a.createdAt.getTime();
     });
     res.json(
-      sorted.map((o) => ({
-        id: o.id,
-        status: o.status,
-        displayStatus: getDisplayStatus(o),
-        contextType: o.contextType,
-        totalPrice: o.totalPrice.toString(),
-        currency: o.currency,
-        createdAt: o.createdAt.toISOString(),
-        imageCount: o._count.orderImages,
-      })),
+      sorted.map((o) => {
+        const totalImages = o.orderImages.length;
+        const printedImages = o.orderImages.filter((img) => img.printed).length;
+        return {
+          id: o.id,
+          status: o.status,
+          displayStatus: getDisplayStatus(o),
+          contextType: o.contextType,
+          totalPrice: o.totalPrice.toString(),
+          currency: o.currency,
+          createdAt: o.createdAt.toISOString(),
+          imageCount: totalImages,
+          totalImages,
+          printedImages,
+        };
+      }),
     );
   },
 );

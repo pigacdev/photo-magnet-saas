@@ -231,6 +231,28 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function handleMarkSelectedPrinted() {
+    if (!id || selectedImageIds.length === 0) return;
+    setActionBusy("markPrinted");
+    setError(null);
+    try {
+      await api<{
+        ok: boolean;
+        printedAt: string | null;
+        allImagesPrinted: boolean;
+      }>(`/api/orders/${encodeURIComponent(id)}/mark-printed`, {
+        method: "PATCH",
+        body: { imageIds: selectedImageIds },
+      });
+      setSelectedImageIds([]);
+      refreshOrder();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not update");
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
   function openCustomerEdit() {
     if (!order) return;
     setEditName(order.customerName ?? "");
@@ -386,6 +408,10 @@ export default function OrderDetailPage() {
             </h1>
             <p className="mt-1 break-all font-mono text-xs text-[#6B7280]">
               {order.orderId}
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {order.images.filter((img) => img.printed).length} /{" "}
+              {order.images.length} images printed
             </p>
             <div className="mt-6 rounded-lg border border-gray-200 bg-[#FAFAFA] p-4 sm:p-5">
               <div className="grid gap-6 sm:grid-cols-2 sm:gap-8">
@@ -869,20 +895,32 @@ export default function OrderDetailPage() {
 
           {selectedImageIds.length > 0 && (
             <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-6">
-              <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3">
+              <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-[#111111]">
                   {selectedImageIds.length} selected
                 </p>
-                <button
-                  type="button"
-                  disabled={isPrintingSelected || actionBusy !== null}
-                  onClick={() => void printSelectedImages()}
-                  className="min-h-[48px] rounded-lg bg-[#2563EB] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
-                >
-                  {isPrintingSelected || actionBusy === "printSelected"
-                    ? "Preparing…"
-                    : `Print selected (${selectedImageIds.length})`}
-                </button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={isPrintingSelected || actionBusy !== null}
+                    onClick={() => void handleMarkSelectedPrinted()}
+                    className="rounded border border-gray-300 px-3 py-2 text-sm text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50"
+                  >
+                    {actionBusy === "markPrinted"
+                      ? "Updating…"
+                      : `Mark selected as printed (${selectedImageIds.length})`}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPrintingSelected || actionBusy !== null}
+                    onClick={() => void printSelectedImages()}
+                    className="min-h-[48px] rounded-lg bg-[#2563EB] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
+                  >
+                    {isPrintingSelected || actionBusy === "printSelected"
+                      ? "Preparing…"
+                      : `Print selected (${selectedImageIds.length})`}
+                  </button>
+                </div>
               </div>
             </div>
           )}

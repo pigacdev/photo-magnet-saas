@@ -4,10 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import {
-  type OrderDisplayStatus,
-  OrderDisplayStatusBadge,
-} from "@/lib/orderDisplayStatus";
+import type { OrderDisplayStatus } from "@/lib/orderDisplayStatus";
 
 export type SellerOrderListItem = {
   id: string;
@@ -18,7 +15,43 @@ export type SellerOrderListItem = {
   currency: string;
   createdAt: string;
   imageCount: number;
+  totalImages: number;
+  printedImages: number;
 };
+
+function OrderPrintStatus({
+  totalImages,
+  printedImages,
+  displayStatus,
+}: {
+  totalImages: number;
+  printedImages: number;
+  displayStatus: OrderDisplayStatus;
+}) {
+  const total = totalImages;
+  const printed = printedImages;
+
+  let statusLabel: string;
+  let statusClass: string;
+
+  if (displayStatus === "SHIPPED") {
+    statusLabel = "Shipped";
+    statusClass = "text-blue-600";
+  } else if (printed === 0) {
+    statusLabel = "Ready to print";
+    statusClass = "text-gray-500";
+  } else if (printed < total) {
+    statusLabel = "Partially printed";
+    statusClass = "text-orange-600";
+  } else {
+    statusLabel = "Printed";
+    statusClass = "text-green-600";
+  }
+
+  return (
+    <span className={`text-sm ${statusClass}`}>{statusLabel}</span>
+  );
+}
 
 function shortId(id: string) {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
@@ -104,7 +137,11 @@ export default function OrdersListPage() {
                       {shortId(o.id)}
                     </td>
                     <td className="px-4 py-3">
-                      <OrderDisplayStatusBadge displayStatus={o.displayStatus} />
+                      <OrderPrintStatus
+                        totalImages={o.totalImages}
+                        printedImages={o.printedImages}
+                        displayStatus={o.displayStatus}
+                      />
                     </td>
                     <td className="px-4 py-3 text-[#111111]">
                       {o.contextType}
@@ -137,7 +174,11 @@ export default function OrdersListPage() {
                       {shortId(o.id)}
                     </span>
                     <div className="text-right">
-                      <OrderDisplayStatusBadge displayStatus={o.displayStatus} />
+                      <OrderPrintStatus
+                        totalImages={o.totalImages}
+                        printedImages={o.printedImages}
+                        displayStatus={o.displayStatus}
+                      />
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
