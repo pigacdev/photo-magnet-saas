@@ -3,24 +3,37 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { getMe, invalidateAuthCache } from "@/lib/auth";
+import {
+  getMe,
+  getCachedOrganizationUsage,
+  invalidateAuthCache,
+} from "@/lib/auth";
 
 function BillingContent() {
   const searchParams = useSearchParams();
   const reason = searchParams.get("reason");
   const success = searchParams.get("success");
   const canceled = searchParams.get("canceled");
+  const [plan, setPlan] = useState<"FREE" | "PRO" | null>(null);
   const [upgradeError, setUpgradeError] = useState("");
   const [upgrading, setUpgrading] = useState(false);
 
   useEffect(() => {
+    void getMe().then(() => {
+      setPlan(getCachedOrganizationUsage()?.plan ?? null);
+    });
+  }, []);
+
+  useEffect(() => {
     if (success === "true") {
       invalidateAuthCache();
-      void getMe();
+      void getMe().then(() => {
+        setPlan(getCachedOrganizationUsage()?.plan ?? null);
+      });
     }
   }, [success]);
 
-  async function startUpgrade() {
+  async function handleUpgrade() {
     setUpgradeError("");
     setUpgrading(true);
     try {
@@ -48,13 +61,13 @@ function BillingContent() {
   return (
     <div className="mx-auto max-w-lg p-6">
       {success === "true" && (
-        <p className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-          Payment received. Your plan will update to PRO in a few seconds — refresh if needed.
+        <p className="mb-4 text-sm text-green-600">
+          Subscription activated successfully 🎉
         </p>
       )}
       {canceled === "true" && (
-        <p className="mb-4 rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-3 text-sm text-[#374151]">
-          Checkout canceled. You can try again when you&apos;re ready.
+        <p className="mb-4 text-sm text-gray-600">
+          Subscription was canceled.
         </p>
       )}
       {reason === "limit" && (
@@ -64,32 +77,52 @@ function BillingContent() {
         </p>
       )}
 
-      <h1 className="mb-4 text-xl font-semibold text-[#111111]">Upgrade to PRO</h1>
+      <h2 className="text-lg font-semibold text-[#111111]">
+        Your plan: {plan ?? "…"}
+      </h2>
 
-      <p className="mb-6 text-sm text-[#6B7280]">
-        You&apos;ve reached your free limit (10 orders/month).
+      <p className="mt-2 text-sm text-[#6B7280]">
+        Compare benefits and upgrade when you&apos;re ready.
       </p>
 
-      <div className="rounded-lg border border-gray-200 p-4">
-        <p className="font-medium text-[#111111]">PRO — €29/month</p>
-        <ul className="mt-2 space-y-1 text-sm text-[#374151]">
-          <li>• Unlimited orders</li>
-          <li>• Unlimited events</li>
-          <li>• 1 storefront</li>
+      <div className="mt-6 space-y-3 rounded-lg border border-gray-200 p-5">
+        <p className="text-lg font-semibold text-[#111111]">
+          PRO — €29/month
+        </p>
+
+        <ul className="space-y-1 text-sm text-gray-600">
+          <li>✔ Unlimited orders</li>
+          <li>✔ Unlimited events</li>
+          <li>✔ 1 storefront</li>
+          <li>✔ Priority workflow</li>
         </ul>
 
         {upgradeError && (
-          <p className="mt-3 text-sm text-red-700">{upgradeError}</p>
+          <p className="text-sm text-red-700">{upgradeError}</p>
         )}
 
-        <button
-          type="button"
-          disabled={upgrading}
-          onClick={() => void startUpgrade()}
-          className="mt-4 w-full rounded-lg bg-[#111111] py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
-        >
-          {upgrading ? "Redirecting…" : "Upgrade to PRO"}
-        </button>
+        {plan === "FREE" ? (
+          <>
+            <p className="mt-4 text-sm text-gray-600">
+              Upgrade to remove limits and keep accepting orders without
+              interruption.
+            </p>
+            <button
+              type="button"
+              disabled={upgrading}
+              onClick={() => void handleUpgrade()}
+              className="mt-4 w-full rounded bg-black py-2 text-white disabled:opacity-60"
+            >
+              {upgrading ? "Redirecting…" : "Upgrade to PRO"}
+            </button>
+          </>
+        ) : plan === "PRO" ? (
+          <p className="mt-4 text-sm text-green-600">
+            You are currently on PRO plan
+          </p>
+        ) : (
+          <p className="mt-4 text-sm text-gray-500">Loading plan…</p>
+        )}
       </div>
 
       <p className="mt-6 text-sm text-[#6B7280]">
