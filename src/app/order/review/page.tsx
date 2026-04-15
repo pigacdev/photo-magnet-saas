@@ -218,7 +218,18 @@ export default function OrderReviewPage() {
       const customerParams = new URLSearchParams(q.replace(/^\?/, ""));
       customerParams.set("orderId", result.orderId);
       router.push(`/order/customer?${customerParams.toString()}`);
-    } catch (e) {
+    } catch (e: unknown) {
+      const code =
+        e && typeof e === "object" && "code" in e
+          ? (e as { code?: string }).code
+          : undefined;
+      if (
+        code === "ORDER_LIMIT_REACHED" ||
+        (e instanceof Error && e.message.includes("ORDER_LIMIT_REACHED"))
+      ) {
+        router.push(`/order/unavailable${window.location.search}`);
+        return;
+      }
       setActionError(
         e instanceof Error ? e.message : "Could not place order. Try again.",
       );

@@ -4,6 +4,7 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
 import Stripe from "stripe";
+import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { generatePrintSheet } from "../lib/generatePrintSheet";
 import { ORDER_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
@@ -11,6 +12,7 @@ import { renderOrderImages } from "../lib/renderOrderImages";
 import { getAppPublicUrl, getStripeOrNull } from "../lib/stripe";
 import { sessionConfig } from "../config/session";
 import { isStorefrontCustomerComplete } from "../lib/orderCustomerValidation";
+import { authenticate } from "../middleware/auth";
 
 export const stripeRouter = Router();
 
@@ -182,6 +184,79 @@ stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
   }
 });
 
+stripeRouter.post("/create-subscription", authenticate, async (req: Request, res: Response) => {
+  const stripe = getStripeOrNull();
+  if (!stripe) {
+    res.status(503).json({ error: "Stripe not configured" });
+    return;
+  }
+
+  const priceId = process.env.STRIPE_PRICE_PRO?.trim();
+  if (!priceId) {
+    res.status(503).json({ error: "Subscription price not configured" });
+    return;
+  }
+
+  const orgId = req.user!.userId;
+
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+  });
+
+  if (!org) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
+
+  try {
+    let customerId = org.stripeCustomerId;
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        metadata: { orgId },
+      });
+
+      customerId = customer.id;
+
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: { stripeCustomerId: customerId },
+      });
+    }
+
+    const appUrl = getAppPublicUrl();
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        orgId,
+      },
+      subscription_data: {
+        metadata: { orgId },
+      },
+      success_url: `${appUrl}/dashboard/billing?success=true`,
+      cancel_url: `${appUrl}/dashboard/billing?canceled=true`,
+    });
+
+    if (!session.url) {
+      res.status(500).json({ error: "Could not start checkout" });
+      return;
+    }
+
+    res.json({ url: session.url });
+  } catch (e) {
+    console.error("[stripe.create-subscription]", e);
+    res.status(500).json({ error: "Could not start subscription checkout" });
+  }
+});
+
 export async function stripeWebhookHandler(req: Request, res: Response): Promise<void> {
   const stripe = getStripeOrNull();
   if (!stripe) {
@@ -216,106 +291,280 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
     return;
   }
 
-  // Only handle events we act on; acknowledge everything else with 200 so Stripe does not retry.
-  if (event.type !== "checkout.session.completed") {
-    res.status(200).end();
-    return;
-  }
+  console.log("[stripe.webhook] event:", event.type);
 
-  const session = event.data.object as Stripe.Checkout.Session;
-  const orderId =
-    session.metadata?.orderId != null ? String(session.metadata.orderId) : "";
-
-  if (!orderId) {
-    console.error("[stripe.webhook] missing metadata.orderId", session.id);
-    res.status(200).json({ received: true });
+  if (!event?.type) {
+    res.status(400).send("Invalid event");
     return;
   }
 
   try {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-    });
-    if (!order) {
-      console.error("[stripe.webhook] order not found", orderId);
-      res.status(200).json({ received: true });
-      return;
-    }
-    if (order.status === "PAID") {
-      res.json({ received: true });
-      return;
-    }
-    if (order.status !== "PENDING_PAYMENT") {
-      console.warn(
-        "[stripe.webhook] unexpected order status",
-        order.status,
-        orderId,
-      );
-      res.status(200).json({ received: true });
-      return;
-    }
-
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        status: "PAID",
-        stripeCheckoutSessionId: session.id,
-      },
-    });
-
-    const orderImages = await prisma.orderImage.findMany({
-      where: { orderId },
-      orderBy: ORDER_IMAGE_LIST_ORDER_BY,
-    });
     try {
-      await renderOrderImages(
-        orderId,
-        orderImages.map((img) => ({
-          id: img.id,
-          originalUrl: img.originalUrl,
-          cropX: img.cropX,
-          cropY: img.cropY,
-          cropWidth: img.cropWidth,
-          cropHeight: img.cropHeight,
-        })),
-      );
-    } catch (renderErr) {
-      console.error("[stripe.webhook] renderOrderImages failed", renderErr);
-    }
-
-    try {
-      const orderImagesForPdf = await prisma.orderImage.findMany({
-        where: { orderId },
-        orderBy: ORDER_IMAGE_LIST_ORDER_BY,
+      await prisma.processedStripeEvent.create({
+        data: { id: event.id },
       });
-      const grouped: Record<
-        string,
-        (typeof orderImagesForPdf)[number][]
-      > = {};
-      for (const img of orderImagesForPdf) {
-        const key = img.shapeId;
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(img);
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      ) {
+        console.log("[stripe.webhook] duplicate event skipped:", event.id);
+        res.status(200).json({ received: true, duplicate: true });
+        return;
       }
-      const pdfUrls: string[] = [];
-      for (const shapeId of Object.keys(grouped)) {
-        const images = grouped[shapeId];
-        if (!images?.length) continue;
-        const pdfUrl = await generatePrintSheet(orderId, images, shapeId);
-        pdfUrls.push(pdfUrl);
-      }
-      if (pdfUrls.length > 0) {
-        console.info("[stripe.webhook] print sheets", { orderId, pdfUrls });
-      }
-    } catch (pdfErr) {
-      console.error("[stripe.webhook] generatePrintSheet failed", pdfErr);
+      throw e;
     }
 
-    console.info("[stripe.webhook] order paid", {
-      orderId,
-      stripeSessionId: session.id,
-    });
-    res.json({ received: true });
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+
+        if (session.mode === "subscription") {
+          const orgId = session.metadata?.orgId
+            ? String(session.metadata.orgId)
+            : "";
+          if (!orgId) {
+            res.status(200).json({ received: true });
+            return;
+          }
+
+          const cust = session.customer;
+          const customerId =
+            typeof cust === "string" ? cust : cust && "id" in cust ? cust.id : null;
+          const subField = session.subscription;
+          const subscriptionId =
+            typeof subField === "string"
+              ? subField
+              : subField && typeof subField === "object" && "id" in subField
+                ? (subField as Stripe.Subscription).id
+                : null;
+
+          if (!customerId || !subscriptionId) {
+            console.warn(
+              "[stripe.webhook] subscription session missing customer or subscription",
+              session.id,
+            );
+            res.status(200).json({ received: true });
+            return;
+          }
+
+          try {
+            await prisma.organization.update({
+              where: { id: orgId },
+              data: {
+                stripeCustomerId: customerId,
+                stripeSubscriptionId: subscriptionId,
+              },
+            });
+            console.log("[stripe.webhook] session.completed stored Stripe ids", {
+              orgId,
+            });
+          } catch (err) {
+            console.error("[stripe.webhook] session.completed failed", err);
+          }
+
+          res.status(200).json({ received: true });
+          return;
+        }
+
+        const orderId =
+          session.metadata?.orderId != null
+            ? String(session.metadata.orderId)
+            : "";
+
+        if (!orderId) {
+          console.error("[stripe.webhook] missing metadata.orderId", session.id);
+          res.status(200).json({ received: true });
+          return;
+        }
+
+        const order = await prisma.order.findUnique({
+          where: { id: orderId },
+        });
+        if (!order) {
+          console.error("[stripe.webhook] order not found", orderId);
+          res.status(200).json({ received: true });
+          return;
+        }
+        if (order.status === "PAID") {
+          res.status(200).json({ received: true });
+          return;
+        }
+        if (order.status !== "PENDING_PAYMENT") {
+          console.warn(
+            "[stripe.webhook] unexpected order status",
+            order.status,
+            orderId,
+          );
+          res.status(200).json({ received: true });
+          return;
+        }
+
+        await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            status: "PAID",
+            stripeCheckoutSessionId: session.id,
+          },
+        });
+
+        const orderImages = await prisma.orderImage.findMany({
+          where: { orderId },
+          orderBy: ORDER_IMAGE_LIST_ORDER_BY,
+        });
+        try {
+          await renderOrderImages(
+            orderId,
+            orderImages.map((img) => ({
+              id: img.id,
+              originalUrl: img.originalUrl,
+              cropX: img.cropX,
+              cropY: img.cropY,
+              cropWidth: img.cropWidth,
+              cropHeight: img.cropHeight,
+            })),
+          );
+        } catch (renderErr) {
+          console.error("[stripe.webhook] renderOrderImages failed", renderErr);
+        }
+
+        try {
+          const orderImagesForPdf = await prisma.orderImage.findMany({
+            where: { orderId },
+            orderBy: ORDER_IMAGE_LIST_ORDER_BY,
+          });
+          const grouped: Record<
+            string,
+            (typeof orderImagesForPdf)[number][]
+          > = {};
+          for (const img of orderImagesForPdf) {
+            const key = img.shapeId;
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(img);
+          }
+          const pdfUrls: string[] = [];
+          for (const shapeId of Object.keys(grouped)) {
+            const images = grouped[shapeId];
+            if (!images?.length) continue;
+            const pdfUrl = await generatePrintSheet(orderId, images, shapeId);
+            pdfUrls.push(pdfUrl);
+          }
+          if (pdfUrls.length > 0) {
+            console.info("[stripe.webhook] print sheets", { orderId, pdfUrls });
+          }
+        } catch (pdfErr) {
+          console.error("[stripe.webhook] generatePrintSheet failed", pdfErr);
+        }
+
+        console.info("[stripe.webhook] order paid", {
+          orderId,
+          stripeSessionId: session.id,
+        });
+        res.status(200).json({ received: true });
+        return;
+      }
+      case "customer.subscription.created":
+      case "customer.subscription.updated": {
+        const sub = event.data.object as Stripe.Subscription;
+        const customerRaw = sub.customer;
+        const customerId =
+          typeof customerRaw === "string"
+            ? customerRaw
+            : customerRaw && typeof customerRaw === "object" && "id" in customerRaw
+              ? customerRaw.id
+              : null;
+        const subscriptionId = sub.id;
+
+        if (!customerId || !subscriptionId) {
+          res.status(200).json({ received: true });
+          return;
+        }
+
+        const org = await prisma.organization.findFirst({
+          where: { stripeCustomerId: customerId },
+        });
+
+        if (!org) {
+          res.status(200).json({ received: true });
+          return;
+        }
+
+        if (org.stripeSubscriptionId !== subscriptionId) {
+          await prisma.organization.update({
+            where: { id: org.id },
+            data: { stripeSubscriptionId: subscriptionId },
+          });
+          console.log("[stripe] subscription synced", org.id);
+        }
+
+        res.status(200).json({ received: true });
+        return;
+      }
+      case "invoice.paid": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerRaw = invoice.customer;
+        const customerId =
+          typeof customerRaw === "string"
+            ? customerRaw
+            : customerRaw?.id;
+
+        if (!customerId) {
+          res.status(200).json({ received: true });
+          return;
+        }
+
+        const org = await prisma.organization.findFirst({
+          where: { stripeCustomerId: customerId },
+        });
+
+        if (!org) {
+          res.status(200).json({ received: true });
+          return;
+        }
+
+        if (org.plan !== "PRO") {
+          await prisma.organization.update({
+            where: { id: org.id },
+            data: {
+              plan: "PRO",
+            },
+          });
+          console.log("[stripe] org upgraded to PRO", org.id);
+        }
+
+        res.status(200).json({ received: true });
+        return;
+      }
+      case "customer.subscription.deleted": {
+        const sub = event.data.object as Stripe.Subscription;
+
+        const org = await prisma.organization.findFirst({
+          where: { stripeSubscriptionId: sub.id },
+        });
+
+        if (!org) {
+          res.status(200).json({ received: true });
+          return;
+        }
+
+        await prisma.organization.update({
+          where: { id: org.id },
+          data: {
+            plan: "FREE",
+            stripeSubscriptionId: null,
+            ordersThisMonth: 0,
+          },
+        });
+
+        console.log("[stripe] org downgraded to FREE", org.id);
+
+        res.status(200).json({ received: true });
+        return;
+      }
+      default:
+        res.status(200).end();
+        return;
+    }
   } catch (e) {
     console.error("[stripe.webhook] handler error", e);
     res.status(500).json({ error: "Webhook handler failed" });

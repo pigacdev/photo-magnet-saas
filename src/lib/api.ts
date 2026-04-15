@@ -15,6 +15,18 @@ type RequestOptions = {
   body?: unknown;
 };
 
+function throwIfNotOk(res: Response, data: unknown): void {
+  if (res.ok) return;
+  const d = data as Record<string, unknown>;
+  const msg =
+    (typeof d.message === "string" && d.message) ||
+    (typeof d.error === "string" && d.error) ||
+    "Something went wrong";
+  const err = new Error(msg) as Error & { code?: string };
+  if (typeof d.code === "string") err.code = d.code;
+  throw err;
+}
+
 export async function api<T>(
   path: string,
   options: RequestOptions = {},
@@ -31,10 +43,7 @@ export async function api<T>(
   });
 
   const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.error || "Something went wrong");
-  }
+  throwIfNotOk(res, data);
 
   return data as T;
 }
@@ -49,10 +58,7 @@ export async function apiFormData<T>(path: string, formData: FormData): Promise<
   });
 
   const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.error || "Something went wrong");
-  }
+  throwIfNotOk(res, data);
 
   return data as T;
 }

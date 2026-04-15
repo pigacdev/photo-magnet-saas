@@ -7,9 +7,241 @@ datasource db {
   provider = "postgresql"
 }
 
-// ---------------------------------------------------------------------------
-// Enums
-// ---------------------------------------------------------------------------
+/// Seller org (1:1 with User). Billing + SaaS limits; `id` matches `User.id`.
+model Organization {
+  id                   String   @id
+  plan                 Plan     @default(FREE)
+  ordersThisMonth      Int      @default(0)
+  /// FREE tier cap; PRO ignores (see `saas.ts`).
+  orderLimit           Int      @default(10)
+  currentPeriodStart   DateTime @default(now())
+  currentPeriodEnd     DateTime
+  stripeCustomerId     String?  @unique
+  stripeSubscriptionId String?
+  orders               Order[]
+  user                 User     @relation(fields: [id], references: [id], onDelete: Cascade)
+}
+
+/// Stripe webhook idempotency: one row per processed `evt_...` id.
+model ProcessedStripeEvent {
+  /// Stripe event id
+  id        String   @id
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  name         String?
+  passwordHash String
+  role         Role          @default(ADMIN)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+  events       Event[]
+  organization Organization?
+  storefronts  Storefront[]
+}
+
+model Event {
+  id                 String    @id @default(uuid())
+  userId             String
+  name               String
+  startDate          DateTime
+  endDate            DateTime
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+  /// Business cap on magnets per order; null = no business limit (system cap still applies).
+  maxMagnetsPerOrder Int?
+  /// Shown on seller print PDFs (magnets); max 40 chars.
+  brandText          String?   @db.VarChar(40)
+  /// Seller receives new-order emails when `sendOrderEmails` is true.
+  notificationEmail  String?
+  sendOrderEmails    Boolean   @default(false)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Storefront {
+  id                 String    @id @default(uuid())
+  userId             String
+  name               String
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+  /// Business cap on magnets per order; null = no business limit (system cap still applies).
+  maxMagnetsPerOrder Int?
+  /// Shown on seller print PDFs (magnets); max 40 chars.
+  brandText          String?   @db.VarChar(40)
+  /// Seller receives new-order emails when `sendOrderEmails` is true.
+  notificationEmail  String?
+  sendOrderEmails    Boolean   @default(false)
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Pricing {
+  id           String      @id @default(uuid())
+  contextType  ContextType
+  contextId    String
+  type         PricingType
+  price        Decimal     @db.Decimal(10, 2)
+  currency     String      @default("EUR")
+  quantity     Int?
+  displayOrder Int?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+
+  @@index([contextType, contextId])
+}
+
+model OrderSession {
+  id              String             @id @default(uuid())
+  contextType     ContextType
+  contextId       String
+  status          OrderSessionStatus @default(ACTIVE)
+  createdAt       DateTime           @default(now())
+  expiresAt       DateTime
+  /// Bumped on each successful GET /api/session (presence / debugging / future analytics).
+  lastActiveAt    DateTime           @default(now())
+  /// Session start (set on create; same instant as first activity for new sessions).
+  startedAt       DateTime           @default(now())
+  /// Pricing row id when pricingType is BUNDLE.
+  bundleId        String?
+  /// Mirrors seller pricing mode for this selection (PER_ITEM = per magnet, BUNDLE = tier).
+  pricingType     PricingType?
+  quantity        Int?
+  selectedShapeId String?
+  totalPrice      Decimal?           @db.Decimal(10, 2)
+  /// Set when session is committed to an Order (idempotency + link).
+  orderId         String?            @unique
+  order           Order?             @relation(fields: [orderId], references: [id])
+  sessionImages   SessionImage[]
+
+  @@index([contextType, contextId])
+  @@index([expiresAt])
+  @@index([lastActiveAt])
+}
+
+model SessionImage {
+  id              String             @id @default(uuid())
+  sessionId       String
+  originalUrl     String
+  width           Int
+  height          Int
+  fileSize        Int
+  status          SessionImageStatus @default(UPLOADED)
+  createdAt       DateTime           @default(now())
+  /// Order within the session (crop / print). Assigned on upload: lastPosition + 1 per file.
+  /// List queries: always ORDER BY position ASC, createdAt ASC (see server magnetImageOrderBy.ts).
+  position        Int
+  /// True when width or height is below shape-aware minimum (see getMinRequiredPx); non-blocking. Crop may refine later.
+  isLowResolution Boolean            @default(false)
+  cropHeight      Int?
+  /// Placeholder for future rotation (degrees); print pipeline not implemented yet.
+  cropRotation    Float              @default(0)
+  /// Zoom factor relative to minimum cover scale (>= 1). Optional UI restore / debug.
+  cropScale       Float?
+  /// Pan in frame CSS px (relative to frame center). Optional UI restore.
+  cropTranslateX  Float?
+  cropTranslateY  Float?
+  cropWidth       Int?
+  /// Crop rectangle in original image pixels (fixed-frame editor); set when user saves/adjusts.
+  cropX           Int?
+  cropY           Int?
+  session         OrderSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([sessionId, position])
+}
+
+model Order {
+  id                      String            @id @default(uuid())
+  organizationId          String
+  contextType             ContextType
+  contextId               String
+  status                  OrderCommitStatus
+  totalPrice              Decimal           @db.Decimal(10, 2)
+  currency                String            @default("EUR")
+  /// Future: `pickedUpAt DateTime?` when customer collects at event. Not in DB yet.
+  /// Completion rule (when added): physically done ⇔ `shippedAt != null OR pickedUpAt != null`.
+  createdAt               DateTime          @default(now())
+  /// Snapshot from OrderSession at commit (immutable); never re-derived from live Pricing rows.
+  pricingType             PricingType
+  quantity                Int?
+  bundleId                String?
+  /// Set when Stripe Checkout completes (webhook); optional until paid.
+  stripeCheckoutSessionId String?
+  customerEmail           String?
+  customerName            String?
+  customerPhone           String?
+  /// Seller marks production done. Reprints do not change this.
+  printedAt               DateTime?
+  /// Order left for shipping / mail. Event pickup may use a different field later.
+  shippedAt               DateTime?
+  shippingAddress         Json?
+  shippingType            String?
+  /// Future: 6-char A–Z0–9 display id for UI and print (generated when implemented).
+  shortCode               String?           @unique
+  organization            Organization      @relation(fields: [organizationId], references: [id])
+  orderImages             OrderImage[]
+  committedFromSession    OrderSession?
+
+  @@index([organizationId])
+  @@index([contextType, contextId])
+  @@index([status])
+}
+
+/// Immutable print snapshot copied from SessionImage at commit time.
+model OrderImage {
+  id           String       @id @default(uuid())
+  orderId      String
+  originalUrl  String
+  croppedUrl   String?
+  cropX        Int
+  cropY        Int
+  cropWidth    Int
+  cropHeight   Int
+  rotation     Float        @default(0)
+  width        Int
+  height       Int
+  /// Magnet sequence for print / exports; list queries: ORDER BY position ASC, createdAt ASC.
+  position     Int
+  createdAt    DateTime     @default(now())
+  /// Final Sharp extract output for print (local `/uploads/...` path when rendered).
+  renderedUrl  String?
+  /// AllowedShape at commit time; print sheets are generated per shape (never mixed on one PDF).
+  shapeId      String
+  /// Seller marked this line item produced (Phase 8; reprints do not clear).
+  printed      Boolean      @default(false)
+  printedAt    DateTime?
+  order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  allowedShape AllowedShape @relation(fields: [shapeId], references: [id])
+
+  @@index([orderId])
+  @@index([orderId, position])
+  @@index([shapeId])
+}
+
+model AllowedShape {
+  id           String       @id @default(uuid())
+  contextType  ContextType
+  contextId    String
+  shapeType    ShapeType
+  widthMm      Float
+  heightMm     Float
+  displayOrder Int          @default(0)
+  orderImages  OrderImage[]
+
+  @@unique([contextType, contextId, shapeType, widthMm, heightMm])
+  @@index([contextType, contextId])
+}
 
 enum Role {
   ADMIN
@@ -57,251 +289,7 @@ enum ShapeType {
   RECTANGLE
 }
 
-// ---------------------------------------------------------------------------
-// 1. Core tables
-// ---------------------------------------------------------------------------
-
-model User {
-  id               String    @id @default(uuid())
-  email            String    @unique
-  name             String?
-  passwordHash     String
-  role             Role      @default(ADMIN)
-  stripeCustomerId String?   @unique
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  deletedAt        DateTime?
-
-  events       Event[]
-  storefronts  Storefront[]
-  orders       Order[]
-}
-
-model Event {
-  id        String    @id @default(uuid())
-  userId    String
-  name      String
-  /// Shown on seller print PDFs (magnets); max 40 chars.
-  brandText String?   @db.VarChar(40)
-  startDate DateTime
-  endDate   DateTime
-  isActive  Boolean   @default(true)
-  /// Business cap on magnets per order; null = no business limit (system cap still applies).
-  maxMagnetsPerOrder Int?
-  /// Seller receives new-order emails when `sendOrderEmails` is true.
-  notificationEmail String?
-  sendOrderEmails   Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-model Storefront {
-  id        String    @id @default(uuid())
-  userId    String
-  name      String
-  /// Shown on seller print PDFs (magnets); max 40 chars.
-  brandText String?   @db.VarChar(40)
-  isActive  Boolean   @default(true)
-  /// Business cap on magnets per order; null = no business limit (system cap still applies).
-  maxMagnetsPerOrder Int?
-  /// Seller receives new-order emails when `sendOrderEmails` is true.
-  notificationEmail String?
-  sendOrderEmails   Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-// ---------------------------------------------------------------------------
-// 2. Pricing (polymorphic: belongs to Event OR Storefront)
-// ---------------------------------------------------------------------------
-
-model Pricing {
-  id          String      @id @default(uuid())
-  contextType ContextType
-  contextId   String
-  type        PricingType
-  price       Decimal     @db.Decimal(10, 2)
-  currency     String      @default("EUR")
-  quantity     Int?
-  displayOrder Int?
-  createdAt    DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  deletedAt   DateTime?
-
-  @@index([contextType, contextId])
-}
-
-// ---------------------------------------------------------------------------
-// 2b. Customer order sessions (QR flow — not persisted orders)
-// ---------------------------------------------------------------------------
-
-model OrderSession {
-  id           String             @id @default(uuid())
-  contextType  ContextType
-  contextId    String
-  status       OrderSessionStatus @default(ACTIVE)
-  createdAt    DateTime           @default(now())
-  /// Session start (set on create; same instant as first activity for new sessions).
-  startedAt    DateTime           @default(now())
-  /// Bumped on each successful GET /api/session (presence / debugging / future analytics).
-  lastActiveAt DateTime           @default(now())
-  expiresAt    DateTime
-
-  selectedShapeId String?
-  /// Mirrors seller pricing mode for this selection (PER_ITEM = per magnet, BUNDLE = tier).
-  pricingType     PricingType?
-  quantity        Int?
-  /// Pricing row id when pricingType is BUNDLE.
-  bundleId        String?
-  totalPrice      Decimal?        @db.Decimal(10, 2)
-  /// Set when session is committed to an Order (idempotency + link).
-  orderId         String?         @unique
-  order           Order?          @relation(fields: [orderId], references: [id])
-
-  sessionImages SessionImage[]
-
-  @@index([contextType, contextId])
-  @@index([expiresAt])
-  @@index([lastActiveAt])
-}
-
-model SessionImage {
-  id          String             @id @default(uuid())
-  sessionId   String
-  originalUrl String
-  width       Int
-  height      Int
-  fileSize    Int
-  status      SessionImageStatus @default(UPLOADED)
-  createdAt   DateTime           @default(now())
-  /// Order within the session (crop / print). Assigned on upload: lastPosition + 1 per file.
-  /// List queries: always ORDER BY position ASC, createdAt ASC (see server magnetImageOrderBy.ts).
-  position    Int
-  /// True when width or height is below shape-aware minimum (see getMinRequiredPx); non-blocking. Crop may refine later.
-  isLowResolution Boolean @default(false)
-
-  /// Crop rectangle in original image pixels (fixed-frame editor); set when user saves/adjusts.
-  cropX      Int?
-  cropY      Int?
-  cropWidth  Int?
-  cropHeight Int?
-  /// Zoom factor relative to minimum cover scale (>= 1). Optional UI restore / debug.
-  cropScale         Float?
-  /// Pan in frame CSS px (relative to frame center). Optional UI restore.
-  cropTranslateX    Float?
-  cropTranslateY    Float?
-  /// Placeholder for future rotation (degrees); print pipeline not implemented yet.
-  cropRotation      Float @default(0)
-
-  session OrderSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  @@index([sessionId])
-  @@index([sessionId, position])
-}
-
-// ---------------------------------------------------------------------------
-// 3. Orders (session commit — immutable snapshot; seller org via User)
-// ---------------------------------------------------------------------------
-
-model Order {
-  id             String            @id @default(uuid())
-  /// Future: 6-char A–Z0–9 display id for UI and print (generated when implemented).
-  shortCode      String?           @unique
-  organizationId String
-  contextType    ContextType
-  contextId      String
-  status         OrderCommitStatus
-  totalPrice     Decimal           @db.Decimal(10, 2)
-  currency       String            @default("EUR")
-  /// Snapshot from OrderSession at commit (immutable); never re-derived from live Pricing rows.
-  pricingType    PricingType
-  quantity       Int?
-  bundleId       String?
-  /// Set when Stripe Checkout completes (webhook); optional until paid.
-  stripeCheckoutSessionId String?
-
-  customerName   String?
-  customerEmail  String?
-  customerPhone  String?
-  shippingType   String?
-  shippingAddress Json?
-
-  /// Seller marks production done. Reprints do not change this.
-  printedAt DateTime?
-  /// Order left for shipping / mail. Event pickup may use a different field later.
-  shippedAt DateTime?
-  /// Future: `pickedUpAt DateTime?` when customer collects at event. Not in DB yet.
-  /// Completion rule (when added): physically done ⇔ `shippedAt != null OR pickedUpAt != null`.
-
-  createdAt      DateTime          @default(now())
-
-  organization User        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  orderImages  OrderImage[]
-  /// At most one session may reference this order (commit link).
-  committedFromSession OrderSession?
-
-  @@index([organizationId])
-  @@index([contextType, contextId])
-  @@index([status])
-}
-
-/// Immutable print snapshot copied from SessionImage at commit time.
-model OrderImage {
-  id          String   @id @default(uuid())
-  orderId     String
-  /// AllowedShape at commit time; print sheets are generated per shape (never mixed on one PDF).
-  shapeId     String
-  originalUrl String
-  croppedUrl  String?
-  /// Final Sharp extract output for print (local `/uploads/...` path when rendered).
-  renderedUrl String?
-  cropX       Int
-  cropY       Int
-  cropWidth   Int
-  cropHeight  Int
-  rotation    Float    @default(0)
-  width       Int
-  height      Int
-  /// Magnet sequence for print / exports; list queries: ORDER BY position ASC, createdAt ASC.
-  position    Int
-  /// Seller marked this line item produced (Phase 8; reprints do not clear).
-  printed     Boolean   @default(false)
-  printedAt   DateTime?
-  createdAt   DateTime @default(now())
-
-  order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  allowedShape AllowedShape @relation(fields: [shapeId], references: [id], onDelete: Restrict)
-
-  @@index([orderId])
-  @@index([orderId, position])
-  @@index([shapeId])
-}
-
-// ---------------------------------------------------------------------------
-// 4. Allowed shapes (polymorphic: belongs to Event OR Storefront)
-// ---------------------------------------------------------------------------
-
-model AllowedShape {
-  id          String      @id @default(uuid())
-  contextType ContextType
-  contextId   String
-  shapeType    ShapeType
-  widthMm      Float
-  heightMm     Float
-  displayOrder Int       @default(0)
-
-  orderImages OrderImage[]
-
-  @@unique([contextType, contextId, shapeType, widthMm, heightMm])
-  @@index([contextType, contextId])
+enum Plan {
+  FREE
+  PRO
 }

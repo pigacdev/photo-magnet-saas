@@ -30,6 +30,7 @@ import {
   sendNewOrderEmail,
 } from "../lib/email";
 import { loadOrderNotificationContext } from "../lib/orderNotificationContext";
+import { assertCanCreateOrder, ORDER_LIMIT_REACHED } from "../lib/saas";
 
 export const ordersRouter = Router();
 
@@ -702,6 +703,23 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
       : "local";
 
   try {
+    await assertCanCreateOrder(String(organizationId));
+  } catch (err) {
+    if (err instanceof Error && err.message === ORDER_LIMIT_REACHED) {
+      res.status(403).json({
+        code: "ORDER_LIMIT_REACHED",
+        message: "Free plan limit reached. Upgrade to continue.",
+      });
+      return;
+    }
+    if (err instanceof Error && err.message === "Organization not found") {
+      res.status(500).json({ error: "Server configuration error" });
+      return;
+    }
+    throw err;
+  }
+
+  try {
     const result = await prisma.$transaction(async (tx) => {
       const sessionRowId = String(session.id);
       await tx.$executeRawUnsafe(
@@ -780,6 +798,13 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
           status: "CONVERTED",
           lastActiveAt: now,
           orderId,
+        },
+      });
+
+      await tx.organization.update({
+        where: { id: String(organizationId) },
+        data: {
+          ordersThisMonth: { increment: 1 },
         },
       });
 

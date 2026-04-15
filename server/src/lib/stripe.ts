@@ -1,7 +1,5 @@
 import Stripe from "stripe";
 
-console.log("STRIPE KEY:", process.env.STRIPE_SECRET_KEY ? "FOUND" : "MISSING");
-
 let stripeInstance: Stripe | null = null;
 
 export function getStripeOrNull(): Stripe | null {

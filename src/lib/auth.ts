@@ -7,16 +7,41 @@ export type User = {
   role: "ADMIN" | "STAFF";
 };
 
-type AuthResponse = { user: User };
+export type OrganizationUsage = {
+  plan: "FREE" | "PRO";
+  ordersThisMonth: number;
+  orderLimit: number;
+};
+
+type AuthResponse = {
+  user: User;
+  organization: OrganizationUsage | null;
+};
 
 let cachedUser: User | null | undefined;
+let cachedOrganization: OrganizationUsage | null | undefined;
 
-function setCache(user: User | null) {
+function setCache(user: User | null, organization?: OrganizationUsage | null) {
   cachedUser = user;
+  if (organization !== undefined) {
+    cachedOrganization = organization;
+  } else if (user === null) {
+    cachedOrganization = null;
+  }
 }
 
 function clearCache() {
   cachedUser = undefined;
+  cachedOrganization = undefined;
+}
+
+/** Call after subscription or profile changes so the next `getMe()` refetches. */
+export function invalidateAuthCache(): void {
+  clearCache();
+}
+
+export function getCachedOrganizationUsage(): OrganizationUsage | null {
+  return cachedOrganization ?? null;
 }
 
 export async function signup(
@@ -28,7 +53,8 @@ export async function signup(
     method: "POST",
     body: { email, password, name },
   });
-  setCache(data.user);
+  clearCache();
+  setCache(data.user, data.organization ?? null);
   return data.user;
 }
 
@@ -40,7 +66,8 @@ export async function login(
     method: "POST",
     body: { email, password },
   });
-  setCache(data.user);
+  clearCache();
+  setCache(data.user, data.organization ?? null);
   return data.user;
 }
 
@@ -54,10 +81,10 @@ export async function getMe(): Promise<User | null> {
 
   try {
     const data = await api<AuthResponse>("/api/auth/me");
-    setCache(data.user);
+    setCache(data.user, data.organization ?? null);
     return data.user;
   } catch {
-    setCache(null);
+    setCache(null, null);
     return null;
   }
 }

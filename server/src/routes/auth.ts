@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 import { prisma } from "../lib/prisma";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "../lib/auth";
 import { authConfig } from "../config/auth";
+import { defaultBillingPeriodEnd } from "../lib/saas";
 
 const authLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -40,15 +41,39 @@ authRouter.post("/signup", authLimiter, async (req, res) => {
 
   const passwordHash = await hashPassword(password);
 
-  const user = await prisma.user.create({
-    data: { email, name: name || null, passwordHash },
+  const periodEnd = defaultBillingPeriodEnd();
+
+  const user = await prisma.$transaction(async (tx) => {
+    const u = await tx.user.create({
+      data: { email, name: name || null, passwordHash },
+    });
+    await tx.organization.create({
+      data: {
+        id: u.id,
+        currentPeriodEnd: periodEnd,
+      },
+    });
+    return u;
   });
 
   const token = signToken({ userId: user.id, role: user.role });
 
   res.cookie(authConfig.cookieName, token, authConfig.cookieOptions);
+
+  const organization = await prisma.organization.findUnique({
+    where: { id: user.id },
+    select: { plan: true, ordersThisMonth: true, orderLimit: true },
+  });
+
   res.status(201).json({
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    organization: organization
+      ? {
+          plan: organization.plan,
+          ordersThisMonth: organization.ordersThisMonth,
+          orderLimit: organization.orderLimit,
+        }
+      : null,
   });
 });
 
@@ -79,8 +104,21 @@ authRouter.post("/login", authLimiter, async (req, res) => {
   const token = signToken({ userId: user.id, role: user.role });
 
   res.cookie(authConfig.cookieName, token, authConfig.cookieOptions);
+
+  const organization = await prisma.organization.findUnique({
+    where: { id: user.id },
+    select: { plan: true, ordersThisMonth: true, orderLimit: true },
+  });
+
   res.json({
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    organization: organization
+      ? {
+          plan: organization.plan,
+          ordersThisMonth: organization.ordersThisMonth,
+          orderLimit: organization.orderLimit,
+        }
+      : null,
   });
 });
 
@@ -110,10 +148,28 @@ authRouter.get("/me", async (req, res) => {
       return;
     }
 
+    const organization = await prisma.organization.findUnique({
+      where: { id: user.id },
+      select: {
+        plan: true,
+        ordersThisMonth: true,
+        orderLimit: true,
+      },
+    });
+
     const freshToken = signToken({ userId: user.id, role: user.role });
     res.cookie(authConfig.cookieName, freshToken, authConfig.cookieOptions);
 
-    res.json({ user });
+    res.json({
+      user,
+      organization: organization
+        ? {
+            plan: organization.plan,
+            ordersThisMonth: organization.ordersThisMonth,
+            orderLimit: organization.orderLimit,
+          }
+        : null,
+    });
   } catch {
     res.status(401).json({ error: "Invalid token" });
   }
