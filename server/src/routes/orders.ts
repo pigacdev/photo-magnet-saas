@@ -61,17 +61,97 @@ function getDisplayStatus(order: {
   return "UNKNOWN";
 }
 
-/** GET /api/orders — seller: ready-to-print first, then newest within each band. */
+/** List UI filter — matches seller orders table (shipped → print progress). */
+function deriveSellerListStatusKey(o: {
+  shippedAt: Date | null;
+  orderImages: { printed: boolean }[];
+}): "ready" | "partial" | "printed" | "shipped" {
+  if (o.shippedAt) return "shipped";
+  const total = o.orderImages.length;
+  const printed = o.orderImages.filter((img) => img.printed).length;
+  if (printed === 0) return "ready";
+  if (printed < total) return "partial";
+  return "printed";
+}
+
+function parsePositiveInt(value: unknown, fallback: number): number {
+  const n = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return n;
+}
+
+/** GET /api/orders — seller list with search, filters, pagination (derived status filtered in memory). */
 ordersRouter.get(
   "/",
   authenticate,
   requireRole("ADMIN", "STAFF"),
   async (req: Request, res: Response) => {
     const userId = req.user!.userId;
+
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSizeRaw = parsePositiveInt(req.query.pageSize, 20);
+    const pageSize = Math.min(100, Math.max(1, pageSizeRaw));
+
+    const searchRaw =
+      typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const statusRaw =
+      typeof req.query.status === "string" ? req.query.status.trim().toLowerCase() : "";
+    const allowedStatus = new Set(["ready", "partial", "printed", "shipped"]);
+    const statusFilter =
+      statusRaw && allowedStatus.has(statusRaw) ? statusRaw : "";
+
+    let createdAt: { gte?: Date; lte?: Date } | undefined;
+    const dateFrom =
+      typeof req.query.dateFrom === "string" ? req.query.dateFrom.trim() : "";
+    const dateTo =
+      typeof req.query.dateTo === "string" ? req.query.dateTo.trim() : "";
+    const dateRange =
+      typeof req.query.dateRange === "string" ? req.query.dateRange.trim() : "";
+
+    if (dateFrom || dateTo) {
+      const range: { gte?: Date; lte?: Date } = {};
+      if (dateFrom) {
+        const d = new Date(dateFrom);
+        if (!Number.isNaN(d.getTime())) range.gte = d;
+      }
+      if (dateTo) {
+        const d = new Date(dateTo);
+        if (!Number.isNaN(d.getTime())) {
+          d.setHours(23, 59, 59, 999);
+          range.lte = d;
+        }
+      }
+      if (range.gte || range.lte) createdAt = range;
+    } else if (dateRange.includes(",")) {
+      const [a, b] = dateRange.split(",").map((s) => s.trim());
+      const start = a ? new Date(a) : null;
+      const end = b ? new Date(b) : null;
+      if (start && !Number.isNaN(start.getTime())) {
+        const range: { gte?: Date; lte?: Date } = { gte: start };
+        if (end && !Number.isNaN(end.getTime())) {
+          end.setHours(23, 59, 59, 999);
+          range.lte = end;
+        }
+        createdAt = range;
+      }
+    }
+
+    const where: {
+      organizationId: string;
+      createdAt?: { gte?: Date; lte?: Date };
+    } = {
+      organizationId: userId,
+      ...(createdAt ? { createdAt } : {}),
+    };
+
     const orders = await prisma.order.findMany({
-      where: { organizationId: userId },
+      where,
       select: {
         id: true,
+        shortCode: true,
+        customerName: true,
+        customerEmail: true,
+        customerPhone: true,
         status: true,
         printedAt: true,
         shippedAt: true,
@@ -84,18 +164,41 @@ ordersRouter.get(
         },
       },
     });
-    const sorted = [...orders].sort((a, b) => {
+
+    let filtered = orders;
+
+    if (searchRaw.length > 0) {
+      const q = searchRaw.toLowerCase();
+      filtered = filtered.filter(
+        (o) =>
+          o.id.toLowerCase().includes(q) ||
+          (o.shortCode?.toLowerCase().includes(q) ?? false) ||
+          (o.customerName?.toLowerCase().includes(q) ?? false) ||
+          (o.customerEmail?.toLowerCase().includes(q) ?? false) ||
+          (o.customerPhone?.toLowerCase().includes(q) ?? false),
+      );
+    }
+
+    const sorted = [...filtered].sort((a, b) => {
       const ra = isReadyToPrintForSeller(a.status);
       const rb = isReadyToPrintForSeller(b.status);
       if (ra !== rb) return ra ? -1 : 1;
       return b.createdAt.getTime() - a.createdAt.getTime();
     });
-    res.json(
-      sorted.map((o) => {
-        const totalImages = o.orderImages.length;
-        const printedImages = o.orderImages.filter((img) => img.printed).length;
-        return {
+
+    const withDerived = sorted.map((o) => {
+      const totalImages = o.orderImages.length;
+      const printedImages = o.orderImages.filter((img) => img.printed).length;
+      const listStatus = deriveSellerListStatusKey(o);
+      return {
+        row: o,
+        listStatus,
+        payload: {
           id: o.id,
+          shortCode: o.shortCode,
+          customerName: o.customerName,
+          customerEmail: o.customerEmail,
+          customerPhone: o.customerPhone,
           status: o.status,
           displayStatus: getDisplayStatus(o),
           contextType: o.contextType,
@@ -105,9 +208,31 @@ ordersRouter.get(
           imageCount: totalImages,
           totalImages,
           printedImages,
-        };
-      }),
-    );
+        },
+      };
+    });
+
+    const statusFiltered = statusFilter
+      ? withDerived.filter((x) => x.listStatus === statusFilter)
+      : withDerived;
+
+    const total = statusFiltered.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const skip = (safePage - 1) * pageSize;
+    const pageItems = statusFiltered
+      .slice(skip, skip + pageSize)
+      .map((x) => x.payload);
+
+    res.json({
+      items: pageItems,
+      pagination: {
+        page: safePage,
+        pageSize,
+        total,
+        totalPages,
+      },
+    });
   },
 );
 
