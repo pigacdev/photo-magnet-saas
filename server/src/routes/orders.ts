@@ -74,6 +74,16 @@ function deriveSellerListStatusKey(o: {
   return "printed";
 }
 
+const LIST_STATUS_SORT_PRIORITY: Record<
+  "ready" | "partial" | "printed" | "shipped",
+  number
+> = {
+  ready: 1,
+  partial: 2,
+  printed: 3,
+  shipped: 4,
+};
+
 function parsePositiveInt(value: unknown, fallback: number): number {
   const n = Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(n) || n < 1) return fallback;
@@ -179,14 +189,16 @@ ordersRouter.get(
       );
     }
 
-    const sorted = [...filtered].sort((a, b) => {
-      const ra = isReadyToPrintForSeller(a.status);
-      const rb = isReadyToPrintForSeller(b.status);
-      if (ra !== rb) return ra ? -1 : 1;
-      return b.createdAt.getTime() - a.createdAt.getTime();
-    });
+    const sortByParam =
+      typeof req.query.sortBy === "string" ? req.query.sortBy.trim() : "";
+    const sortBy = sortByParam === "status" ? "status" : "createdAt";
+    const sortOrderRaw =
+      typeof req.query.sortOrder === "string"
+        ? req.query.sortOrder.trim().toLowerCase()
+        : "";
+    const sortOrder = sortOrderRaw === "asc" ? "asc" : "desc";
 
-    const withDerived = sorted.map((o) => {
+    const withDerived = filtered.map((o) => {
       const totalImages = o.orderImages.length;
       const printedImages = o.orderImages.filter((img) => img.printed).length;
       const listStatus = deriveSellerListStatusKey(o);
@@ -216,11 +228,28 @@ ordersRouter.get(
       ? withDerived.filter((x) => x.listStatus === statusFilter)
       : withDerived;
 
-    const total = statusFiltered.length;
+    const sortedList = [...statusFiltered].sort((x, y) => {
+      if (sortBy === "createdAt") {
+        const ta = x.row.createdAt.getTime();
+        const tb = y.row.createdAt.getTime();
+        const cmp = sortOrder === "asc" ? ta - tb : tb - ta;
+        if (cmp !== 0) return cmp;
+        return x.row.id.localeCompare(y.row.id);
+      }
+      const pa = LIST_STATUS_SORT_PRIORITY[x.listStatus];
+      const pb = LIST_STATUS_SORT_PRIORITY[y.listStatus];
+      const cmp = sortOrder === "asc" ? pa - pb : pb - pa;
+      if (cmp !== 0) return cmp;
+      return y.row.createdAt.getTime() - x.row.createdAt.getTime();
+    });
+
+    // Pagination totals = full filtered+sorted count (never the current page length).
+    const total = sortedList.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    // Clamp requested page when filters/sort shrink results (e.g. page=5 but only 1 page left).
     const safePage = Math.min(page, totalPages);
     const skip = (safePage - 1) * pageSize;
-    const pageItems = statusFiltered
+    const pageItems = sortedList
       .slice(skip, skip + pageSize)
       .map((x) => x.payload);
 

@@ -365,6 +365,25 @@ function OrdersListContent() {
     Boolean(searchParams.get("dateFrom")) ||
     Boolean(searchParams.get("dateTo"));
 
+  const sortByParam = searchParams.get("sortBy");
+  const sortOrderCol =
+    searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
+
+  function toggleSort(column: "createdAt" | "status") {
+    replaceQuery((q) => {
+      const prevBy = q.get("sortBy") === "status" ? "status" : "createdAt";
+      const prevOrder = q.get("sortOrder") === "asc" ? "asc" : "desc";
+      if (column !== prevBy) {
+        q.set("sortBy", column);
+        q.set("sortOrder", "desc");
+      } else {
+        q.set("sortBy", column);
+        q.set("sortOrder", prevOrder === "asc" ? "desc" : "asc");
+      }
+      q.set("page", "1");
+    });
+  }
+
   const quickBtn =
     "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors";
   const quickBtnIdle = `${quickBtn} border-gray-300 bg-white text-[#111111] hover:bg-[#F9FAFB]`;
@@ -516,8 +535,34 @@ function OrdersListContent() {
                     <tr>
                       <th className="px-4 py-3 font-medium">Code</th>
                       <th className="px-4 py-3 font-medium">Customer</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium">Created</th>
+                      <th className="px-4 py-3 font-medium">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-0.5 hover:text-[#111111]"
+                          onClick={() => toggleSort("status")}
+                        >
+                          Status
+                          {sortByParam === "status"
+                            ? sortOrderCol === "asc"
+                              ? " ↑"
+                              : " ↓"
+                            : null}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 font-medium">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-0.5 hover:text-[#111111]"
+                          onClick={() => toggleSort("createdAt")}
+                        >
+                          Created
+                          {sortByParam !== "status"
+                            ? sortOrderCol === "asc"
+                              ? " ↑"
+                              : " ↓"
+                            : null}
+                        </button>
+                      </th>
                       <th className="px-4 py-3 font-medium">Images</th>
                       <th className="px-4 py-3 font-medium">Actions</th>
                     </tr>
