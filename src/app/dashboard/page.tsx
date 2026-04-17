@@ -4,20 +4,199 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { api } from "@/lib/api";
+import {
   getMe,
   getCachedOrganizationUsage,
   type OrganizationUsage,
 } from "@/lib/auth";
 
+type Last7DayPoint = {
+  date: string;
+  orders: number;
+  revenue: number;
+};
+
+type ByMonthPoint = {
+  month: string;
+  label: string;
+  orders: number;
+  revenue: number;
+};
+
+type DashboardStats = {
+  ordersThisMonth: number;
+  revenueThisMonth: number;
+  pendingPrints: number;
+  waitingToShip: number;
+  last7Days: Last7DayPoint[];
+  byMonth: ByMonthPoint[];
+};
+
+function formatAxisDate(ymd: string) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function DashboardTrendsChart({
+  trendMode,
+  onTrendModeChange,
+  last7Days,
+  byMonth,
+}: {
+  trendMode: "days" | "months";
+  onTrendModeChange: (mode: "days" | "months") => void;
+  last7Days: Last7DayPoint[];
+  byMonth: ByMonthPoint[];
+}) {
+  const data: Array<Last7DayPoint | ByMonthPoint> =
+    trendMode === "days" ? last7Days : byMonth;
+  const xDataKey = trendMode === "days" ? "date" : "label";
+  const formatX = (v: string) =>
+    trendMode === "days" ? formatAxisDate(String(v)) : String(v);
+  const title =
+    trendMode === "days" ? "Last 7 days" : "By month";
+  const subtitle =
+    trendMode === "days"
+      ? "Orders and revenue by day"
+      : "Orders and revenue by month (this year)";
+
+  return (
+    <div className="w-full min-w-0 overflow-x-auto rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => onTrendModeChange("days")}
+          className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+            trendMode === "days"
+              ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
+              : "border-gray-200 bg-white text-[#374151] hover:bg-gray-50"
+          }`}
+        >
+          Last 7 days
+        </button>
+        <button
+          type="button"
+          onClick={() => onTrendModeChange("months")}
+          className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+            trendMode === "months"
+              ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
+              : "border-gray-200 bg-white text-[#374151] hover:bg-gray-50"
+          }`}
+        >
+          By month
+        </button>
+      </div>
+      <h2 className="mt-4 text-sm font-semibold text-[#111111]">{title}</h2>
+      <p className="mt-1 text-xs text-[#6B7280]">{subtitle}</p>
+      <div className="mt-4 h-[280px] w-full min-w-[280px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart<Last7DayPoint | ByMonthPoint>
+            data={data}
+            margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+            <XAxis
+              dataKey={xDataKey}
+              tick={{ fontSize: 11, fill: "#6B7280" }}
+              tickFormatter={(v) => formatX(String(v))}
+              interval={0}
+            />
+            <YAxis
+              yAxisId="orders"
+              allowDecimals={false}
+              tick={{ fontSize: 11, fill: "#6B7280" }}
+              width={36}
+            />
+            <YAxis
+              yAxisId="revenue"
+              orientation="right"
+              tick={{ fontSize: 11, fill: "#6B7280" }}
+              width={44}
+            />
+            <Tooltip
+              contentStyle={{
+                borderRadius: "8px",
+                border: "1px solid #E5E7EB",
+                fontSize: "12px",
+              }}
+              labelFormatter={(label) => formatX(String(label))}
+              formatter={(value, name) => {
+                if (name === "revenue" || name === "Revenue") {
+                  return [
+                    new Intl.NumberFormat(undefined, {
+                      style: "currency",
+                      currency: "EUR",
+                    }).format(Number(value)),
+                    "Revenue",
+                  ];
+                }
+                return [value, "Orders"];
+              }}
+            />
+            <Legend wrapperStyle={{ fontSize: "12px" }} />
+            <Line
+              yAxisId="orders"
+              type="monotone"
+              dataKey="orders"
+              name="Orders"
+              stroke="#2563EB"
+              strokeWidth={2}
+              dot={{ r: 3, fill: "#2563EB" }}
+              activeDot={{ r: 5 }}
+            />
+            <Line
+              yAxisId="revenue"
+              type="monotone"
+              dataKey="revenue"
+              name="Revenue"
+              stroke="#16A34A"
+              strokeWidth={2}
+              dot={{ r: 3, fill: "#16A34A" }}
+              activeDot={{ r: 5 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [usage, setUsage] = useState<OrganizationUsage | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [trendMode, setTrendMode] = useState<"days" | "months">("days");
 
   useEffect(() => {
     void getMe().then(() => {
       setUsage(getCachedOrganizationUsage());
     });
+    void api<DashboardStats>("/api/dashboard/stats")
+      .then(setStats)
+      .catch(() => setStats(null))
+      .finally(() => setStatsLoading(false));
   }, []);
+
+  function formatKpiMoney(n: number) {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: "EUR",
+    }).format(n);
+  }
 
   const percentage =
     usage != null &&
@@ -38,6 +217,60 @@ export default function DashboardPage() {
         <p className="mt-2 text-[#6B7280]">
           Manage your events and orders.
         </p>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+              Orders this month
+            </p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums text-[#111111]">
+              {statsLoading ? "…" : stats?.ordersThisMonth ?? "—"}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+              Revenue this month
+            </p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums text-[#111111]">
+              {statsLoading
+                ? "…"
+                : stats != null
+                  ? formatKpiMoney(stats.revenueThisMonth)
+                  : "—"}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+              Pending prints
+            </p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums text-[#111111]">
+              {statsLoading ? "…" : stats?.pendingPrints ?? "—"}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+              Waiting to ship
+            </p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums text-[#111111]">
+              {statsLoading ? "…" : stats?.waitingToShip ?? "—"}
+            </p>
+          </div>
+        </div>
+
+        {!statsLoading &&
+          stats &&
+          stats.last7Days.length > 0 &&
+          stats.byMonth.length > 0 && (
+            <div className="mt-8">
+              <DashboardTrendsChart
+                trendMode={trendMode}
+                onTrendModeChange={setTrendMode}
+                last7Days={stats.last7Days}
+                byMonth={stats.byMonth}
+              />
+            </div>
+          )}
+
         {usage && (
           <div className="mt-4">
             <div className="text-sm text-muted-foreground">

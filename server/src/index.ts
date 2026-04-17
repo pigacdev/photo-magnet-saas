@@ -14,6 +14,7 @@ import { publicRouter } from "./routes/public";
 import { sessionRouter } from "./routes/session";
 import { systemRouter } from "./routes/system";
 import { ordersRouter } from "./routes/orders";
+import { dashboardRouter } from "./routes/dashboard";
 import { stripeRouter, stripeWebhookHandler } from "./routes/stripe";
 import { authenticate, requireRole } from "./middleware/auth";
 import { errorHandler } from "./middleware/errorHandler";
@@ -59,6 +60,12 @@ app.use("/api/admin", authenticate, requireRole("ADMIN", "STAFF"));
 app.use("/api/events", authenticate, requireRole("ADMIN", "STAFF"), eventsRouter);
 app.use("/api/storefronts", authenticate, requireRole("ADMIN", "STAFF"), storefrontsRouter);
 app.use("/api/pricing", authenticate, requireRole("ADMIN", "STAFF"), pricingRouter);
+app.use(
+  "/api/dashboard",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  dashboardRouter,
+);
 
 app.use(errorHandler);
 
