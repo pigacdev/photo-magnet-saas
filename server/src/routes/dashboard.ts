@@ -27,6 +27,18 @@ function endOfCurrentMonthLocal(): Date {
   return new Date(y, m + 1, 0, 23, 59, 59, 999);
 }
 
+/** First moment of the previous calendar month (local). */
+function startOfPreviousMonthLocal(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+}
+
+/** Last moment of the previous calendar month (local). */
+function endOfPreviousMonthLocal(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+}
+
 /** Local calendar day as YYYY-MM-DD (for bucketing order.createdAt). */
 function formatYmdLocal(d: Date): string {
   const y = d.getFullYear();
@@ -111,10 +123,16 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
   const todayEnd = endOfTodayLocal();
   const monthStart = startOfCurrentMonthLocal();
   const monthEnd = endOfCurrentMonthLocal();
+  const prevMonthStart = startOfPreviousMonthLocal();
+  const prevMonthEnd = endOfPreviousMonthLocal();
 
   const createdThisMonthWhere = {
     organizationId: orgId,
     createdAt: { gte: monthStart, lte: monthEnd },
+  };
+  const createdLastMonthWhere = {
+    organizationId: orgId,
+    createdAt: { gte: prevMonthStart, lte: prevMonthEnd },
   };
 
   const [
@@ -122,6 +140,8 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
     revenueThisMonthAgg,
     pendingPrints,
     waitingToShip,
+    ordersLastMonth,
+    revenueLastMonthAgg,
   ] = await prisma.$transaction([
     prisma.order.count({ where: createdThisMonthWhere }),
     prisma.order.aggregate({
@@ -142,11 +162,19 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
         shippedAt: null,
       },
     }),
+    prisma.order.count({ where: createdLastMonthWhere }),
+    prisma.order.aggregate({
+      where: createdLastMonthWhere,
+      _sum: { totalPrice: true },
+    }),
   ]);
 
   const sumM = revenueThisMonthAgg._sum.totalPrice;
   const revenueThisMonth =
     sumM == null ? 0 : Math.round(Number(sumM) * 100) / 100;
+  const sumL = revenueLastMonthAgg._sum.totalPrice;
+  const revenueLastMonth =
+    sumL == null ? 0 : Math.round(Number(sumL) * 100) / 100;
 
   const last7Days = buildLast7DayBuckets();
   const byDate = new Map(last7Days.map((r) => [r.date, r]));
@@ -202,6 +230,8 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
   res.json({
     ordersThisMonth,
     revenueThisMonth,
+    ordersLastMonth,
+    revenueLastMonth,
     pendingPrints,
     waitingToShip,
     last7Days,

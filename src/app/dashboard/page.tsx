@@ -36,11 +36,72 @@ type ByMonthPoint = {
 type DashboardStats = {
   ordersThisMonth: number;
   revenueThisMonth: number;
+  ordersLastMonth: number;
+  revenueLastMonth: number;
   pendingPrints: number;
   waitingToShip: number;
   last7Days: Last7DayPoint[];
   byMonth: ByMonthPoint[];
 };
+
+function DeltaVsLastMonthOrders({
+  thisMonth,
+  lastMonth,
+}: {
+  thisMonth: number;
+  lastMonth: number;
+}) {
+  const d = thisMonth - lastMonth;
+  if (d === 0) {
+    return (
+      <p className="mt-1 text-xs tabular-nums text-gray-500">
+        0 vs last month
+      </p>
+    );
+  }
+  const up = d > 0;
+  return (
+    <p
+      className={`mt-1 text-xs font-medium tabular-nums ${
+        up ? "text-green-600" : "text-orange-600"
+      }`}
+    >
+      {up ? `↑ +${d}` : `↓ ${d}`} vs last month
+    </p>
+  );
+}
+
+function DeltaVsLastMonthRevenue({
+  thisMonth,
+  lastMonth,
+  formatMoney,
+}: {
+  thisMonth: number;
+  lastMonth: number;
+  formatMoney: (n: number) => string;
+}) {
+  const d = Math.round((thisMonth - lastMonth) * 100) / 100;
+  if (Math.abs(d) < 0.005) {
+    return (
+      <p className="mt-1 text-xs tabular-nums text-gray-500">
+        0 vs last month
+      </p>
+    );
+  }
+  const up = d > 0;
+  return (
+    <p
+      className={`mt-1 text-xs font-medium tabular-nums ${
+        up ? "text-green-600" : "text-orange-600"
+      }`}
+    >
+      {up
+        ? `↑ +${formatMoney(Math.abs(d))}`
+        : `↓ ${formatMoney(d)}`}{" "}
+      vs last month
+    </p>
+  );
+}
 
 function formatAxisDate(ymd: string) {
   const [y, m, d] = ymd.split("-").map(Number);
@@ -226,6 +287,12 @@ export default function DashboardPage() {
             <p className="mt-2 text-2xl font-semibold tabular-nums text-[#111111]">
               {statsLoading ? "…" : stats?.ordersThisMonth ?? "—"}
             </p>
+            {stats != null && !statsLoading && (
+              <DeltaVsLastMonthOrders
+                thisMonth={stats.ordersThisMonth}
+                lastMonth={stats.ordersLastMonth}
+              />
+            )}
           </div>
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
@@ -238,6 +305,13 @@ export default function DashboardPage() {
                   ? formatKpiMoney(stats.revenueThisMonth)
                   : "—"}
             </p>
+            {stats != null && !statsLoading && (
+              <DeltaVsLastMonthRevenue
+                thisMonth={stats.revenueThisMonth}
+                lastMonth={stats.revenueLastMonth}
+                formatMoney={formatKpiMoney}
+              />
+            )}
           </div>
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
