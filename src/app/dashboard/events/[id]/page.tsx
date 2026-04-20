@@ -9,6 +9,7 @@ import {
   PricingPreview,
   type PricingRule,
 } from "@/components/PricingEditor";
+import { ShareLinkCard } from "@/components/dashboard/ShareLinkCard";
 
 type AllowedShape = {
   id: string;
@@ -59,6 +60,7 @@ export default function EventDetailPage() {
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [publicEntryUrl, setPublicEntryUrl] = useState("");
   const [brandDraft, setBrandDraft] = useState("");
   const [brandSaving, setBrandSaving] = useState(false);
   const [notifEmailDraft, setNotifEmailDraft] = useState("");
@@ -76,6 +78,14 @@ export default function EventDetailPage() {
       .catch(() => setError("Event not found"))
       .finally(() => setLoading(false));
   }, [params.id]);
+
+  useEffect(() => {
+    if (!event?.id) {
+      setPublicEntryUrl("");
+      return;
+    }
+    setPublicEntryUrl(`${window.location.origin}/event/${event.id}`);
+  }, [event?.id]);
 
   async function saveOrderNotifications() {
     if (!event) return;
@@ -309,6 +319,8 @@ export default function EventDetailPage() {
           {notifSaving ? "Saving…" : "Save notifications"}
         </button>
       </div>
+
+      <ShareLinkCard label="Customer link" publicUrl={publicEntryUrl} />
 
       <div>
         <h2 className="text-lg font-medium text-[#111111]">Shapes</h2>

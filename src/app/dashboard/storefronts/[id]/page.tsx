@@ -9,6 +9,7 @@ import {
   PricingPreview,
   type PricingRule,
 } from "@/components/PricingEditor";
+import { ShareLinkCard } from "@/components/dashboard/ShareLinkCard";
 
 type AllowedShape = {
   id: string;
@@ -38,16 +39,12 @@ export default function StorefrontDetailPage() {
   const [storefront, setStorefront] = useState<Storefront | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [publicEntryUrl, setPublicEntryUrl] = useState("");
   const [brandDraft, setBrandDraft] = useState("");
   const [brandSaving, setBrandSaving] = useState(false);
   const [notifEmailDraft, setNotifEmailDraft] = useState("");
   const [notifSendDraft, setNotifSendDraft] = useState(false);
   const [notifSaving, setNotifSaving] = useState(false);
-
-  const storeUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/store/${params.id}`
-    : "";
 
   useEffect(() => {
     api<{ storefront: Storefront }>(`/api/storefronts/${params.id}`)
@@ -60,6 +57,14 @@ export default function StorefrontDetailPage() {
       .catch(() => setError("Storefront not found"))
       .finally(() => setLoading(false));
   }, [params.id]);
+
+  useEffect(() => {
+    if (!storefront?.id) {
+      setPublicEntryUrl("");
+      return;
+    }
+    setPublicEntryUrl(`${window.location.origin}/store/${storefront.id}`);
+  }, [storefront?.id]);
 
   async function saveOrderNotifications() {
     if (!storefront) return;
@@ -145,16 +150,6 @@ export default function StorefrontDetailPage() {
       setStorefront({ ...storefront, shapes: storefront.shapes.filter((s) => s.id !== shapeId) });
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to remove shape");
-    }
-  }
-
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(storeUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard API not available */
     }
   }
 
@@ -303,51 +298,7 @@ export default function StorefrontDetailPage() {
         </button>
       </div>
 
-      {/* Store link */}
-      <div className="rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">Store link</p>
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            type="text"
-            readOnly
-            value={storeUrl}
-            className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-[#111111] focus:outline-none"
-          />
-          <button
-            onClick={copyLink}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB]"
-          >
-            {copied ? "Copied!" : "Copy"}
-          </button>
-        </div>
-      </div>
-
-      {/* QR Code placeholder */}
-      <div className="rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">QR Code</p>
-        <div className="mt-3 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white px-4 py-6">
-          <svg
-            className="h-12 w-12 text-[#6B7280]"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M13.5 14.625v2.25m0 3v.75m3-6v6m3-3.75v3.75m-6-6h6"
-            />
-          </svg>
-          <p className="mt-3 text-sm font-medium text-[#111111]">Scan to order</p>
-          <p className="mt-1 max-w-full truncate text-xs text-[#6B7280]">{storeUrl}</p>
-        </div>
-      </div>
+      <ShareLinkCard label="Customer link" publicUrl={publicEntryUrl} />
 
       {/* Shapes */}
       <div>
