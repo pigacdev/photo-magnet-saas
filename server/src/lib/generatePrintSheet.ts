@@ -13,6 +13,22 @@ export type PrintSheetImageInput = {
   renderedUrl: string | null;
 };
 
+/**
+ * Expands each order line by `copies` so the PDF contains one slot per physical magnet.
+ */
+export function expandOrderImagesForPrintSheet(
+  images: Array<{ id: string; renderedUrl: string | null; copies: number }>,
+): PrintSheetImageInput[] {
+  const out: PrintSheetImageInput[] = [];
+  for (const img of images) {
+    const n = Math.max(1, Math.floor(Number(img.copies)) || 1);
+    for (let k = 0; k < n; k++) {
+      out.push({ id: img.id, renderedUrl: img.renderedUrl });
+    }
+  }
+  return out;
+}
+
 const mm = (v: number) => v * 2.83465;
 
 // A4

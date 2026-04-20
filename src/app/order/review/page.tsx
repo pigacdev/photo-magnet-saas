@@ -57,6 +57,10 @@ export default function OrderReviewPage() {
   /** Set after a successful DELETE so empty `images` redirects only post-delete, not during initial load. */
   const [hasDeleted, setHasDeleted] = useState(false);
   const [committing, setCommitting] = useState(false);
+  /** Per-magnet pricing: copies per session image id (default 1). */
+  const [copiesByImageId, setCopiesByImageId] = useState<Record<string, number>>(
+    {},
+  );
 
   const reviewItemRefs = useRef<Map<string, HTMLLIElement | null>>(new Map());
 
@@ -124,6 +128,19 @@ export default function OrderReviewPage() {
   }, [router]);
 
   useEffect(() => {
+    setCopiesByImageId((prev) => {
+      const next: Record<string, number> = { ...prev };
+      for (const img of images) {
+        if (next[img.id] == null) next[img.id] = 1;
+      }
+      for (const id of Object.keys(next)) {
+        if (!images.some((i) => i.id === id)) delete next[id];
+      }
+      return next;
+    });
+  }, [images]);
+
+  useEffect(() => {
     if (!hasDeleted) return;
     if (loading) return;
     if (!session) return;
@@ -163,16 +180,67 @@ export default function OrderReviewPage() {
 
   const currency = pricing[0]?.currency ?? "EUR";
 
-  const canProceed =
-    images.length >= 1 && images.every(hasFullCrop) && session != null;
+  const isPerItemPricing = session?.pricingType === "per_item";
+  const pricePerMagnet = useMemo(() => {
+    const row = pricing.find((p) => p.type === "per_item");
+    return row != null ? Number(row.price) : 0;
+  }, [pricing]);
 
-  const summaryLine = useMemo(() => {
-    const n = images.length;
-    const price = session?.totalPrice ?? null;
-    const priceStr = formatMoney(price, currency);
-    if (n === 0) return `0 magnets · ${priceStr}`;
-    return `${n} magnet${n === 1 ? "" : "s"} · ${priceStr}`;
-  }, [images.length, session?.totalPrice, currency]);
+  const { totalMagnets, liveTotalPrice } = useMemo(() => {
+    if (!session) {
+      return { totalMagnets: 0, liveTotalPrice: null as number | null };
+    }
+    if (!isPerItemPricing) {
+      return {
+        totalMagnets: images.length,
+        liveTotalPrice: session.totalPrice,
+      };
+    }
+    let tm = 0;
+    for (const img of images) {
+      tm += copiesByImageId[img.id] ?? 1;
+    }
+    const live =
+      Number.isFinite(pricePerMagnet) && pricePerMagnet >= 0
+        ? Math.round(tm * pricePerMagnet * 100) / 100
+        : null;
+    return { totalMagnets: tm, liveTotalPrice: live };
+  }, [
+    session,
+    isPerItemPricing,
+    images,
+    copiesByImageId,
+    pricePerMagnet,
+  ]);
+
+  const magnetCap = session?.maxMagnetsAllowed ?? 9999;
+
+  const canProceed =
+    images.length >= 1 &&
+    images.every(hasFullCrop) &&
+    session != null &&
+    (!isPerItemPricing ||
+      (liveTotalPrice != null &&
+        liveTotalPrice > 0 &&
+        totalMagnets <= magnetCap));
+
+  const adjustCopies = useCallback(
+    (imageId: string, delta: number) => {
+      if (!session || !isPerItemPricing) return;
+      const cap = session.maxMagnetsAllowed ?? 9999;
+      setCopiesByImageId((prev) => {
+        const cur = prev[imageId] ?? 1;
+        let n = cur + delta;
+        if (n < 1) n = 1;
+        const others = images
+          .filter((i) => i.id !== imageId)
+          .reduce((sum, i) => sum + (prev[i.id] ?? 1), 0);
+        if (others + n > cap) n = Math.max(1, cap - others);
+        return { ...prev, [imageId]: n };
+      });
+    },
+    [session, isPerItemPricing, images],
+  );
 
   const cropEditHref = useCallback(
     (imageId: string) => {
@@ -212,8 +280,18 @@ export default function OrderReviewPage() {
     setCommitting(true);
     const q = linkSearch || window.location.search;
     try {
+      const commitBody =
+        session.pricingType === "per_item"
+          ? {
+              imageCopies: images.map((img) => ({
+                imageId: img.id,
+                copies: copiesByImageId[img.id] ?? 1,
+              })),
+            }
+          : {};
       const result = await api<PostOrderCommitResponse>("/api/orders", {
         method: "POST",
+        body: commitBody,
       });
       const customerParams = new URLSearchParams(q.replace(/^\?/, ""));
       customerParams.set("orderId", result.orderId);
@@ -333,6 +411,31 @@ export default function OrderReviewPage() {
                   </span>
                 </div>
               </Link>
+              {isPerItemPricing && session && (
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    aria-label="Decrease copies for this magnet"
+                    disabled={(copiesByImageId[img.id] ?? 1) <= 1}
+                    onClick={() => adjustCopies(img.id, -1)}
+                    className="flex h-12 min-w-[3rem] shrink-0 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-xl font-semibold text-[#111111] disabled:opacity-40"
+                  >
+                    −
+                  </button>
+                  <span className="min-w-[2.5rem] text-center text-lg font-semibold tabular-nums text-[#111111]">
+                    {copiesByImageId[img.id] ?? 1}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Increase copies for this magnet"
+                    disabled={totalMagnets >= magnetCap}
+                    onClick={() => adjustCopies(img.id, 1)}
+                    className="flex h-12 min-w-[3rem] shrink-0 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-xl font-semibold text-[#111111] disabled:opacity-40"
+                  >
+                    +
+                  </button>
+                </div>
+              )}
               <div className="flex gap-3">
                 <Link
                   href={cropEditHref(img.id)}
@@ -359,9 +462,26 @@ export default function OrderReviewPage() {
         <div
           className="mx-auto flex max-w-lg flex-col gap-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
         >
-          <p className="text-center text-sm font-medium text-[#111111]">
-            {summaryLine}
-          </p>
+          {isPerItemPricing ? (
+            <div className="text-center text-sm font-medium text-[#111111]">
+              <p className="tabular-nums">
+                Total magnets: {totalMagnets}
+                {session != null && totalMagnets > magnetCap
+                  ? ` (max ${magnetCap})`
+                  : ""}
+              </p>
+              <p className="mt-1 tabular-nums">
+                Price:{" "}
+                {formatMoney(liveTotalPrice, currency)}
+              </p>
+            </div>
+          ) : (
+            <p className="text-center text-sm font-medium text-[#111111]">
+              {images.length === 0
+                ? `0 magnets · ${formatMoney(session?.totalPrice ?? null, currency)}`
+                : `${images.length} magnet${images.length === 1 ? "" : "s"} · ${formatMoney(session?.totalPrice ?? null, currency)}`}
+            </p>
+          )}
           <button
             type="button"
             disabled={!canProceed || committing}

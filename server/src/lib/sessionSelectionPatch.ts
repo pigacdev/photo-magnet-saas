@@ -97,15 +97,22 @@ export async function applySessionSelectionPatch(
       return { ok: false, status: 400, error: "Per-item pricing is not available" };
     }
 
-    const qtyRaw = body.quantity;
-    if (typeof qtyRaw !== "number" || !Number.isInteger(qtyRaw) || qtyRaw < 1) {
-      return { ok: false, status: 400, error: "quantity must be a positive integer" };
-    }
     const effectiveMax = await getPerItemEffectiveMaxMagnetsPerOrder(session);
-    const qty = Math.min(qtyRaw, effectiveMax);
-
+    const qtyRaw = body.quantity;
     const unit = Number(perRow.price);
-    const total = roundMoney(unit * qty);
+    let qty: number;
+    let total: string;
+    if (qtyRaw === undefined || qtyRaw === null) {
+      /** Cap for uploads / max total magnets; per-image copies are chosen on review. */
+      qty = effectiveMax;
+      total = roundMoney(unit * 1);
+    } else {
+      if (typeof qtyRaw !== "number" || !Number.isInteger(qtyRaw) || qtyRaw < 1) {
+        return { ok: false, status: 400, error: "quantity must be a positive integer" };
+      }
+      qty = Math.min(qtyRaw, effectiveMax);
+      total = roundMoney(unit * qty);
+    }
 
     const updated = await prisma.orderSession.update({
       where: { id: session.id },

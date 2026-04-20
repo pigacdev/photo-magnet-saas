@@ -213,6 +213,8 @@ model OrderImage {
   height       Int
   /// Magnet sequence for print / exports; list queries: ORDER BY position ASC, createdAt ASC.
   position     Int
+  /// Per-magnet (PER_ITEM) pricing: how many physical magnets from this crop (print PDF repeats this many times).
+  copies       Int          @default(1)
   createdAt    DateTime     @default(now())
   /// Final Sharp extract output for print (local `/uploads/...` path when rendered).
   renderedUrl  String?

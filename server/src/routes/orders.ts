@@ -22,7 +22,11 @@ import {
   orderImageStorageKindFromSessionUrl,
 } from "../lib/orderImageStorage";
 import { validateOrderCustomerBody } from "../lib/orderCustomerValidation";
-import { generatePrintSheet } from "../lib/generatePrintSheet";
+import {
+  expandOrderImagesForPrintSheet,
+  generatePrintSheet,
+} from "../lib/generatePrintSheet";
+import { getPerItemEffectiveMaxMagnetsPerOrder } from "../lib/maxMagnetsPerOrder";
 import { renderOrderImages } from "../lib/renderOrderImages";
 import {
   buildOrderEmailHtml,
@@ -332,7 +336,13 @@ ordersRouter.post(
       if (!imgs?.length) continue;
       const pdfUrl = await generatePrintSheet(
         orderId,
-        imgs.map((img) => ({ id: img.id, renderedUrl: img.renderedUrl })),
+        expandOrderImagesForPrintSheet(
+          imgs.map((img) => ({
+            id: img.id,
+            renderedUrl: img.renderedUrl,
+            copies: img.copies,
+          })),
+        ),
         shapeId,
       );
       urls.push(pdfUrl);
@@ -438,10 +448,13 @@ ordersRouter.post(
       if (!groupImages?.length) continue;
       const pdfUrl = await generatePrintSheet(
         orderId,
-        groupImages.map((img) => ({
-          id: img.id,
-          renderedUrl: img.renderedUrl,
-        })),
+        expandOrderImagesForPrintSheet(
+          groupImages.map((img) => ({
+            id: img.id,
+            renderedUrl: img.renderedUrl,
+            copies: img.copies,
+          })),
+        ),
         shapeId,
       );
       urls.push(pdfUrl);
@@ -719,6 +732,30 @@ ordersRouter.patch("/:id/customer", async (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+type ImageCopyPayload = { imageId: string; copies: number };
+
+function parseImageCopiesPayload(body: unknown): ImageCopyPayload[] | null {
+  if (!body || typeof body !== "object") return null;
+  const raw = (body as { imageCopies?: unknown }).imageCopies;
+  if (!Array.isArray(raw)) return null;
+  const out: ImageCopyPayload[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") return null;
+    const imageId = (row as { imageId?: unknown }).imageId;
+    const copies = (row as { copies?: unknown }).copies;
+    if (typeof imageId !== "string" || !imageId.trim()) return null;
+    if (typeof copies !== "number" || !Number.isInteger(copies) || copies < 1) {
+      return null;
+    }
+    out.push({ imageId: imageId.trim(), copies });
+  }
+  return out;
+}
+
+function roundMoney2(n: number): string {
+  return (Math.round(n * 100) / 100).toFixed(2);
+}
+
 function selectionComplete(session: {
   selectedShapeId: string | null;
   pricingType: "PER_ITEM" | "BUNDLE" | null;
@@ -857,7 +894,66 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
   const orderStatus: OrderCommitStatus =
     session.contextType === "EVENT" ? "PENDING_CASH" : "PENDING_PAYMENT";
 
-  const totalPrice = session.totalPrice!;
+  const copiesBySessionImageId = new Map<string, number>();
+  let commitTotalPrice: Prisma.Decimal | string | number = session.totalPrice!;
+  let commitOrderQuantity: number | null = session.quantity ?? null;
+
+  if (session.pricingType === "PER_ITEM") {
+    const parsed = parseImageCopiesPayload(req.body);
+    if (!parsed) {
+      res.status(400).json({
+        error:
+          "imageCopies is required: an array of { imageId, copies } for each uploaded image",
+      });
+      return;
+    }
+    const idSet = new Set(sessionImages.map((i) => i.id));
+    if (parsed.length !== sessionImages.length) {
+      res.status(400).json({
+        error: "imageCopies must list each uploaded image exactly once",
+      });
+      return;
+    }
+    const seen = new Set<string>();
+    let sumCopies = 0;
+    for (const row of parsed) {
+      if (!idSet.has(row.imageId) || seen.has(row.imageId)) {
+        res.status(400).json({ error: "Invalid imageCopies entries" });
+        return;
+      }
+      seen.add(row.imageId);
+      copiesBySessionImageId.set(row.imageId, row.copies);
+      sumCopies += row.copies;
+    }
+    if (seen.size !== sessionImages.length) {
+      res.status(400).json({
+        error: "imageCopies must list each uploaded image exactly once",
+      });
+      return;
+    }
+    const effectiveMax = await getPerItemEffectiveMaxMagnetsPerOrder(session);
+    if (sumCopies > effectiveMax) {
+      res.status(400).json({
+        error: `Total magnets (${sumCopies}) cannot exceed ${effectiveMax}`,
+      });
+      return;
+    }
+    const perItemRow = await prisma.pricing.findFirst({
+      where: {
+        contextType: session.contextType,
+        contextId: String(session.contextId),
+        type: "PER_ITEM",
+        deletedAt: null,
+      },
+    });
+    if (!perItemRow) {
+      res.status(500).json({ error: "Per-item pricing is not configured" });
+      return;
+    }
+    const unit = Number(perItemRow.price);
+    commitTotalPrice = roundMoney2(unit * sumCopies);
+    commitOrderQuantity = sumCopies;
+  }
 
   const orderImageStorageKind =
     sessionImages.length > 0
@@ -916,10 +1012,10 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
           contextType: session.contextType,
           contextId: String(session.contextId),
           status: orderStatus,
-          totalPrice,
+          totalPrice: commitTotalPrice,
           currency,
           pricingType: locked.pricingType!,
-          quantity: locked.quantity,
+          quantity: commitOrderQuantity,
           bundleId:
             locked.bundleId != null ? String(locked.bundleId) : null,
         },
@@ -933,6 +1029,10 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
           orderId,
           imageId: orderImageId,
         });
+        const lineCopies =
+          locked.pricingType === "PER_ITEM"
+            ? (copiesBySessionImageId.get(img.id) ?? 1)
+            : 1;
         orderImageRows.push({
           id: orderImageId,
           orderId,
@@ -947,6 +1047,7 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
           width: img.width,
           height: img.height,
           position: img.position,
+          copies: lineCopies,
         });
       }
 
@@ -1076,6 +1177,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
           renderedUrl: img.renderedUrl,
           position: img.position,
           shapeId: img.shapeId,
+          copies: img.copies,
           printed: img.printed,
           printedAt: img.printedAt?.toISOString() ?? null,
         })),

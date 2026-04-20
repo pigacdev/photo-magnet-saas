@@ -43,6 +43,7 @@ type SellerOrderDetail = {
     renderedUrl: string | null;
     position: number;
     shapeId: string;
+    copies: number;
     printed: boolean;
     printedAt: string | null;
   }[];
@@ -118,6 +119,25 @@ export default function OrderDetailPage() {
       order?.images.filter((img) => !img.printed).map((img) => img.id) ?? [],
     [order?.images],
   );
+
+  const selectedImageCount = selectedImageIds.length;
+  const selectedMagnetCount = useMemo(() => {
+    if (!order?.images?.length || selectedImageIds.length === 0) return 0;
+    const selected = new Set(selectedImageIds);
+    let sum = 0;
+    for (const img of order.images) {
+      if (selected.has(img.id)) {
+        sum += img.copies ?? 1;
+      }
+    }
+    return sum;
+  }, [order?.images, selectedImageIds]);
+
+  const printSelectedLabel = useMemo(() => {
+    const imgWord = selectedImageCount === 1 ? "image" : "images";
+    const magWord = selectedMagnetCount === 1 ? "magnet" : "magnets";
+    return `Print selected (${selectedImageCount} ${imgWord} / ${selectedMagnetCount} ${magWord})`;
+  }, [selectedImageCount, selectedMagnetCount]);
 
   useEffect(() => {
     if (order?.printedAt) {
@@ -874,15 +894,18 @@ export default function OrderDetailPage() {
                         >
                           {isSelected ? "✓" : ""}
                         </span>
-                        <span
-                          className={`pointer-events-none absolute bottom-2 left-2 max-w-[calc(100%-3rem)] truncate rounded-md border px-2 py-1 text-[10px] font-semibold leading-tight shadow-sm ${
+                        <div
+                          className={`pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-3rem)] flex-col gap-0.5 rounded-md border px-2 py-1 text-[10px] font-semibold leading-tight shadow-sm ${
                             img.printed
                               ? "border-green-200 bg-green-50/95 text-green-800"
                               : "border-gray-200 bg-white/95 text-[#6B7280]"
                           }`}
                         >
-                          {img.printed ? "✅ Printed" : "⚪ Not printed"}
-                        </span>
+                          <span>Copies: {img.copies ?? 1}</span>
+                          <span>
+                            {img.printed ? "✅ Printed" : "⚪ Not printed"}
+                          </span>
+                        </div>
                       </button>
                     </li>
                   );
@@ -918,7 +941,7 @@ export default function OrderDetailPage() {
                   >
                     {isPrintingSelected || actionBusy === "printSelected"
                       ? "Preparing…"
-                      : `Print selected (${selectedImageIds.length})`}
+                      : printSelectedLabel}
                   </button>
                 </div>
               </div>

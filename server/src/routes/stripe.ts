@@ -6,7 +6,10 @@ import { Router } from "express";
 import Stripe from "stripe";
 import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/prisma";
-import { generatePrintSheet } from "../lib/generatePrintSheet";
+import {
+  expandOrderImagesForPrintSheet,
+  generatePrintSheet,
+} from "../lib/generatePrintSheet";
 import { ORDER_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
 import { renderOrderImages } from "../lib/renderOrderImages";
 import { getAppPublicUrl, getStripeOrNull } from "../lib/stripe";
@@ -446,7 +449,17 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
           for (const shapeId of Object.keys(grouped)) {
             const images = grouped[shapeId];
             if (!images?.length) continue;
-            const pdfUrl = await generatePrintSheet(orderId, images, shapeId);
+            const pdfUrl = await generatePrintSheet(
+              orderId,
+              expandOrderImagesForPrintSheet(
+                images.map((img) => ({
+                  id: img.id,
+                  renderedUrl: img.renderedUrl,
+                  copies: img.copies,
+                })),
+              ),
+              shapeId,
+            );
             pdfUrls.push(pdfUrl);
           }
           if (pdfUrls.length > 0) {
