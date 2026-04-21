@@ -27,6 +27,9 @@ export default function NewEventPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedShapes, setSelectedShapes] = useState<Set<string>>(new Set());
+  const [payCash, setPayCash] = useState(true);
+  const [payCard, setPayCard] = useState(true);
+  const [payStripe, setPayStripe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -66,6 +69,11 @@ export default function NewEventPage() {
       return;
     }
 
+    if (!payCash && !payCard && !payStripe) {
+      setError("Keep at least one payment option enabled.");
+      return;
+    }
+
     const shapes = SHAPE_PRESETS.filter((p) => selectedShapes.has(presetKey(p.value))).map(
       (p) => p.value,
     );
@@ -80,6 +88,9 @@ export default function NewEventPage() {
           startDate: new Date(startDate).toISOString(),
           endDate: new Date(endDate).toISOString(),
           shapes,
+          paymentCashEnabled: payCash,
+          paymentCardEnabled: payCard,
+          paymentStripeEnabled: payStripe,
         },
       });
       router.push("/dashboard/events");
@@ -188,6 +199,44 @@ export default function NewEventPage() {
                 </label>
               );
             })}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="block text-sm font-medium text-[#111111]">
+            Payment options
+          </legend>
+          <p className="mt-1 text-sm text-[#6B7280]">
+            Customers see only the methods you enable. At least one must stay on.
+          </p>
+          <div className="mt-3 space-y-2">
+            <label className="flex cursor-pointer items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-0.5 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
+                checked={payCash}
+                onChange={(e) => setPayCash(e.target.checked)}
+              />
+              <span className="text-sm text-[#111111]">Cash</span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-0.5 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
+                checked={payCard}
+                onChange={(e) => setPayCard(e.target.checked)}
+              />
+              <span className="text-sm text-[#111111]">Card on location</span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-2">
+              <input
+                type="checkbox"
+                className="mt-0.5 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
+                checked={payStripe}
+                onChange={(e) => setPayStripe(e.target.checked)}
+              />
+              <span className="text-sm text-[#111111]">Pay online (Stripe)</span>
+            </label>
           </div>
         </fieldset>
 

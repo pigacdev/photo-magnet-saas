@@ -1,27 +1,39 @@
 "use client";
 
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 
 type CheckoutSessionResponse = {
   url: string;
 };
 
-/** Storefront Stripe step: driven only by `?orderId=` — middleware and API do not require an order session cookie. */
+/** Stripe checkout: `?orderId=` + optional `returnTo` (middleware / API use session cookie when present). */
 function OrderPaymentInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId")?.trim() ?? "";
 
-  const [backHref, setBackHref] = useState("/order/review");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const q = window.location.search;
-    setBackHref(`/order/customer${q}`);
-  }, []);
+  /**
+   * Back to order details — same for storefront and event.
+   * Preserves all params so the customer page rehydrates the same order/session
+   * (selected payment method, shipping, etc.). Only strips truly transient flags.
+   */
+  const detailsHref = useMemo(() => {
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("success");
+    p.delete("canceled");
+    const q = p.toString();
+    return `/order/customer${q ? `?${q}` : ""}`;
+  }, [searchParams]);
+
+  const onBackToDetails = useCallback(() => {
+    // Pure router navigation: do not clear any client state.
+    router.push(detailsHref);
+  }, [router, detailsHref]);
 
   const onPay = useCallback(async () => {
     if (!orderId) {
@@ -46,6 +58,9 @@ function OrderPaymentInner() {
       setLoading(false);
     }
   }, [orderId]);
+
+  const backClassName =
+    "text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline";
 
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 bg-[#FAFAFA] px-4 py-10">
@@ -76,12 +91,13 @@ function OrderPaymentInner() {
       >
         {loading ? "Starting checkout…" : "Pay now"}
       </button>
-      <Link
-        href={backHref}
-        className="text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
+      <button
+        type="button"
+        className={`inline border-0 bg-transparent p-0 text-left ${backClassName}`}
+        onClick={onBackToDetails}
       >
-        Back to review
-      </Link>
+        Back to order details
+      </button>
     </div>
   );
 }

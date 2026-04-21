@@ -21,6 +21,9 @@ eventsRouter.post("/", async (req, res) => {
     brandText,
     notificationEmail,
     sendOrderEmails,
+    paymentCashEnabled,
+    paymentCardEnabled,
+    paymentStripeEnabled,
   } = req.body as {
     name?: unknown;
     startDate?: unknown;
@@ -30,6 +33,9 @@ eventsRouter.post("/", async (req, res) => {
     brandText?: unknown;
     notificationEmail?: unknown;
     sendOrderEmails?: unknown;
+    paymentCashEnabled?: unknown;
+    paymentCardEnabled?: unknown;
+    paymentStripeEnabled?: unknown;
   };
 
   if (!name || !startDate || !endDate) {
@@ -93,6 +99,34 @@ eventsRouter.post("/", async (req, res) => {
     ...(notifSend.kind === "ok" && { sendOrderEmails: notifSend.value }),
   };
 
+  const payOptsSent =
+    paymentCashEnabled !== undefined ||
+    paymentCardEnabled !== undefined ||
+    paymentStripeEnabled !== undefined;
+  let paymentFieldsForCreate:
+    | {
+        paymentCashEnabled: boolean;
+        paymentCardEnabled: boolean;
+        paymentStripeEnabled: boolean;
+      }
+    | undefined;
+  if (payOptsSent) {
+    const pc = Boolean(paymentCashEnabled ?? true);
+    const pd = Boolean(paymentCardEnabled ?? true);
+    const ps = Boolean(paymentStripeEnabled ?? false);
+    if (!pc && !pd && !ps) {
+      res
+        .status(400)
+        .json({ error: "At least one payment option must be enabled" });
+      return;
+    }
+    paymentFieldsForCreate = {
+      paymentCashEnabled: pc,
+      paymentCardEnabled: pd,
+      paymentStripeEnabled: ps,
+    };
+  }
+
   const event = await prisma.event.create({
     data: {
       userId,
@@ -102,6 +136,7 @@ eventsRouter.post("/", async (req, res) => {
       ...(maxMagnets !== undefined && { maxMagnetsPerOrder: maxMagnets }),
       ...brandCreate,
       ...notifCreate,
+      ...(paymentFieldsForCreate ?? {}),
     },
   });
 
@@ -189,6 +224,9 @@ eventsRouter.patch("/:id", async (req, res) => {
     brandText,
     notificationEmail,
     sendOrderEmails,
+    paymentCashEnabled,
+    paymentCardEnabled,
+    paymentStripeEnabled,
   } = req.body as Record<string, unknown>;
 
   const existing = await prisma.event.findUnique({
@@ -251,6 +289,44 @@ eventsRouter.patch("/:id", async (req, res) => {
     ...(notifSend.kind === "ok" && { sendOrderEmails: notifSend.value }),
   };
 
+  const nextCash =
+    paymentCashEnabled !== undefined
+      ? Boolean(paymentCashEnabled)
+      : existing.paymentCashEnabled;
+  const nextCard =
+    paymentCardEnabled !== undefined
+      ? Boolean(paymentCardEnabled)
+      : existing.paymentCardEnabled;
+  const nextStripe =
+    paymentStripeEnabled !== undefined
+      ? Boolean(paymentStripeEnabled)
+      : existing.paymentStripeEnabled;
+
+  if (
+    paymentCashEnabled !== undefined ||
+    paymentCardEnabled !== undefined ||
+    paymentStripeEnabled !== undefined
+  ) {
+    if (!nextCash && !nextCard && !nextStripe) {
+      res.status(400).json({
+        error: "At least one payment option must remain enabled",
+      });
+      return;
+    }
+  }
+
+  const paymentPatch = {
+    ...(paymentCashEnabled !== undefined && {
+      paymentCashEnabled: Boolean(paymentCashEnabled),
+    }),
+    ...(paymentCardEnabled !== undefined && {
+      paymentCardEnabled: Boolean(paymentCardEnabled),
+    }),
+    ...(paymentStripeEnabled !== undefined && {
+      paymentStripeEnabled: Boolean(paymentStripeEnabled),
+    }),
+  };
+
   const event = await prisma.event.update({
     where: { id },
     data: {
@@ -261,6 +337,7 @@ eventsRouter.patch("/:id", async (req, res) => {
       ...(maxMagnetsUpdate !== undefined && { maxMagnetsPerOrder: maxMagnetsUpdate }),
       ...brandPatch,
       ...notifPatch,
+      ...paymentPatch,
     },
   });
 

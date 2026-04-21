@@ -150,7 +150,14 @@ const upload = multer({
   limits: { fileSize: SESSION_UPLOAD_MAX_BYTES },
 });
 
-/** GET /images: list when session is ACTIVE (shape not required). */
+/**
+ * GET /images: list for ACTIVE or CONVERTED sessions (shape not required).
+ *
+ * CONVERTED sessions must also hydrate so "Back to review" after order commit
+ * (storefront customer → review) keeps working. Mirrors GET /api/session,
+ * which already accepts both statuses. Write endpoints still require ACTIVE
+ * via `requireActiveSessionForMutation`, so a committed order stays immutable.
+ */
 async function resolveActiveSessionForRead(
   req: Request,
   res: Response,
@@ -168,13 +175,16 @@ async function resolveActiveSessionForRead(
     return null;
   }
 
-  if (session.status !== "ACTIVE" || session.expiresAt <= now) {
-    if (session.status === "ACTIVE" && session.expiresAt <= now) {
-      await prisma.orderSession.update({
-        where: { id: session.id },
-        data: { status: "ABANDONED" },
-      });
-    }
+  if (session.status !== "ACTIVE" && session.status !== "CONVERTED") {
+    clearSessionCookie(res);
+    return null;
+  }
+
+  if (session.status === "ACTIVE" && session.expiresAt <= now) {
+    await prisma.orderSession.update({
+      where: { id: session.id },
+      data: { status: "ABANDONED" },
+    });
     clearSessionCookie(res);
     return null;
   }
@@ -184,10 +194,14 @@ async function resolveActiveSessionForRead(
     session.contextId,
   );
   if (!contextOk.ok) {
-    await prisma.orderSession.update({
-      where: { id: session.id },
-      data: { status: "ABANDONED" },
-    });
+    // Only abandon ACTIVE sessions — a CONVERTED one already produced an order
+    // and must not be mutated here.
+    if (session.status === "ACTIVE") {
+      await prisma.orderSession.update({
+        where: { id: session.id },
+        data: { status: "ABANDONED" },
+      });
+    }
     clearSessionCookie(res);
     return null;
   }

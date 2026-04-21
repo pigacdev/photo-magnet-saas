@@ -215,6 +215,10 @@ export default function OrderPage() {
     return null;
   }
 
+  const isEvent = session.contextType === "event";
+  const perItemUnit = pricing.find((p) => p.type === "per_item");
+  const pricePerMagnetNum =
+    perItemUnit != null ? Number(perItemUnit.price) : null;
   const currency = pricing[0]?.currency ?? "EUR";
 
   return (
@@ -316,19 +320,38 @@ export default function OrderPage() {
       )}
 
       <section className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
-              Total
-            </p>
-            <p className="text-2xl font-bold tabular-nums text-[#111111]">
-              {formatMoney(session.totalPrice, currency)}
-            </p>
+        {isEvent && primaryPerItem ? (
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+                Price per magnet
+              </p>
+              <p className="text-2xl font-bold tabular-nums text-[#111111]">
+                {formatMoney(pricePerMagnetNum, currency)}
+              </p>
+              <p className="mt-2 text-xs text-[#6B7280]">
+                Quantity is chosen per photo on the next step.
+              </p>
+            </div>
+            {saving && (
+              <span className="shrink-0 text-xs text-[#6B7280]">Saving…</span>
+            )}
           </div>
-          {saving && (
-            <span className="text-xs text-[#6B7280]">Saving…</span>
-          )}
-        </div>
+        ) : (
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+                Total
+              </p>
+              <p className="text-2xl font-bold tabular-nums text-[#111111]">
+                {formatMoney(session.totalPrice, currency)}
+              </p>
+            </div>
+            {saving && (
+              <span className="text-xs text-[#6B7280]">Saving…</span>
+            )}
+          </div>
+        )}
       </section>
 
       <button

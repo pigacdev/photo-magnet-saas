@@ -5,9 +5,19 @@
 import { fulfillmentLabel } from "@/lib/orderFulfillmentDisplay";
 import { isReadyToPrint } from "@/lib/sellerOrderPrintStatus";
 
-/** Human payment line — DB `Order.status` only (not fulfillment). */
-export function PaymentClarityRow({ status }: { status: string }) {
+/** Human payment line — DB `Order.status` plus optional `paymentMethod` for event orders. */
+export function PaymentClarityRow({
+  status,
+  paymentMethod,
+}: {
+  status: string;
+  paymentMethod?: string | null;
+}) {
   if (status === "PAID") {
+    const via =
+      paymentMethod === "STRIPE"
+        ? "Paid online (Stripe)"
+        : "Online payment completed";
     return (
       <div className="flex items-start gap-2.5">
         <span className="text-lg leading-none" aria-hidden>
@@ -15,20 +25,27 @@ export function PaymentClarityRow({ status }: { status: string }) {
         </span>
         <div>
           <p className="text-sm font-semibold text-[#111111]">Paid</p>
-          <p className="text-xs text-[#6B7280]">Online payment completed</p>
+          <p className="text-xs text-[#6B7280]">{via}</p>
         </div>
       </div>
     );
   }
   if (status === "PENDING_CASH") {
+    const isCard = paymentMethod === "CARD";
     return (
       <div className="flex items-start gap-2.5">
         <span className="text-lg leading-none" aria-hidden>
-          💵
+          {isCard ? "💳" : "💵"}
         </span>
         <div>
-          <p className="text-sm font-semibold text-[#111111]">Cash</p>
-          <p className="text-xs text-[#6B7280]">Event / cash order</p>
+          <p className="text-sm font-semibold text-[#111111]">
+            {isCard ? "Card on location" : "Cash"}
+          </p>
+          <p className="text-xs text-[#6B7280]">
+            {isCard
+              ? "Customer pays with card at the event"
+              : "Customer pays with cash at the event"}
+          </p>
         </div>
       </div>
     );

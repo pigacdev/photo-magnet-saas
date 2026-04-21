@@ -60,6 +60,10 @@ model Event {
   /// Seller receives new-order emails when `sendOrderEmails` is true.
   notificationEmail  String?
   sendOrderEmails    Boolean   @default(false)
+  /// Customer payment choices at checkout (event orders). At least one must stay enabled.
+  paymentCashEnabled   Boolean @default(true)
+  paymentCardEnabled   Boolean @default(true)
+  paymentStripeEnabled Boolean @default(false)
   user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -187,6 +191,10 @@ model Order {
   shippedAt               DateTime?
   shippingAddress         Json?
   shippingType            String?
+  /// Event checkout: CASH | CARD | STRIPE. Storefront online flow may be null until paid.
+  paymentMethod           String?           @db.VarChar(16)
+  /// UNPAID | PAID — money received (Stripe webhook or seller “mark paid” for event cash/card).
+  paymentStatus           String            @default("UNPAID") @db.VarChar(16)
   /// Future: 6-char A–Z0–9 display id for UI and print (generated when implemented).
   shortCode               String?           @unique
   organization            Organization      @relation(fields: [organizationId], references: [id])

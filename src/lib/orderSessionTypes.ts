@@ -1,3 +1,10 @@
+/** Event-only; from GET /api/session when context is an event. */
+export type EventPaymentOptionsPayload = {
+  paymentCashEnabled: boolean;
+  paymentCardEnabled: boolean;
+  paymentStripeEnabled: boolean;
+};
+
 /** Mirrors GET /api/session JSON (client-side). */
 export type OrderSessionPayload = {
   id: string;
@@ -13,10 +20,14 @@ export type OrderSessionPayload = {
   quantity: number | null;
   bundleId: string | null;
   totalPrice: number | null;
+  /** Present after the session has been converted to an order (resume customer step). */
+  orderId: string | null;
   /** min(magnet count from pricing, effective per-order cap). From GET/PATCH /api/session. */
   maxImagesAllowed: number;
   /** Per-item: cap for quantity input. Bundle: system cap (unused in bundle UI). */
   maxMagnetsAllowed: number;
+  /** Present for event sessions when the event row exists. */
+  eventPaymentOptions: EventPaymentOptionsPayload | null;
 };
 
 export type CatalogShape = {

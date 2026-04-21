@@ -43,6 +43,15 @@ function isReadyToPrintForSeller(status: string): boolean {
   return status === "PAID" || status === "PENDING_CASH";
 }
 
+/** Event orders: require seller-confirmed payment before any print PDF. */
+function eventPaymentAllowsPrinting(order: {
+  contextType: string;
+  paymentStatus: string;
+}): boolean {
+  if (order.contextType !== "EVENT") return true;
+  return order.paymentStatus === "PAID";
+}
+
 /** Computed for seller list/detail — not stored in DB. */
 function getDisplayStatus(order: {
   status: string;
@@ -299,6 +308,12 @@ ordersRouter.post(
       });
       return;
     }
+    if (!eventPaymentAllowsPrinting(order)) {
+      res.status(400).json({
+        error: "Mark this order as paid before printing",
+      });
+      return;
+    }
     if (order.orderImages.length === 0) {
       res.status(400).json({ error: "No images to print" });
       return;
@@ -391,7 +406,7 @@ ordersRouter.post(
 
     const order = await prisma.order.findFirst({
       where: { id: orderId, organizationId: owner },
-      select: { id: true, status: true },
+      select: { id: true, status: true, contextType: true, paymentStatus: true },
     });
     if (!order) {
       res.status(404).json({ error: "Order not found" });
@@ -400,6 +415,12 @@ ordersRouter.post(
     if (!isReadyToPrintForSeller(order.status)) {
       res.status(400).json({
         error: "Order must be paid before printing",
+      });
+      return;
+    }
+    if (!eventPaymentAllowsPrinting(order)) {
+      res.status(400).json({
+        error: "Mark this order as paid before printing",
       });
       return;
     }
@@ -624,6 +645,170 @@ ordersRouter.patch(
     });
     res.json({
       shippedAt: updated.shippedAt!.toISOString(),
+    });
+  },
+);
+
+/**
+ * PATCH /api/orders/:id/mark-paid — seller: event cash/card collected (paymentStatus only).
+ */
+ordersRouter.patch(
+  "/:id/mark-paid",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const orderId = String(req.params.id ?? "").trim();
+    if (!orderId) {
+      res.status(400).json({ error: "Order id required" });
+      return;
+    }
+    const owner = req.user!.userId;
+    const existing = await prisma.order.findFirst({
+      where: { id: orderId, organizationId: owner },
+      select: {
+        id: true,
+        contextType: true,
+        paymentStatus: true,
+      },
+    });
+    if (!existing) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+    if (existing.contextType !== "EVENT") {
+      res.status(400).json({ error: "Only event orders can be marked paid here" });
+      return;
+    }
+    if (existing.paymentStatus !== "UNPAID") {
+      res.status(400).json({ error: "Order is already marked as paid" });
+      return;
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: { paymentStatus: "PAID" },
+      select: { paymentStatus: true },
+    });
+
+    res.json({ ok: true, paymentStatus: updated.paymentStatus });
+  },
+);
+
+/**
+ * PATCH /api/orders/:id/payment-method — buyer: change payment method for
+ * an EVENT order still in PENDING_PAYMENT.
+ *
+ * Does NOT touch images, copies, totals, status. Only updates paymentMethod
+ * (and updatedAt via Prisma). Authorizes via the session cookie bound to the
+ * order (same pattern as /customer).
+ */
+ordersRouter.patch(
+  "/:id/payment-method",
+  async (req: Request, res: Response) => {
+    const orderId = String(req.params.id ?? "").trim();
+    if (!orderId) {
+      res.status(400).json({ error: "Order id required" });
+      return;
+    }
+
+    const rawBody = (req.body ?? {}) as { paymentMethod?: unknown };
+    const raw =
+      typeof rawBody.paymentMethod === "string"
+        ? rawBody.paymentMethod.trim().toUpperCase()
+        : "";
+    if (raw !== "CASH" && raw !== "CARD" && raw !== "STRIPE") {
+      res.status(400).json({ error: "Invalid paymentMethod" });
+      return;
+    }
+    const paymentMethod = raw as "CASH" | "CARD" | "STRIPE";
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        contextType: true,
+        contextId: true,
+        status: true,
+      },
+    });
+    if (!order) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+
+    // Buyer-only endpoint: session cookie must be bound to this order.
+    const cookieSessionId = req.cookies?.[sessionConfig.cookieName] as
+      | string
+      | undefined;
+    if (!cookieSessionId) {
+      res.status(401).json({ error: "Session required" });
+      return;
+    }
+    const orderSession = await prisma.orderSession.findUnique({
+      where: { id: String(cookieSessionId) },
+      select: { orderId: true },
+    });
+    if (orderSession?.orderId !== orderId) {
+      res.status(403).json({ error: "Not allowed to update this order" });
+      return;
+    }
+
+    if (order.contextType !== "EVENT") {
+      res
+        .status(400)
+        .json({ error: "Payment method can only be changed for event orders" });
+      return;
+    }
+    if (order.status !== "PENDING_PAYMENT" && order.status !== "PENDING_CASH") {
+      res.status(400).json({
+        error: "Payment method is locked for this order",
+      });
+      return;
+    }
+
+    // Enforce event's enabled options.
+    const event = await prisma.event.findUnique({
+      where: { id: order.contextId },
+      select: {
+        paymentCashEnabled: true,
+        paymentCardEnabled: true,
+        paymentStripeEnabled: true,
+      },
+    });
+    if (!event) {
+      res.status(400).json({ error: "Event not found for this order" });
+      return;
+    }
+    const allowed =
+      (paymentMethod === "CASH" && event.paymentCashEnabled) ||
+      (paymentMethod === "CARD" && event.paymentCardEnabled) ||
+      (paymentMethod === "STRIPE" && event.paymentStripeEnabled);
+    if (!allowed) {
+      res
+        .status(400)
+        .json({ error: "Selected payment method is not enabled for this event" });
+      return;
+    }
+
+    // Status + paymentStatus mirror the commit logic:
+    //   STRIPE → PENDING_PAYMENT / UNPAID (paid on webhook)
+    //   CASH/CARD → PENDING_CASH / UNPAID
+    const newStatus: OrderCommitStatus =
+      paymentMethod === "STRIPE" ? "PENDING_PAYMENT" : "PENDING_CASH";
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        paymentMethod,
+        status: newStatus,
+      },
+      select: { paymentMethod: true, status: true },
+    });
+
+    res.json({
+      ok: true,
+      paymentMethod: updated.paymentMethod,
+      status: updated.status,
     });
   },
 );
@@ -859,15 +1044,28 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
   }
 
   let organizationId: string;
+  let eventForCommit: {
+    userId: string;
+    paymentCashEnabled: boolean;
+    paymentCardEnabled: boolean;
+    paymentStripeEnabled: boolean;
+  } | null = null;
+
   if (session.contextType === "EVENT") {
     const event = await prisma.event.findFirst({
       where: { id: String(session.contextId), deletedAt: null },
-      select: { userId: true },
+      select: {
+        userId: true,
+        paymentCashEnabled: true,
+        paymentCardEnabled: true,
+        paymentStripeEnabled: true,
+      },
     });
     if (!event) {
       res.status(400).json({ error: "Event not found" });
       return;
     }
+    eventForCommit = event;
     organizationId = event.userId;
   } else {
     const storefront = await prisma.storefront.findFirst({
@@ -890,9 +1088,6 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
     orderBy: { displayOrder: "asc" },
   });
   const currency = pricingRow?.currency ?? "EUR";
-
-  const orderStatus: OrderCommitStatus =
-    session.contextType === "EVENT" ? "PENDING_CASH" : "PENDING_PAYMENT";
 
   const copiesBySessionImageId = new Map<string, number>();
   let commitTotalPrice: Prisma.Decimal | string | number = session.totalPrice!;
@@ -953,6 +1148,53 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
     const unit = Number(perItemRow.price);
     commitTotalPrice = roundMoney2(unit * sumCopies);
     commitOrderQuantity = sumCopies;
+  }
+
+  let orderStatus: OrderCommitStatus;
+  let commitPaymentMethod: string | null = null;
+  let commitPaymentStatus = "UNPAID";
+
+  if (session.contextType === "STOREFRONT") {
+    orderStatus = "PENDING_PAYMENT";
+    commitPaymentMethod = null;
+  } else {
+    if (!eventForCommit) {
+      res.status(500).json({ error: "Event context missing" });
+      return;
+    }
+    const pmRaw = (req.body as { paymentMethod?: unknown }).paymentMethod;
+    if (typeof pmRaw !== "string" || !pmRaw.trim()) {
+      res.status(400).json({
+        error: "paymentMethod is required for event orders (CASH, CARD, or STRIPE)",
+      });
+      return;
+    }
+    const pm = pmRaw.trim().toUpperCase();
+    if (pm !== "CASH" && pm !== "CARD" && pm !== "STRIPE") {
+      res.status(400).json({
+        error: "paymentMethod must be CASH, CARD, or STRIPE",
+      });
+      return;
+    }
+    if (pm === "CASH" && !eventForCommit.paymentCashEnabled) {
+      res.status(400).json({ error: "Cash payment is not enabled for this event" });
+      return;
+    }
+    if (pm === "CARD" && !eventForCommit.paymentCardEnabled) {
+      res.status(400).json({
+        error: "Card on location is not enabled for this event",
+      });
+      return;
+    }
+    if (pm === "STRIPE" && !eventForCommit.paymentStripeEnabled) {
+      res.status(400).json({
+        error: "Online card payment is not enabled for this event",
+      });
+      return;
+    }
+    commitPaymentMethod = pm;
+    orderStatus = pm === "STRIPE" ? "PENDING_PAYMENT" : "PENDING_CASH";
+    commitPaymentStatus = pm === "STRIPE" ? "PAID" : "UNPAID";
   }
 
   const orderImageStorageKind =
@@ -1018,6 +1260,8 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
           quantity: commitOrderQuantity,
           bundleId:
             locked.bundleId != null ? String(locked.bundleId) : null,
+          paymentMethod: commitPaymentMethod,
+          paymentStatus: commitPaymentStatus,
         },
       });
 
@@ -1172,6 +1416,8 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
         shippingAddress: order.shippingAddress,
         printedAt: order.printedAt?.toISOString() ?? null,
         shippedAt: order.shippedAt?.toISOString() ?? null,
+        paymentMethod: order.paymentMethod,
+        paymentStatus: order.paymentStatus,
         images: order.orderImages.map((img) => ({
           id: img.id,
           renderedUrl: img.renderedUrl,
@@ -1216,6 +1462,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
       shippingAddress: true,
       totalPrice: true,
       currency: true,
+      paymentMethod: true,
       _count: { select: { orderImages: true } },
     },
   });
@@ -1223,6 +1470,31 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
   if (!order) {
     res.status(404).json({ error: "Order not found" });
     return;
+  }
+
+  // For event orders the buyer UI needs to render payment options again when
+  // going back to /order/customer in PENDING_PAYMENT / PENDING_CASH.
+  let eventPaymentOptions: {
+    paymentCashEnabled: boolean;
+    paymentCardEnabled: boolean;
+    paymentStripeEnabled: boolean;
+  } | null = null;
+  if (order.contextType === "EVENT") {
+    const ev = await prisma.event.findUnique({
+      where: { id: order.contextId },
+      select: {
+        paymentCashEnabled: true,
+        paymentCardEnabled: true,
+        paymentStripeEnabled: true,
+      },
+    });
+    if (ev) {
+      eventPaymentOptions = {
+        paymentCashEnabled: ev.paymentCashEnabled,
+        paymentCardEnabled: ev.paymentCardEnabled,
+        paymentStripeEnabled: ev.paymentStripeEnabled,
+      };
+    }
   }
 
   res.json({
@@ -1237,5 +1509,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
     totalPrice: order.totalPrice.toString(),
     currency: order.currency,
     imageCount: order._count.orderImages,
+    paymentMethod: order.paymentMethod,
+    eventPaymentOptions,
   });
 });

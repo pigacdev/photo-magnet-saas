@@ -34,6 +34,8 @@ type SellerOrderDetail = {
   customerName: string | null;
   customerEmail: string | null;
   customerPhone: string | null;
+  paymentMethod: string | null;
+  paymentStatus: string;
   shippingType: string | null;
   shippingAddress: unknown | null;
   printedAt: string | null;
@@ -57,7 +59,12 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<
-    "printPreview" | "printSelected" | "markPrinted" | "ship" | null
+    | "printPreview"
+    | "printSelected"
+    | "markPrinted"
+    | "markPaid"
+    | "ship"
+    | null
   >(null);
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
   /** Stays true until staggered PDF opens finish — avoids double POST / duplicate tabs. */
@@ -94,6 +101,23 @@ export default function OrderDetailPage() {
     void api<SellerOrderDetail>(`/api/orders/${encodeURIComponent(id)}`)
       .then(setOrder)
       .catch((e: Error) => setError(e.message));
+  }
+
+  async function markPaid() {
+    if (!id) return;
+    setActionBusy("markPaid");
+    setError(null);
+    try {
+      await api<{ ok: boolean }>(
+        `/api/orders/${encodeURIComponent(id)}/mark-paid`,
+        { method: "PATCH" },
+      );
+      refreshOrder();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not update payment");
+    } finally {
+      setActionBusy(null);
+    }
   }
 
   useEffect(() => {
@@ -374,6 +398,11 @@ export default function OrderDetailPage() {
   const canUsePrintFlow = Boolean(
     order && isReadyToPrint(order.status) && order.images.length > 0,
   );
+  const eventPrintBlocked = Boolean(
+    order &&
+      order.contextType === "EVENT" &&
+      order.paymentStatus !== "PAID",
+  );
   const hasOrderPrinted = Boolean(order?.printedAt);
   const showPrintOrder = canUsePrintFlow;
   const showMarkPrinted = Boolean(canUsePrintFlow && !hasOrderPrinted);
@@ -440,7 +469,23 @@ export default function OrderDetailPage() {
                     Payment
                   </p>
                   <div className="mt-3">
-                    <PaymentClarityRow status={order.status} />
+                    <PaymentClarityRow
+                      status={order.status}
+                      paymentMethod={order.paymentMethod}
+                    />
+                    {order.contextType === "EVENT" &&
+                      order.paymentStatus === "UNPAID" && (
+                        <button
+                          type="button"
+                          disabled={actionBusy !== null}
+                          onClick={() => void markPaid()}
+                          className="mt-4 w-full min-h-[44px] rounded-lg border border-emerald-600 bg-white px-4 py-2.5 text-sm font-medium text-emerald-800 transition-colors hover:bg-emerald-50 disabled:opacity-50 sm:w-auto"
+                        >
+                          {actionBusy === "markPaid"
+                            ? "Updating…"
+                            : "Mark as paid"}
+                        </button>
+                      )}
                   </div>
                 </div>
                 <div>
@@ -484,9 +529,14 @@ export default function OrderDetailPage() {
                   {showPrintOrder && (
                     <button
                       type="button"
-                      disabled={actionBusy !== null}
+                      disabled={actionBusy !== null || eventPrintBlocked}
+                      title={
+                        eventPrintBlocked
+                          ? "Order must be marked as paid before printing."
+                          : undefined
+                      }
                       onClick={() => void printOrderPreview()}
-                      className="min-h-[48px] rounded-lg bg-[#2563EB] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[180px]"
+                      className="min-h-[48px] rounded-lg bg-[#2563EB] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[180px]"
                     >
                       {actionBusy === "printPreview"
                         ? "Preparing…"
@@ -522,9 +572,16 @@ export default function OrderDetailPage() {
                   )}
                 </div>
                 {showPrintOrder && !hasOrderPrinted && !printOutcomePrompt && (
-                  <p className="text-xs text-[#6B7280]">
-                    Open the PDF preview, then confirm when production printing is
-                    done.
+                  <p
+                    className={
+                      eventPrintBlocked
+                        ? "text-xs text-amber-800"
+                        : "text-xs text-[#6B7280]"
+                    }
+                  >
+                    {eventPrintBlocked
+                      ? "Order must be marked as paid before printing."
+                      : "Open the PDF preview, then confirm when production printing is done."}
                   </p>
                 )}
                 {showMarkPrinted && printOutcomePrompt && (
@@ -935,9 +992,18 @@ export default function OrderDetailPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={isPrintingSelected || actionBusy !== null}
+                    disabled={
+                      isPrintingSelected ||
+                      actionBusy !== null ||
+                      eventPrintBlocked
+                    }
+                    title={
+                      eventPrintBlocked
+                        ? "Order must be marked as paid before printing."
+                        : undefined
+                    }
                     onClick={() => void printSelectedImages()}
-                    className="min-h-[48px] rounded-lg bg-[#2563EB] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
+                    className="min-h-[48px] rounded-lg bg-[#2563EB] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isPrintingSelected || actionBusy === "printSelected"
                       ? "Preparing…"

@@ -31,6 +31,9 @@ type Event = {
   isOpen: boolean;
   status: "upcoming" | "active" | "ended" | "inactive";
   maxMagnetsPerOrder: number | null;
+  paymentCashEnabled: boolean;
+  paymentCardEnabled: boolean;
+  paymentStripeEnabled: boolean;
   shapes: AllowedShape[];
   pricing: PricingRule[];
 };
@@ -66,6 +69,11 @@ export default function EventDetailPage() {
   const [notifEmailDraft, setNotifEmailDraft] = useState("");
   const [notifSendDraft, setNotifSendDraft] = useState(false);
   const [notifSaving, setNotifSaving] = useState(false);
+  const [payCash, setPayCash] = useState(true);
+  const [payCard, setPayCard] = useState(true);
+  const [payStripe, setPayStripe] = useState(false);
+  const [paySaving, setPaySaving] = useState(false);
+  const [payError, setPayError] = useState("");
 
   useEffect(() => {
     api<{ event: Event }>(`/api/events/${params.id}`)
@@ -74,6 +82,9 @@ export default function EventDetailPage() {
         setBrandDraft(data.event.brandText ?? "");
         setNotifEmailDraft(data.event.notificationEmail ?? "");
         setNotifSendDraft(data.event.sendOrderEmails ?? false);
+        setPayCash(data.event.paymentCashEnabled);
+        setPayCard(data.event.paymentCardEnabled);
+        setPayStripe(data.event.paymentStripeEnabled);
       })
       .catch(() => setError("Event not found"))
       .finally(() => setLoading(false));
@@ -178,6 +189,39 @@ export default function EventDetailPage() {
       pricing,
       ...(meta && { maxMagnetsPerOrder: meta.maxMagnetsPerOrder }),
     });
+  }
+
+  async function savePaymentOptions() {
+    if (!event) return;
+    if (!payCash && !payCard && !payStripe) {
+      setPayError("Keep at least one payment option enabled.");
+      return;
+    }
+    setPayError("");
+    setPaySaving(true);
+    try {
+      const updated = await api<{ event: Event }>(`/api/events/${event.id}`, {
+        method: "PATCH",
+        body: {
+          paymentCashEnabled: payCash,
+          paymentCardEnabled: payCard,
+          paymentStripeEnabled: payStripe,
+        },
+      });
+      setEvent({
+        ...event,
+        ...updated.event,
+        shapes: updated.event.shapes ?? event.shapes,
+        pricing: updated.event.pricing ?? event.pricing,
+      });
+      setPayCash(updated.event.paymentCashEnabled);
+      setPayCard(updated.event.paymentCardEnabled);
+      setPayStripe(updated.event.paymentStripeEnabled);
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setPaySaving(false);
+    }
   }
 
   function formatDate(iso: string) {
@@ -317,6 +361,51 @@ export default function EventDetailPage() {
           className="mt-3 min-h-[40px] rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
         >
           {notifSaving ? "Saving…" : "Save notifications"}
+        </button>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-[#FAFAFA] p-4">
+        <h2 className="text-sm font-semibold text-[#111111]">Payment options</h2>
+        <p className="mt-1 text-xs text-[#6B7280]">
+          Customers see only the methods you enable. At least one must stay on.
+        </p>
+        {payError && (
+          <p className="mt-2 text-sm text-red-700">{payError}</p>
+        )}
+        <label className="mt-3 flex cursor-pointer items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
+            checked={payCash}
+            onChange={(e) => setPayCash(e.target.checked)}
+          />
+          <span className="text-sm text-[#111111]">Cash</span>
+        </label>
+        <label className="mt-2 flex cursor-pointer items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
+            checked={payCard}
+            onChange={(e) => setPayCard(e.target.checked)}
+          />
+          <span className="text-sm text-[#111111]">Card on location</span>
+        </label>
+        <label className="mt-2 flex cursor-pointer items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-0.5 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
+            checked={payStripe}
+            onChange={(e) => setPayStripe(e.target.checked)}
+          />
+          <span className="text-sm text-[#111111]">Pay online (Stripe)</span>
+        </label>
+        <button
+          type="button"
+          disabled={paySaving}
+          onClick={() => void savePaymentOptions()}
+          className="mt-3 min-h-[40px] rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+        >
+          {paySaving ? "Saving…" : "Save payment options"}
         </button>
       </div>
 

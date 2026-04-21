@@ -11,6 +11,7 @@ import {
   sessionConfig,
 } from "../config/session";
 import { getEffectiveMaxMagnetsPerOrder } from "./maxMagnetsPerOrder";
+import { prisma } from "./prisma";
 import { getMaxImagesAllowed } from "./sessionImageMaxFromSession";
 
 export type SerializedOrderSession = {
@@ -27,12 +28,22 @@ export type SerializedOrderSession = {
   quantity: number | null;
   bundleId: string | null;
   totalPrice: number | null;
+  /** Set when this session has been committed to an order (idempotency / resume checkout). */
+  orderId: string | null;
+};
+
+export type ApiEventPaymentOptions = {
+  paymentCashEnabled: boolean;
+  paymentCardEnabled: boolean;
+  paymentStripeEnabled: boolean;
 };
 
 export type ApiOrderSession = SerializedOrderSession & {
   maxImagesAllowed: number;
   /** Per-item quantity input max; for bundle sessions equals system cap (not shown in UI). */
   maxMagnetsAllowed: number;
+  /** Set when `contextType` is EVENT and the event row exists. */
+  eventPaymentOptions: ApiEventPaymentOptions | null;
 };
 
 export type ApiCatalogShape = {
@@ -117,6 +128,7 @@ export function serializeOrderSession(
     bundleId: session.bundleId ?? null,
     totalPrice:
       session.totalPrice != null ? Number(session.totalPrice) : null,
+    orderId: session.orderId ?? null,
   };
 }
 
@@ -126,10 +138,29 @@ export async function buildOrderSessionResponse(
   const base = serializeOrderSession(session);
   const max = await getMaxImagesAllowed(session);
   const maxMagnetsAllowed = await getEffectiveMaxMagnetsPerOrder(session);
+  let eventPaymentOptions: ApiEventPaymentOptions | null = null;
+  if (session.contextType === "EVENT") {
+    const ev = await prisma.event.findFirst({
+      where: { id: session.contextId, deletedAt: null },
+      select: {
+        paymentCashEnabled: true,
+        paymentCardEnabled: true,
+        paymentStripeEnabled: true,
+      },
+    });
+    if (ev) {
+      eventPaymentOptions = {
+        paymentCashEnabled: ev.paymentCashEnabled,
+        paymentCardEnabled: ev.paymentCardEnabled,
+        paymentStripeEnabled: ev.paymentStripeEnabled,
+      };
+    }
+  }
   return {
     ...base,
     maxImagesAllowed: max ?? 0,
     maxMagnetsAllowed,
+    eventPaymentOptions,
   };
 }
 

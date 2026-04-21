@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import type { GetOrderStatusResponse } from "@/lib/orderSessionTypes";
+import { clearEventCheckoutCopies } from "@/lib/eventCheckoutSessionBridge";
+import type {
+  GetOrderStatusResponse,
+  GetSessionResponse,
+} from "@/lib/orderSessionTypes";
 import {
   getSafeOrderReturnTo,
   orderContextToEntryPath,
@@ -126,6 +130,15 @@ function OrderSuccessInner() {
       alive = false;
     };
   }, [orderId]);
+
+  useEffect(() => {
+    if (phase !== "paid") return;
+    void api<GetSessionResponse>("/api/session").then((d) => {
+      if (d.session?.contextType === "event") {
+        clearEventCheckoutCopies(d.session.id);
+      }
+    });
+  }, [phase]);
 
   const title =
     phase === "paid"

@@ -1,5 +1,5 @@
 /**
- * Stripe Checkout (storefront) + webhook (payment confirmation).
+ * Stripe Checkout (storefront + event online) + webhook (payment confirmation).
  */
 import type { Request, Response } from "express";
 import { Router } from "express";
@@ -76,16 +76,43 @@ stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
     res.status(404).json({ error: "Order not found" });
     return;
   }
-  if (order.contextType !== "STOREFRONT") {
-    res.status(400).json({ error: "Online payment is only for storefront orders" });
-    return;
-  }
   if (order.status === "PAID") {
     res.status(400).json({ error: "Order is already paid" });
     return;
   }
   if (order.status !== "PENDING_PAYMENT") {
     res.status(400).json({ error: "Order is not awaiting payment" });
+    return;
+  }
+
+  const pm = order.paymentMethod?.trim().toUpperCase() ?? "";
+  if (order.contextType === "EVENT") {
+    if (pm !== "STRIPE") {
+      res.status(400).json({
+        error:
+          "Online checkout is only for orders with online card payment selected.",
+      });
+      return;
+    }
+    const ev = await prisma.event.findFirst({
+      where: { id: order.contextId, deletedAt: null },
+      select: { paymentStripeEnabled: true },
+    });
+    if (!ev?.paymentStripeEnabled) {
+      res.status(400).json({
+        error: "Online card payment is not enabled for this event",
+      });
+      return;
+    }
+  } else if (order.contextType === "STOREFRONT") {
+    if (pm !== "" && pm !== "STRIPE") {
+      res.status(400).json({
+        error: "Online checkout is not available for this order.",
+      });
+      return;
+    }
+  } else {
+    res.status(400).json({ error: "Unsupported order context" });
     return;
   }
 
@@ -96,12 +123,14 @@ stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
     });
     return;
   }
-  if (!isStorefrontCustomerComplete(order)) {
-    res.status(400).json({
-      error:
-        "Complete phone, shipping method, and (for delivery) address or (for BoxNow) locker id before paying.",
-    });
-    return;
+  if (order.contextType === "STOREFRONT") {
+    if (!isStorefrontCustomerComplete(order)) {
+      res.status(400).json({
+        error:
+          "Complete phone, shipping method, and (for delivery) address or (for BoxNow) locker id before paying.",
+      });
+      return;
+    }
   }
 
   const n = order._count.orderImages;
@@ -408,6 +437,7 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
           data: {
             status: "PAID",
             stripeCheckoutSessionId: session.id,
+            paymentStatus: "PAID",
           },
         });
 

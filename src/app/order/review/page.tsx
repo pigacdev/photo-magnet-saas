@@ -15,6 +15,10 @@ import { CroppedShapePreview } from "@/components/order/CroppedShapePreview";
 import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
 import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
 import { getIsLowResolution } from "@/lib/sessionImageLowResolution";
+import {
+  readEventCheckoutCopies,
+  writeEventCheckoutCopies,
+} from "@/lib/eventCheckoutSessionBridge";
 import type {
   CatalogPricing,
   CatalogShape,
@@ -75,6 +79,10 @@ export default function OrderReviewPage() {
     const cropHref = `/order/crop${params.toString() ? `?${params.toString()}` : ""}`;
     const photosHref = `/order/photos${params.toString() ? `?${params.toString()}` : ""}`;
 
+    // TEMP diagnostic logs: remove once storefront back-to-review is verified stable.
+    // eslint-disable-next-line no-console
+    console.log("[review] orderId:", params.get("orderId"));
+
     let cancelled = false;
 
     void (async () => {
@@ -85,11 +93,26 @@ export default function OrderReviewPage() {
         ]);
         if (cancelled) return;
 
+        // eslint-disable-next-line no-console
+        console.log("[review] session:", sessionRes.session);
+        // eslint-disable-next-line no-console
+        console.log("[review] imagesRes:", {
+          count: imagesRes.images?.length ?? 0,
+          error: imagesRes.error,
+        });
+
         if (!sessionRes.session) {
+          // eslint-disable-next-line no-console
+          console.log("[review] redirecting to fallback (no session):", fallback);
           window.location.replace(fallback);
           return;
         }
         if (imagesRes.error === "SESSION_INVALID") {
+          // eslint-disable-next-line no-console
+          console.log(
+            "[review] redirecting to fallback (images SESSION_INVALID):",
+            fallback,
+          );
           window.location.replace(fallback);
           return;
         }
@@ -128,6 +151,30 @@ export default function OrderReviewPage() {
   }, [router]);
 
   useEffect(() => {
+    if (images.length === 0) return;
+
+    if (
+      session?.contextType === "event" &&
+      session.pricingType === "per_item"
+    ) {
+      const fromStorage = readEventCheckoutCopies(
+        session.id,
+        images.map((i) => i.id),
+      );
+      setCopiesByImageId((prev) => {
+        const next: Record<string, number> = {};
+        for (const img of images) {
+          const stored = fromStorage[img.id];
+          next[img.id] =
+            typeof stored === "number" && stored >= 1
+              ? stored
+              : (prev[img.id] ?? 1);
+        }
+        return next;
+      });
+      return;
+    }
+
     setCopiesByImageId((prev) => {
       const next: Record<string, number> = { ...prev };
       for (const img of images) {
@@ -138,7 +185,7 @@ export default function OrderReviewPage() {
       }
       return next;
     });
-  }, [images]);
+  }, [images, session?.id, session?.contextType, session?.pricingType]);
 
   useEffect(() => {
     if (!hasDeleted) return;
@@ -215,6 +262,8 @@ export default function OrderReviewPage() {
 
   const magnetCap = session?.maxMagnetsAllowed ?? 9999;
 
+  const isEventSession = session?.contextType === "event";
+
   const canProceed =
     images.length >= 1 &&
     images.every(hasFullCrop) &&
@@ -280,15 +329,29 @@ export default function OrderReviewPage() {
     setCommitting(true);
     const q = linkSearch || window.location.search;
     try {
-      const commitBody =
-        session.pricingType === "per_item"
-          ? {
-              imageCopies: images.map((img) => ({
-                imageId: img.id,
-                copies: copiesByImageId[img.id] ?? 1,
-              })),
-            }
-          : {};
+      if (session.contextType === "event") {
+        if (session.pricingType === "per_item") {
+          writeEventCheckoutCopies(session.id, {
+            imageCopies: images.map((img) => ({
+              imageId: img.id,
+              copies: copiesByImageId[img.id] ?? 1,
+            })),
+          });
+        }
+        const customerParams = new URLSearchParams(q.replace(/^\?/, ""));
+        customerParams.delete("orderId");
+        const qs = customerParams.toString();
+        router.push(`/order/customer${qs ? `?${qs}` : ""}`);
+        return;
+      }
+
+      const commitBody: Record<string, unknown> = {};
+      if (session.pricingType === "per_item") {
+        commitBody.imageCopies = images.map((img) => ({
+          imageId: img.id,
+          copies: copiesByImageId[img.id] ?? 1,
+        }));
+      }
       const result = await api<PostOrderCommitResponse>("/api/orders", {
         method: "POST",
         body: commitBody,
@@ -488,7 +551,13 @@ export default function OrderReviewPage() {
             onClick={() => void onProceed()}
             className="w-full rounded-2xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {committing ? "Placing order…" : "Proceed to payment"}
+            {committing
+              ? isEventSession
+                ? "Continuing…"
+                : "Placing order…"
+              : isEventSession
+                ? "Continue to your details"
+                : "Proceed to payment"}
           </button>
         </div>
       </div>
