@@ -150,7 +150,14 @@ const upload = multer({
   limits: { fileSize: SESSION_UPLOAD_MAX_BYTES },
 });
 
-/** GET /images: list when session is ACTIVE (shape not required). */
+/**
+ * GET /images: list when session is ACTIVE (shape not required).
+ *
+ * Also allows CONVERTED sessions (read-only) so the customer can navigate
+ * back to /order/review after commit (e.g. from /order/customer) without
+ * being bounced to the entry page. Crop / upload / delete still require
+ * an ACTIVE session via `requireActiveSessionForMutation`.
+ */
 async function resolveActiveSessionForRead(
   req: Request,
   res: Response,
@@ -166,6 +173,15 @@ async function resolveActiveSessionForRead(
   if (!session) {
     clearSessionCookie(res);
     return null;
+  }
+
+  // Post-commit read: the committed snapshot lives on the OrderImage rows, but
+  // the customer-facing review page still reads the original SessionImage rows
+  // (thumbnails, crops, positions) for display. Skip ACTIVE-only/expiry/context
+  // validation here — none of them apply to a committed session, and abandoning
+  // a CONVERTED row would violate the commit invariant.
+  if (session.status === "CONVERTED") {
+    return session;
   }
 
   if (session.status !== "ACTIVE" || session.expiresAt <= now) {

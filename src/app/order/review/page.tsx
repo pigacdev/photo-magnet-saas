@@ -57,6 +57,12 @@ export default function OrderReviewPage() {
   /** Set after a successful DELETE so empty `images` redirects only post-delete, not during initial load. */
   const [hasDeleted, setHasDeleted] = useState(false);
   const [committing, setCommitting] = useState(false);
+  /**
+   * Inline error shown when hydration fails in post-commit mode (orderId in URL).
+   * We render this in place of the usual guards so the user is never bounced to
+   * the entry page after the order has already been committed.
+   */
+  const [postCommitError, setPostCommitError] = useState<string | null>(null);
   /** Per-magnet pricing: copies per session image id (default 1). */
   const [copiesByImageId, setCopiesByImageId] = useState<Record<string, number>>(
     {},
@@ -74,6 +80,13 @@ export default function OrderReviewPage() {
     const orderHref = `/order${params.toString() ? `?${params.toString()}` : ""}`;
     const cropHref = `/order/crop${params.toString() ? `?${params.toString()}` : ""}`;
     const photosHref = `/order/photos${params.toString() ? `?${params.toString()}` : ""}`;
+    /**
+     * Post-commit hydration flag: when the URL carries an `orderId`, the order
+     * has already been committed, so none of the pre-commit guards may redirect
+     * to the entry page or any other wizard step — we must keep the user on
+     * /order/review and render the committed state (or an inline error).
+     */
+    const hasOrderId = Boolean(params.get("orderId")?.trim());
 
     let cancelled = false;
 
@@ -86,25 +99,59 @@ export default function OrderReviewPage() {
         if (cancelled) return;
 
         if (!sessionRes.session) {
+          if (hasOrderId) {
+            setPostCommitError(
+              "Your review session is no longer available. Continue to your order details.",
+            );
+            return;
+          }
           window.location.replace(fallback);
           return;
         }
         if (imagesRes.error === "SESSION_INVALID") {
+          if (hasOrderId) {
+            setPostCommitError(
+              "Your review session is no longer available. Continue to your order details.",
+            );
+            return;
+          }
           window.location.replace(fallback);
           return;
         }
         if (!sessionRes.session.selectedShapeId) {
+          if (hasOrderId) {
+            setPostCommitError(
+              "Order data is unavailable. Continue to your order details.",
+            );
+            return;
+          }
           router.replace(orderHref);
           return;
         }
 
         const sorted = sortMagnetImagesByPosition(imagesRes.images);
         if (sorted.length === 0) {
+          if (hasOrderId) {
+            setPostCommitError(
+              "No images found for this order. Continue to your order details.",
+            );
+            return;
+          }
           router.replace(photosHref);
           return;
         }
         const allCropped = sorted.every(hasFullCrop);
         if (!allCropped) {
+          if (hasOrderId) {
+            // After commit, every image was cropped. If the session row came
+            // back without crop data, don't bounce to /order/crop (that would
+            // try to re-edit a committed order); show the inline post-commit
+            // fallback instead.
+            setPostCommitError(
+              "Order data is unavailable. Continue to your order details.",
+            );
+            return;
+          }
           router.replace(cropHref);
           return;
         }
@@ -116,7 +163,14 @@ export default function OrderReviewPage() {
           setPricing(sessionRes.pricing);
         }
       } catch {
-        if (!cancelled) window.location.replace(fallback);
+        if (cancelled) return;
+        if (hasOrderId) {
+          setPostCommitError(
+            "Could not load your review. Continue to your order details.",
+          );
+          return;
+        }
+        window.location.replace(fallback);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -181,6 +235,12 @@ export default function OrderReviewPage() {
   const currency = pricing[0]?.currency ?? "EUR";
 
   const isPerItemPricing = session?.pricingType === "per_item";
+  /**
+   * True when the URL carries an `orderId` AND the session mirrors a committed
+   * order. In this mode the review page is read-only: no new commit, no crop /
+   * delete mutations, totals come from the committed snapshot.
+   */
+  const isPostCommit = session?.status === "converted";
   const pricePerMagnet = useMemo(() => {
     const row = pricing.find((p) => p.type === "per_item");
     return row != null ? Number(row.price) : 0;
@@ -196,6 +256,15 @@ export default function OrderReviewPage() {
         liveTotalPrice: session.totalPrice,
       };
     }
+    if (isPostCommit) {
+      // Committed snapshot: per-image copies aren't editable anymore, so
+      // display the totals recorded at commit time rather than recomputing
+      // from the local (default-1) copiesByImageId state.
+      return {
+        totalMagnets: session.quantity ?? images.length,
+        liveTotalPrice: session.totalPrice,
+      };
+    }
     let tm = 0;
     for (const img of images) {
       tm += copiesByImageId[img.id] ?? 1;
@@ -208,6 +277,7 @@ export default function OrderReviewPage() {
   }, [
     session,
     isPerItemPricing,
+    isPostCommit,
     images,
     copiesByImageId,
     pricePerMagnet,
@@ -216,13 +286,15 @@ export default function OrderReviewPage() {
   const magnetCap = session?.maxMagnetsAllowed ?? 9999;
 
   const canProceed =
-    images.length >= 1 &&
-    images.every(hasFullCrop) &&
     session != null &&
-    (!isPerItemPricing ||
-      (liveTotalPrice != null &&
-        liveTotalPrice > 0 &&
-        totalMagnets <= magnetCap));
+    (isPostCommit
+      ? true
+      : images.length >= 1 &&
+        images.every(hasFullCrop) &&
+        (!isPerItemPricing ||
+          (liveTotalPrice != null &&
+            liveTotalPrice > 0 &&
+            totalMagnets <= magnetCap)));
 
   const adjustCopies = useCallback(
     (imageId: string, delta: number) => {
@@ -275,13 +347,25 @@ export default function OrderReviewPage() {
   };
 
   const onProceed = async () => {
-    if (!canProceed || committing) return;
+    if (committing) return;
+    const q = linkSearch || window.location.search;
+    // Primary rule: if the URL already carries an orderId, the order is
+    // committed — never call POST /api/orders again (avoids duplicate commits
+    // when session.status hydration does not match, e.g. casing or timing).
+    const commitParams = new URLSearchParams(q.replace(/^\?/, ""));
+    const orderIdFromUrl = commitParams.get("orderId")?.trim();
+    if (orderIdFromUrl) {
+      router.push(`/order/customer?${commitParams.toString()}`);
+      return;
+    }
+    if (!canProceed) {
+      return;
+    }
     setActionError("");
     setCommitting(true);
-    const q = linkSearch || window.location.search;
     try {
       const commitBody =
-        session.pricingType === "per_item"
+        session?.pricingType === "per_item"
           ? {
               imageCopies: images.map((img) => ({
                 imageId: img.id,
@@ -343,6 +427,30 @@ export default function OrderReviewPage() {
     );
   }
 
+  // Post-commit hydration failure: never bounce back to the entry page.
+  // Render an inline error with a direct link to the committed order's
+  // details page, using the orderId already present in the URL.
+  if (postCommitError) {
+    const q =
+      linkSearch ||
+      (typeof window !== "undefined" ? window.location.search : "");
+    const customerHref = `/order/customer${q}`;
+    return (
+      <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 px-4 py-10">
+        <h1 className="text-xl font-semibold text-[#111111]">Your order</h1>
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          {postCommitError}
+        </p>
+        <Link
+          href={customerHref}
+          className="w-full rounded-2xl bg-[#2563EB] py-4 text-center text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8]"
+        >
+          Continue to your details
+        </Link>
+      </div>
+    );
+  }
+
   if (!session || !selectedShape) {
     return (
       <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 px-4 py-10">
@@ -384,34 +492,50 @@ export default function OrderReviewPage() {
               }}
               className="flex flex-col gap-3 scroll-mt-4"
             >
-              <Link
-                href={cropEditHref(img.id)}
-                aria-label={`Edit magnet ${i + 1} — adjust crop`}
-                className={`group relative mx-auto block w-full max-w-md touch-manipulation overflow-hidden outline-none ring-offset-2 ring-offset-[#FAFAFA] transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#2563EB] ${previewTapFrameClass}`}
-              >
-                <CroppedShapePreview image={img} shape={selectedShape} />
-                {low && (
-                  <span
-                    className="pointer-events-none absolute left-2 top-2 z-20 max-w-[calc(100%-1rem)] rounded-md bg-amber-100/95 px-2 py-0.5 text-[11px] font-medium leading-tight text-amber-950 shadow-sm ring-1 ring-amber-200/80 backdrop-blur-[2px]"
-                    role="status"
-                  >
-                    ⚠ Low quality
-                  </span>
-                )}
+              {isPostCommit ? (
                 <div
-                  className={`pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center bg-gradient-to-t from-black/55 via-black/20 to-transparent px-3 pb-2.5 pt-10 opacity-90 transition-opacity group-hover:opacity-100 group-active:opacity-100 ${
-                    previewTapFrameClass === "rounded-full"
-                      ? "rounded-b-[999px]"
-                      : "rounded-b-xl"
-                  }`}
-                  aria-hidden
+                  className={`relative mx-auto block w-full max-w-md overflow-hidden ${previewTapFrameClass}`}
                 >
-                  <span className="text-xs font-semibold tracking-wide text-white drop-shadow-sm">
-                    Tap to edit
-                  </span>
+                  <CroppedShapePreview image={img} shape={selectedShape} />
+                  {low && (
+                    <span
+                      className="pointer-events-none absolute left-2 top-2 z-20 max-w-[calc(100%-1rem)] rounded-md bg-amber-100/95 px-2 py-0.5 text-[11px] font-medium leading-tight text-amber-950 shadow-sm ring-1 ring-amber-200/80 backdrop-blur-[2px]"
+                      role="status"
+                    >
+                      ⚠ Low quality
+                    </span>
+                  )}
                 </div>
-              </Link>
-              {isPerItemPricing && session && (
+              ) : (
+                <Link
+                  href={cropEditHref(img.id)}
+                  aria-label={`Edit magnet ${i + 1} — adjust crop`}
+                  className={`group relative mx-auto block w-full max-w-md touch-manipulation overflow-hidden outline-none ring-offset-2 ring-offset-[#FAFAFA] transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#2563EB] ${previewTapFrameClass}`}
+                >
+                  <CroppedShapePreview image={img} shape={selectedShape} />
+                  {low && (
+                    <span
+                      className="pointer-events-none absolute left-2 top-2 z-20 max-w-[calc(100%-1rem)] rounded-md bg-amber-100/95 px-2 py-0.5 text-[11px] font-medium leading-tight text-amber-950 shadow-sm ring-1 ring-amber-200/80 backdrop-blur-[2px]"
+                      role="status"
+                    >
+                      ⚠ Low quality
+                    </span>
+                  )}
+                  <div
+                    className={`pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center bg-gradient-to-t from-black/55 via-black/20 to-transparent px-3 pb-2.5 pt-10 opacity-90 transition-opacity group-hover:opacity-100 group-active:opacity-100 ${
+                      previewTapFrameClass === "rounded-full"
+                        ? "rounded-b-[999px]"
+                        : "rounded-b-xl"
+                    }`}
+                    aria-hidden
+                  >
+                    <span className="text-xs font-semibold tracking-wide text-white drop-shadow-sm">
+                      Tap to edit
+                    </span>
+                  </div>
+                </Link>
+              )}
+              {isPerItemPricing && session && !isPostCommit && (
                 <div className="flex items-center justify-center gap-3">
                   <button
                     type="button"
@@ -436,22 +560,24 @@ export default function OrderReviewPage() {
                   </button>
                 </div>
               )}
-              <div className="flex gap-3">
-                <Link
-                  href={cropEditHref(img.id)}
-                  className="flex min-h-12 flex-1 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-base font-semibold text-[#111111] transition-colors hover:bg-gray-50"
-                >
-                  Edit
-                </Link>
-                <button
-                  type="button"
-                  disabled={deleteId === img.id}
-                  onClick={() => void onDelete(img.id)}
-                  className="flex min-h-12 flex-1 items-center justify-center rounded-2xl border-2 border-red-200 bg-white text-base font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
-                >
-                  {deleteId === img.id ? "…" : "Delete"}
-                </button>
-              </div>
+              {!isPostCommit && (
+                <div className="flex gap-3">
+                  <Link
+                    href={cropEditHref(img.id)}
+                    className="flex min-h-12 flex-1 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-base font-semibold text-[#111111] transition-colors hover:bg-gray-50"
+                  >
+                    Edit
+                  </Link>
+                  <button
+                    type="button"
+                    disabled={deleteId === img.id}
+                    onClick={() => void onDelete(img.id)}
+                    className="flex min-h-12 flex-1 items-center justify-center rounded-2xl border-2 border-red-200 bg-white text-base font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {deleteId === img.id ? "…" : "Delete"}
+                  </button>
+                </div>
+              )}
             </li>
             );
           })}
@@ -488,7 +614,11 @@ export default function OrderReviewPage() {
             onClick={() => void onProceed()}
             className="w-full rounded-2xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {committing ? "Placing order…" : "Proceed to payment"}
+            {committing
+              ? "Placing order…"
+              : isPostCommit
+                ? "Continue"
+                : "Proceed to payment"}
           </button>
         </div>
       </div>

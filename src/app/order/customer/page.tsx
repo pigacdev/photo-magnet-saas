@@ -6,6 +6,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -55,6 +56,21 @@ function CustomerPageInner() {
   const [fullAddress, setFullAddress] = useState("");
   const [addressNotes, setAddressNotes] = useState("");
   const [lockerId, setLockerId] = useState("");
+  /**
+   * Live URL query for “Back to review”. Next `useSearchParams()` can omit or
+   * lag behind the real address bar — use `window.location.search` and always
+   * ensure `orderId` is present when we have it in scope.
+   */
+  const [liveQueryForReviewBack, setLiveQueryForReviewBack] = useState("");
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search.replace(/^\?/, ""));
+    if (orderId) {
+      p.set("orderId", orderId);
+    }
+    setLiveQueryForReviewBack(p.toString());
+  }, [orderId, searchParams]);
 
   useEffect(() => {
     if (!orderId) {
@@ -170,14 +186,20 @@ function CustomerPageInner() {
     ],
   );
 
-  /** Same context as checkout (store/event/returnTo) but never customer-only params — keeps Review as the hub for images & crop. */
+  /**
+   * Back to review: same query as the live customer URL, with `orderId` guaranteed
+   * when `orderId` is set (avoids review pre-commit / duplicate POST).
+   */
   const reviewBackHref = useMemo(() => {
-    const p = new URLSearchParams(searchParams.toString());
-    p.delete("orderId");
-    p.delete("from");
+    const p = new URLSearchParams(
+      liveQueryForReviewBack || searchParams.toString(),
+    );
+    if (orderId) {
+      p.set("orderId", orderId);
+    }
     const q = p.toString();
     return `/order/review${q ? `?${q}` : ""}`;
-  }, [searchParams]);
+  }, [liveQueryForReviewBack, searchParams, orderId]);
 
   if (!orderId) {
     return (
