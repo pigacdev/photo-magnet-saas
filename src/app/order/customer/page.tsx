@@ -16,6 +16,8 @@ import {
   type GetSessionImagesResponse,
   type GetSessionResponse,
   type PostOrderFinalizeResponse,
+  type PostSessionCheckoutCustomerResponse,
+  type PostStripeSessionCheckoutResponse,
 } from "@/lib/orderSessionTypes";
 import {
   normalizeLegacyShippingType,
@@ -284,29 +286,58 @@ function CustomerPageInner() {
       setError("");
       setSaving(true);
       try {
-        const paymentMethod = isEvent ? eventPaymentMethod : "stripe";
-        const body: Record<string, unknown> = {
+        const customerOnly: Record<string, unknown> = {
           customerName: name.trim(),
-          paymentMethod,
         };
         if (isEvent) {
-          if (phone.trim()) body.phone = phone.trim();
+          if (phone.trim()) customerOnly.phone = phone.trim();
         } else {
-          body.phone = phone.trim();
+          customerOnly.phone = phone.trim();
           if (shippingType === "pickup") {
-            body.shippingType = "pickup";
-            body.shippingAddress = null;
+            customerOnly.shippingType = "pickup";
+            customerOnly.shippingAddress = null;
           } else if (shippingType === "delivery") {
-            body.shippingType = "delivery";
-            body.shippingAddress = {
+            customerOnly.shippingType = "delivery";
+            customerOnly.shippingAddress = {
               fullAddress: fullAddress.trim(),
               notes: addressNotes.trim(),
             };
           } else {
-            body.shippingType = "boxnow";
-            body.shippingAddress = { lockerId: lockerId.trim() };
+            customerOnly.shippingType = "boxnow";
+            customerOnly.shippingAddress = { lockerId: lockerId.trim() };
           }
         }
+
+        const isStripeSessionFlow = !isEvent || eventPaymentMethod === "stripe";
+        if (isStripeSessionFlow) {
+          await api<PostSessionCheckoutCustomerResponse>(
+            "/api/session/checkout/customer",
+            { method: "POST", body: customerOnly },
+          );
+          const scBody: Record<string, unknown> = { paymentMethod: "stripe" };
+          const copyRows = readCheckoutImageCopies();
+          if (copyRows.length > 0) {
+            scBody.imageCopies = copyRows;
+          }
+          const stripeRes = await api<PostStripeSessionCheckoutResponse>(
+            "/api/stripe/session-checkout",
+            { method: "POST", body: scBody },
+          );
+          if (!stripeRes?.url) {
+            setError("Could not start payment. Try again.");
+            return;
+          }
+          if (typeof window !== "undefined") {
+            window.location.assign(stripeRes.url);
+          }
+          return;
+        }
+
+        const paymentMethod = isEvent ? eventPaymentMethod : "stripe";
+        const body: Record<string, unknown> = {
+          ...customerOnly,
+          paymentMethod,
+        };
         const copyRows = readCheckoutImageCopies();
         if (copyRows.length > 0) {
           body.imageCopies = copyRows;
@@ -319,7 +350,6 @@ function CustomerPageInner() {
           setError("Could not place order. Try again.");
           return;
         }
-        // Only clear after a successful finalize body; on throw/HTTP error, api() rejects and we never reach here.
         try {
           sessionStorage.removeItem(CHECKOUT_IMAGE_COPIES_STORAGE_KEY);
         } catch {
@@ -328,7 +358,7 @@ function CustomerPageInner() {
         const q = typeof window !== "undefined" ? window.location.search : "";
         const p = new URLSearchParams(q.replace(/^\?/, ""));
         p.set("orderId", result.orderId);
-        if (isEvent && eventPaymentMethod !== "stripe") {
+        if (isEvent) {
           router.push(`/order/confirmation?${p.toString()}`);
         } else {
           router.push(`/order/payment?${p.toString()}`);

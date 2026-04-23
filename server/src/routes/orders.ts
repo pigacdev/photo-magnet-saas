@@ -16,11 +16,11 @@ import { ORDER_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
 import { validateOrderCustomerBody } from "../lib/orderCustomerValidation";
 import {
   checkOrgOrderLimit,
-  type OrderCustomerInsert,
   type PrepareCommitError,
   prepareOrderSessionCommit,
   resolveOrderStatusForFinalization,
   runOrderCommitTransaction,
+  toOrderCustomerInsertFromValidated,
 } from "../lib/orderSessionCheckoutCommit";
 import { validateOrderSessionContext } from "../lib/sessionContextValidation";
 import {
@@ -744,20 +744,6 @@ ordersRouter.patch("/:id/customer", async (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
-function toOrderCustomerInsert(
-  data: import("../lib/orderCustomerValidation").ValidatedCustomerPayload,
-): OrderCustomerInsert {
-  return {
-    customerName: data.customerName,
-    customerPhone: data.customerPhone,
-    shippingType: data.shippingType,
-    shippingAddress:
-      data.shippingAddress === null
-        ? null
-        : (data.shippingAddress as Prisma.InputJsonValue),
-  };
-}
-
 /**
  * POST /api/orders/finalize — only supported path to create an Order with customer details (Phase: checkout finalization).
  */
@@ -882,7 +868,7 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
   try {
     const result = await runOrderCommitTransaction(
       prepared,
-      toOrderCustomerInsert(validated.data),
+      toOrderCustomerInsertFromValidated(validated.data),
     );
     if (result.kind === "IDEMPOTENT") {
       console.info("[order.finalize] idempotent", {

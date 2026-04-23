@@ -114,6 +114,8 @@ model OrderSession {
   lastActiveAt    DateTime           @default(now())
   /// Session start (set on create; same instant as first activity for new sessions).
   startedAt       DateTime           @default(now())
+  /// PER_ITEM: snapshot of [{ imageId, copies }] at Stripe redirect; required for webhook order creation.
+  checkoutImageCopies     Json?
   /// Pricing row id when pricingType is BUNDLE.
   bundleId        String?
   /// Mirrors seller pricing mode for this selection (PER_ITEM = per magnet, BUNDLE = tier).
@@ -124,6 +126,17 @@ model OrderSession {
   /// Set when session is committed to an Order (idempotency + link).
   orderId         String?            @unique
   order           Order?             @relation(fields: [orderId], references: [id])
+  /// Stripe Checkout Session id before order exists (session-first payment flow).
+  stripeCheckoutSessionId String?
+  /// From Checkout `payment_intent` (id); useful for support before Order exists.
+  stripePaymentIntentId   String?
+  /// From Checkout `payment_status` (e.g. unpaid, paid). Not PaymentIntent.status. Not in GET /api/session.
+  stripePaymentStatus     String?
+  /// Customer snapshot for session-first online payment (webhook / post-success order creation). Not in GET /api/session.
+  checkoutCustomerName    String?
+  checkoutCustomerPhone   String?
+  checkoutShippingType    String?
+  checkoutShippingAddress Json?
   sessionImages   SessionImage[]
 
   @@index([contextType, contextId])
@@ -181,6 +194,10 @@ model Order {
   bundleId                String?
   /// Set when Stripe Checkout completes (webhook); optional until paid.
   stripeCheckoutSessionId String?
+  /// Primary payment reference from Stripe (PaymentIntent id).
+  stripePaymentIntentId   String?
+  /// When available (card charge id from expanded PI).
+  stripeChargeId          String?
   customerEmail           String?
   customerName            String?
   customerPhone           String?

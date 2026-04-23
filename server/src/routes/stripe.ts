@@ -16,6 +16,11 @@ import { getAppPublicUrl, getStripeOrNull } from "../lib/stripe";
 import { sessionConfig } from "../config/session";
 import { isStorefrontCustomerComplete } from "../lib/orderCustomerValidation";
 import { authenticate } from "../middleware/auth";
+import { handleStripeSessionCheckout } from "./stripeSessionCheckout";
+import {
+  processSessionFirstCheckoutSessionCompleted,
+  runSessionWebhookPostPaymentOrderProcessing,
+} from "../lib/stripeSessionWebhookFinalize";
 
 export const stripeRouter = Router();
 
@@ -185,6 +190,10 @@ stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
     console.error("[stripe.checkout-session]", e);
     res.status(500).json({ error: "Could not start checkout" });
   }
+});
+
+stripeRouter.post("/session-checkout", async (req: Request, res: Response) => {
+  await handleStripeSessionCheckout(req, res);
 });
 
 stripeRouter.post("/create-subscription", authenticate, async (req: Request, res: Response) => {
@@ -374,13 +383,12 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
           session.metadata?.orderId != null
             ? String(session.metadata.orderId)
             : "";
+        const orderSessionId =
+          session.metadata?.sessionId != null
+            ? String(session.metadata.sessionId).trim()
+            : "";
 
-        if (!orderId) {
-          console.error("[stripe.webhook] missing metadata.orderId", session.id);
-          res.status(200).json({ received: true });
-          return;
-        }
-
+        if (orderId) {
         const order = await prisma.order.findUnique({
           where: { id: orderId },
         });
@@ -475,6 +483,36 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
         });
         res.status(200).json({ received: true });
         return;
+        } else if (orderSessionId) {
+        const r = await processSessionFirstCheckoutSessionCompleted(
+          stripe,
+          session,
+        );
+        if (r.ok) {
+          if (!r.alreadyPaid) {
+            await runSessionWebhookPostPaymentOrderProcessing(r.orderId);
+          }
+          console.info("[stripe.webhook] session-first checkout", {
+            orderId: r.orderId,
+            alreadyPaid: r.alreadyPaid,
+            stripeSessionId: session.id,
+          });
+        } else {
+          console.warn("[stripe.webhook] session-first finalize skipped", {
+            reason: r.reason,
+            stripeSessionId: session.id,
+          });
+        }
+        res.status(200).json({ received: true });
+        return;
+        } else {
+          console.error(
+            "[stripe.webhook] payment session missing orderId and sessionId in metadata",
+            session.id,
+          );
+          res.status(200).json({ received: true });
+          return;
+        }
       }
       case "customer.subscription.created":
       case "customer.subscription.updated": {

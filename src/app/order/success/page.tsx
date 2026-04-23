@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import type { GetOrderStatusResponse } from "@/lib/orderSessionTypes";
+import type {
+  GetOrderStatusResponse,
+  GetSessionCurrentResponse,
+} from "@/lib/orderSessionTypes";
 import {
   getSafeOrderReturnTo,
   orderContextToEntryPath,
@@ -24,14 +27,21 @@ type UiPhase =
 
 /**
  * After Stripe redirects here, the webhook may lag. Poll until DB shows PAID.
+ * Legacy: `?orderId=…`. Session-first: `?orderSessionId=…` + GET /api/session/current.
  * No link to SaaS home — customers use entry event/store + order customer edit only.
  */
 function OrderSuccessInner() {
   const searchParams = useSearchParams();
-  const orderId = useMemo(
+  const orderIdParam = useMemo(
     () => searchParams.get("orderId")?.trim() ?? "",
     [searchParams],
   );
+  const orderSessionIdParam = useMemo(
+    () => searchParams.get("orderSessionId")?.trim() ?? "",
+    [searchParams],
+  );
+  const [resolvedOrderId, setResolvedOrderId] = useState("");
+  const orderId = orderIdParam || resolvedOrderId;
 
   const returnToFromQuery = useMemo(
     () => getSafeOrderReturnTo(searchParams.get("returnTo")),
@@ -75,7 +85,7 @@ function OrderSuccessInner() {
   }, [orderId, returnToFromQuery, pollContext]);
 
   useEffect(() => {
-    if (!orderId) {
+    if (!orderIdParam && !orderSessionIdParam) {
       setPhase("no_order_id");
       return;
     }
@@ -86,46 +96,84 @@ function OrderSuccessInner() {
     const run = async () => {
       setPhase("processing");
 
+      if (orderSessionIdParam && !orderIdParam) {
+        while (alive && Date.now() - started < MAX_POLL_MS) {
+          try {
+            const cur = await api<GetSessionCurrentResponse>(
+              `/api/session/current?orderSessionId=${encodeURIComponent(
+                orderSessionIdParam,
+              )}`,
+            );
+            if (!alive) return;
+            if (cur.contextType && cur.contextId) {
+              setPollContext({
+                contextType: cur.contextType,
+                contextId: cur.contextId,
+              });
+            }
+            if (cur.orderId) {
+              if (cur.orderStatus === "PAID") {
+                setResolvedOrderId(cur.orderId);
+                setPhase("paid");
+                return;
+              }
+              if (cur.orderStatus === "PENDING_PAYMENT") {
+                await new Promise((r) => setTimeout(r, POLL_MS));
+                continue;
+              }
+              setUnexpectedStatus(String(cur.orderStatus ?? "unknown"));
+              setPhase("unexpected_status");
+              return;
+            }
+            await new Promise((r) => setTimeout(r, POLL_MS));
+          } catch {
+            if (alive) setPhase("error");
+            return;
+          }
+        }
+        if (alive) setPhase("timeout");
+        return;
+      }
+
+      const oid = orderIdParam;
+      if (!oid) {
+        if (alive) setPhase("error");
+        return;
+      }
       while (alive && Date.now() - started < MAX_POLL_MS) {
         try {
           const data = await api<GetOrderStatusResponse>(
-            `/api/orders/${encodeURIComponent(orderId)}`,
+            `/api/orders/${encodeURIComponent(oid)}`,
           );
           if (!alive) return;
-
           if (data.contextType && data.contextId) {
             setPollContext({
               contextType: data.contextType,
               contextId: data.contextId,
             });
           }
-
           if (data.status === "PAID") {
             setPhase("paid");
             return;
           }
-
           if (data.status !== "PENDING_PAYMENT") {
             setUnexpectedStatus(data.status);
             setPhase("unexpected_status");
             return;
           }
-
           await new Promise((r) => setTimeout(r, POLL_MS));
         } catch {
           if (alive) setPhase("error");
           return;
         }
       }
-
       if (alive) setPhase("timeout");
     };
-
     void run();
     return () => {
       alive = false;
     };
-  }, [orderId]);
+  }, [orderIdParam, orderSessionIdParam]);
 
   const title =
     phase === "paid"
@@ -140,7 +188,8 @@ function OrderSuccessInner() {
     <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 bg-[#FAFAFA] px-4 py-10">
       <h1 className="text-2xl font-semibold text-[#111111]">{title}</h1>
 
-      {orderId && (phase === "idle" || phase === "processing") && (
+      {(orderId || orderSessionIdParam) &&
+        (phase === "idle" || phase === "processing") && (
         <p className="text-sm text-[#6B7280]">
           Processing payment… This usually takes a few seconds.
         </p>
@@ -167,7 +216,9 @@ function OrderSuccessInner() {
       )}
 
       {phase === "no_order_id" && (
-        <p className="text-sm text-amber-800">No order id in the link.</p>
+        <p className="text-sm text-amber-800">
+          This page needs a valid link with order or session id.
+        </p>
       )}
 
       {orderId ? (

@@ -1,7 +1,8 @@
 /**
  * Order session API
- * - POST /start: abandons expired ACTIVE rows; reuse (200) only if cookie session matches
- *   incoming contextType + contextId exactly; otherwise abandons old row and creates (201)
+ * - POST /start: reuse (200) only if same context and session is a clean in-progress row
+ *   (ACTIVE, not COMPLETED/PAYMENT_PENDING, no Stripe checkout id, not expired);
+ *   otherwise clear cookie and create a new session (201).
  * - GET /: re-validates context (pricing + open/active + not deleted via sessionContextValidation)
  * - Cookie: httpOnly, sameSite lax, secure in production (see config/session.ts)
  */
@@ -29,6 +30,29 @@ export const sessionRouter = Router();
 
 sessionRouter.use("/images", sessionImagesRouter);
 sessionRouter.use("/checkout", sessionCheckoutRouter);
+
+/**
+ * Reuse cookie session on /start only for an untouched cart: no paid/converting state,
+ * no in-flight Stripe checkout, and TTL still valid. Otherwise storefront re-entry
+ * must get a new OrderSession (see POST /start).
+ */
+function canReuseOrderSessionAtStart(
+  row: {
+    status: string;
+    checkoutStage: string;
+    stripeCheckoutSessionId: string | null;
+    expiresAt: Date;
+  },
+  now: Date,
+): boolean {
+  if (row.status !== "ACTIVE") return false;
+  if (row.checkoutStage === "COMPLETED" || row.checkoutStage === "PAYMENT_PENDING") {
+    return false;
+  }
+  if (row.stripeCheckoutSessionId != null) return false;
+  if (row.expiresAt <= now) return false;
+  return true;
+}
 
 sessionRouter.post("/start", async (req, res) => {
   const { contextType, contextId } = req.body as {
@@ -70,8 +94,6 @@ sessionRouter.post("/start", async (req, res) => {
     if (!existing) {
       clearSessionCookie(res);
     } else {
-      // HARD GUARD: reuse only when the cookie session is for this exact context.
-      // Any mismatch → do not reuse; abandon active row and create a new session below.
       const contextMatches =
         existing.contextType === wantType && existing.contextId === contextId;
 
@@ -83,17 +105,19 @@ sessionRouter.post("/start", async (req, res) => {
           });
         }
         clearSessionCookie(res);
-      } else if (existing.status === "ACTIVE" && existing.expiresAt > now) {
+      } else if (canReuseOrderSessionAtStart(existing, now)) {
         const validation =
           wantType === "EVENT"
             ? await validateEventOrderContext(contextId)
             : await validateStorefrontOrderContext(contextId);
 
         if (!validation.ok) {
-          await prisma.orderSession.update({
-            where: { id: existing.id },
-            data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
-          });
+          if (existing.status === "ACTIVE") {
+            await prisma.orderSession.update({
+              where: { id: existing.id },
+              data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
+            });
+          }
           clearSessionCookie(res);
           if (validation.notFound) {
             res.status(404).json({
@@ -180,6 +204,59 @@ sessionRouter.post("/start", async (req, res) => {
   setSessionCookie(res, session.id);
   res.status(201).json({
     session: await buildOrderSessionResponse(session),
+  });
+});
+
+/**
+ * GET /api/session/current?orderSessionId=
+ * For /order/success when Stripe redirects with orderSessionId (no cookie required).
+ * Exposes order id + status for polling until webhook finalizes; does not return cart/PII.
+ */
+sessionRouter.get("/current", async (req, res) => {
+  const raw = req.query.orderSessionId;
+  const orderSessionId = typeof raw === "string" ? raw.trim() : "";
+  if (!orderSessionId) {
+    res.status(400).json({ error: "orderSessionId is required" });
+    return;
+  }
+
+  const row = await prisma.orderSession.findUnique({
+    where: { id: orderSessionId },
+  });
+  if (!row) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+
+  if (!row.orderId) {
+    res.json({
+      orderId: null,
+      orderStatus: null,
+      contextType: row.contextType,
+      contextId: row.contextId,
+    });
+    return;
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: row.orderId },
+    select: { id: true, status: true },
+  });
+  if (!order) {
+    res.json({
+      orderId: null,
+      orderStatus: null,
+      contextType: row.contextType,
+      contextId: row.contextId,
+    });
+    return;
+  }
+
+  res.json({
+    orderId: order.id,
+    orderStatus: order.status,
+    contextType: row.contextType,
+    contextId: row.contextId,
   });
 });
 

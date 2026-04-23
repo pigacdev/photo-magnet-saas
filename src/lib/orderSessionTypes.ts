@@ -89,6 +89,15 @@ export type PostSessionCheckoutValidateResponse = {
   quantity: number;
 };
 
+/** POST /api/session/checkout/customer — persist customer for session-first Stripe. */
+export type PostSessionCheckoutCustomerResponse = { ok: true };
+
+/** POST /api/stripe/session-checkout — redirect URL to Stripe Checkout. */
+export type PostStripeSessionCheckoutResponse = {
+  url: string;
+  stripeSessionId: string;
+};
+
 /** POST /api/orders/finalize — create order after customer + payment method. */
 export type PostOrderFinalizeResponse = {
   orderId: string;
@@ -97,6 +106,14 @@ export type PostOrderFinalizeResponse = {
 
 /** sessionStorage: JSON array of { imageId, copies } between review and customer (PER_ITEM). */
 export const CHECKOUT_IMAGE_COPIES_STORAGE_KEY = "pm_checkoutImageCopies";
+
+/** GET /api/session/current?orderSessionId= — resolve session-first order (no order id in success URL). */
+export type GetSessionCurrentResponse = {
+  orderId: string | null;
+  orderStatus: "PAID" | "PENDING_PAYMENT" | "PENDING_CASH" | null;
+  contextType: "EVENT" | "STOREFRONT" | null;
+  contextId: string | null;
+};
 
 /** GET /api/orders/:id — session-scoped order status (e.g. payment polling) + customer prefill + summary. */
 export type GetOrderStatusResponse = {

@@ -13,6 +13,7 @@ import {
 } from "./orderImageStorage";
 import { getPerItemEffectiveMaxMagnetsPerOrder } from "./maxMagnetsPerOrder";
 import { assertCanCreateOrder, ORDER_LIMIT_REACHED } from "./saas";
+import type { ValidatedCustomerPayload } from "./orderCustomerValidation";
 
 type ImageCopyPayload = { imageId: string; copies: number };
 
@@ -311,12 +312,34 @@ export type CommitResult =
   | { kind: "IDEMPOTENT"; orderId: string; status: OrderCommitStatus; imageCount: number }
   | { kind: "CREATED"; orderId: string; status: OrderCommitStatus; imageCount: number };
 
+/** When set, order is created already PAID with Stripe ids (session-first webhook). */
+export type CommitOrderPaidStripeIds = {
+  stripeCheckoutSessionId: string;
+  stripePaymentIntentId: string | null;
+  stripeChargeId: string | null;
+};
+
+export function toOrderCustomerInsertFromValidated(
+  data: ValidatedCustomerPayload,
+): OrderCustomerInsert {
+  return {
+    customerName: data.customerName,
+    customerPhone: data.customerPhone,
+    shippingType: data.shippingType,
+    shippingAddress:
+      data.shippingAddress === null
+        ? null
+        : (data.shippingAddress as Prisma.InputJsonValue),
+  };
+}
+
 /**
  * Create Order + OrderImages and convert session. Idempotent if orderId set under lock.
  */
 export async function runOrderCommitTransaction(
   prepared: PreparedOrderCommit,
   customer: OrderCustomerInsert,
+  paidStripe: CommitOrderPaidStripeIds | null = null,
 ): Promise<CommitResult> {
   const {
     sessionRowId,
@@ -330,6 +353,7 @@ export async function runOrderCommitTransaction(
     commitOrderQuantity,
   } = prepared;
   const session = prepared.session;
+  const effectiveOrderStatus: OrderCommitStatus = paidStripe ? "PAID" : orderStatus;
 
   const result = await prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(
@@ -393,7 +417,7 @@ export async function runOrderCommitTransaction(
       organization: { connect: { id: String(organizationId) } },
       contextType: locked.contextType,
       contextId: String(locked.contextId),
-      status: orderStatus,
+      status: effectiveOrderStatus,
       totalPrice: commitTotalPrice,
       currency,
       pricingType: locked.pricingType!,
@@ -408,6 +432,13 @@ export async function runOrderCommitTransaction(
           : customer.shippingAddress === null
             ? Prisma.JsonNull
             : (customer.shippingAddress as Prisma.InputJsonValue),
+      ...(paidStripe
+        ? {
+            stripeCheckoutSessionId: paidStripe.stripeCheckoutSessionId,
+            stripePaymentIntentId: paidStripe.stripePaymentIntentId,
+            stripeChargeId: paidStripe.stripeChargeId,
+          }
+        : {}),
     };
     await tx.order.create({ data: orderCreate });
 
@@ -447,6 +478,10 @@ export async function runOrderCommitTransaction(
         status: "CONVERTED",
         checkoutStage: "COMPLETED",
         lastActiveAt: now,
+        /** Prevent reuse: no further Stripe checkout from this row; same atomic tx as order. */
+        stripeCheckoutSessionId: null,
+        /** Cookie/session row is not valid for a new cart after conversion. */
+        expiresAt: now,
         orderId,
       },
     });
@@ -459,7 +494,7 @@ export async function runOrderCommitTransaction(
     return {
       kind: "CREATED" as const,
       orderId,
-      status: orderStatus,
+      status: effectiveOrderStatus,
       imageCount: sessionImages.length,
     };
   });
