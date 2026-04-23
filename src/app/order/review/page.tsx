@@ -24,7 +24,13 @@ import type {
   PostSessionCheckoutValidateResponse,
   SessionImage,
 } from "@/lib/orderSessionTypes";
-import { CHECKOUT_IMAGE_COPIES_STORAGE_KEY } from "@/lib/orderSessionTypes";
+import {
+  buildCopyRowsFromState,
+  buildCopiesRecordFromImageIds,
+  clearCheckoutImageCopies,
+  persistCopyCountsNow,
+  writeCheckoutImageCopies,
+} from "@/lib/checkoutImageCopiesStorage";
 
 function formatMoney(amount: number | null, currency = "EUR"): string {
   if (amount == null || Number.isNaN(amount)) return "—";
@@ -129,18 +135,26 @@ export default function OrderReviewPage() {
     };
   }, [router]);
 
+  /** Restore from sessionStorage before defaulting; clear when not per-item. */
   useEffect(() => {
-    setCopiesByImageId((prev) => {
-      const next: Record<string, number> = { ...prev };
-      for (const img of images) {
-        if (next[img.id] == null) next[img.id] = 1;
-      }
-      for (const id of Object.keys(next)) {
-        if (!images.some((i) => i.id === id)) delete next[id];
-      }
-      return next;
-    });
-  }, [images]);
+    if (!session) return;
+    const isPerItem = session.pricingType === "per_item";
+    if (!isPerItem) {
+      setCopiesByImageId({});
+      clearCheckoutImageCopies();
+      return;
+    }
+    const ids = images.map((i) => i.id);
+    setCopiesByImageId(buildCopiesRecordFromImageIds(ids, true));
+  }, [images, session]);
+
+  /** Keep sessionStorage in sync on every copy change (and after restore). */
+  useEffect(() => {
+    if (!session || session.pricingType !== "per_item" || images.length === 0) {
+      return;
+    }
+    writeCheckoutImageCopies(buildCopyRowsFromState(images, copiesByImageId));
+  }, [session, images, copiesByImageId]);
 
   useEffect(() => {
     if (!hasDeleted) return;
@@ -247,6 +261,12 @@ export default function OrderReviewPage() {
     [linkSearch],
   );
 
+  const onCropLinkClick = useCallback(() => {
+    if (session?.pricingType === "per_item") {
+      persistCopyCountsNow(images, copiesByImageId, true);
+    }
+  }, [session?.pricingType, images, copiesByImageId]);
+
   const previewTapFrameClass = useMemo(() => {
     if (!selectedShape) return "rounded-xl";
     return selectedShape.shapeType.toUpperCase() === "CIRCLE"
@@ -279,31 +299,14 @@ export default function OrderReviewPage() {
     setCommitting(true);
     try {
       const q = linkSearch || window.location.search;
+      const isPerItem = session?.pricingType === "per_item";
+      persistCopyCountsNow(images, copiesByImageId, Boolean(isPerItem));
       const perItem =
-        session?.pricingType === "per_item"
+        isPerItem
           ? {
-              imageCopies: images.map((img) => ({
-                imageId: img.id,
-                copies: copiesByImageId[img.id] ?? 1,
-              })),
+              imageCopies: buildCopyRowsFromState(images, copiesByImageId),
             }
           : {};
-      if (perItem.imageCopies) {
-        try {
-          sessionStorage.setItem(
-            CHECKOUT_IMAGE_COPIES_STORAGE_KEY,
-            JSON.stringify(perItem.imageCopies),
-          );
-        } catch {
-          // ignore storage quota / private mode
-        }
-      } else {
-        try {
-          sessionStorage.removeItem(CHECKOUT_IMAGE_COPIES_STORAGE_KEY);
-        } catch {
-          // ignore
-        }
-      }
       await api<PostSessionCheckoutValidateResponse>("/api/session/checkout/validate", {
         method: "POST",
         body: perItem,
@@ -402,6 +405,7 @@ export default function OrderReviewPage() {
             >
               <Link
                 href={cropEditHref(img.id)}
+                onClick={onCropLinkClick}
                 aria-label={`Edit magnet ${i + 1} — adjust crop`}
                 className={`group relative mx-auto block w-full max-w-md touch-manipulation overflow-hidden outline-none ring-offset-2 ring-offset-[#FAFAFA] transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#2563EB] ${previewTapFrameClass}`}
               >
@@ -455,6 +459,7 @@ export default function OrderReviewPage() {
               <div className="flex gap-3">
                 <Link
                   href={cropEditHref(img.id)}
+                  onClick={onCropLinkClick}
                   className="flex min-h-12 flex-1 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-base font-semibold text-[#111111] transition-colors hover:bg-gray-50"
                 >
                   Edit

@@ -22,6 +22,7 @@ import {
   type StorefrontShippingType,
 } from "@/lib/shippingTypes";
 import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
+import { readCheckoutImageCopies } from "@/lib/checkoutImageCopiesStorage";
 
 function formatOrderTotal(amount: string, currency: string): string {
   const n = Number(amount);
@@ -58,6 +59,8 @@ type SessionCheckoutSummary = {
   totalPrice: number | null;
   currency: string;
   imageCount: number;
+  /** Per-item: totals aligned with review using session + sessionStorage copy counts. */
+  perItemSummary: { totalMagnets: number; lineTotal: number } | null;
 };
 
 /** Values accepted by POST /api/orders/finalize (event); matches server resolveOrderStatusForFinalization. */
@@ -158,12 +161,28 @@ function CustomerPageInner() {
         }
         const sorted = sortMagnetImagesByPosition(imagesRes.images);
         const currency = sessionRes.pricing[0]?.currency ?? "EUR";
+        const isPer = sessionRes.session.pricingType === "per_item";
+        const perItemRow = sessionRes.pricing.find((p) => p.type === "per_item");
+        const pricePer =
+          perItemRow != null ? Number(perItemRow.price) : 0;
+        const stored = readCheckoutImageCopies();
+        const byId = new Map(stored.map((r) => [r.imageId, r.copies]));
+        let totalMagnets = 0;
+        for (const img of sorted) {
+          const c = byId.get(img.id);
+          totalMagnets += typeof c === "number" && c >= 1 ? c : 1;
+        }
+        const lineTotal =
+          isPer && Number.isFinite(pricePer) && pricePer >= 0
+            ? Math.round(totalMagnets * pricePer * 100) / 100
+            : 0;
         setOrderCtx(null);
         setSessionCtx({
           contextType: sessionRes.session.contextType,
           totalPrice: sessionRes.session.totalPrice,
           currency,
           imageCount: sorted.length,
+          perItemSummary: isPer ? { totalMagnets, lineTotal } : null,
         });
       } catch (e) {
         if (!cancelled) {
@@ -288,20 +307,9 @@ function CustomerPageInner() {
             body.shippingAddress = { lockerId: lockerId.trim() };
           }
         }
-        const copiesRaw = (() => {
-          try {
-            return sessionStorage.getItem(CHECKOUT_IMAGE_COPIES_STORAGE_KEY);
-          } catch {
-            return null;
-          }
-        })();
-        if (copiesRaw) {
-          try {
-            const parsed: unknown = JSON.parse(copiesRaw);
-            if (Array.isArray(parsed)) body.imageCopies = parsed;
-          } catch {
-            // invalid JSON — finalize may still succeed for bundle pricing
-          }
+        const copyRows = readCheckoutImageCopies();
+        if (copyRows.length > 0) {
+          body.imageCopies = copyRows;
         }
         const result = await api<PostOrderFinalizeResponse>("/api/orders/finalize", {
           method: "POST",
@@ -320,7 +328,7 @@ function CustomerPageInner() {
         const q = typeof window !== "undefined" ? window.location.search : "";
         const p = new URLSearchParams(q.replace(/^\?/, ""));
         p.set("orderId", result.orderId);
-        if (isEvent) {
+        if (isEvent && eventPaymentMethod !== "stripe") {
           router.push(`/order/confirmation?${p.toString()}`);
         } else {
           router.push(`/order/payment?${p.toString()}`);
@@ -398,7 +406,15 @@ function CustomerPageInner() {
   const imageCount = orderCtx?.imageCount ?? sessionCtx?.imageCount ?? 0;
   const totalLabel = orderCtx
     ? formatOrderTotal(orderCtx.totalPrice, orderCtx.currency)
-    : formatSessionTotal(sessionCtx?.totalPrice ?? null, sessionCtx?.currency ?? "EUR");
+    : sessionCtx?.perItemSummary
+      ? formatSessionTotal(
+          sessionCtx.perItemSummary.lineTotal,
+          sessionCtx.currency,
+        )
+      : formatSessionTotal(
+          sessionCtx?.totalPrice ?? null,
+          sessionCtx?.currency ?? "EUR",
+        );
 
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 bg-[#FAFAFA] px-4 py-10">
@@ -430,6 +446,14 @@ function CustomerPageInner() {
               {imageCount === 1 ? "1 photo" : `${imageCount} photos`}
             </dd>
           </div>
+          {!orderCtx && sessionCtx?.perItemSummary && (
+            <div className="flex justify-between gap-4">
+              <dt className="text-[#6B7280]">Magnets (total)</dt>
+              <dd className="text-right font-medium text-[#111111] tabular-nums">
+                {sessionCtx.perItemSummary.totalMagnets}
+              </dd>
+            </div>
+          )}
           <div className="flex justify-between gap-4 border-t border-gray-100 pt-2">
             <dt className="text-[#6B7280]">Total</dt>
             <dd className="text-base font-semibold tabular-nums text-[#111111]">
