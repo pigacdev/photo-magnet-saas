@@ -54,6 +54,28 @@ function canReuseOrderSessionAtStart(
   return true;
 }
 
+/**
+ * When /start will issue a new OrderSession, close out the old ACTIVE row: terminal
+ * lifecycle, detach Stripe, snap expiry so the row is clearly not active for reuse.
+ */
+async function markOrderSessionReplacedByNewStart(
+  orderSessionId: string,
+  now: Date,
+): Promise<void> {
+  await prisma.orderSession.update({
+    where: { id: orderSessionId },
+    data: {
+      status: "EXPIRED",
+      checkoutStage: "ABANDONED",
+      expiresAt: now,
+      lastActiveAt: now,
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripePaymentStatus: null,
+    },
+  });
+}
+
 sessionRouter.post("/start", async (req, res) => {
   const { contextType, contextId } = req.body as {
     contextType?: string;
@@ -99,10 +121,7 @@ sessionRouter.post("/start", async (req, res) => {
 
       if (!contextMatches) {
         if (existing.status === "ACTIVE") {
-          await prisma.orderSession.update({
-            where: { id: existing.id },
-            data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
-          });
+          await markOrderSessionReplacedByNewStart(existing.id, now);
         }
         clearSessionCookie(res);
       } else if (canReuseOrderSessionAtStart(existing, now)) {
@@ -113,10 +132,7 @@ sessionRouter.post("/start", async (req, res) => {
 
         if (!validation.ok) {
           if (existing.status === "ACTIVE") {
-            await prisma.orderSession.update({
-              where: { id: existing.id },
-              data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
-            });
+            await markOrderSessionReplacedByNewStart(existing.id, now);
           }
           clearSessionCookie(res);
           if (validation.notFound) {
@@ -137,10 +153,7 @@ sessionRouter.post("/start", async (req, res) => {
         return;
       } else {
         if (existing.status === "ACTIVE") {
-          await prisma.orderSession.update({
-            where: { id: existing.id },
-            data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
-          });
+          await markOrderSessionReplacedByNewStart(existing.id, now);
         }
         clearSessionCookie(res);
       }
