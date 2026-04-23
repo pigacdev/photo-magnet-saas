@@ -12,9 +12,16 @@ import {
 } from "react";
 import { api } from "@/lib/api";
 import {
+  CHECKOUT_IMAGE_COPIES_STORAGE_KEY,
+  type GetSessionImagesResponse,
+  type GetSessionResponse,
+  type PostOrderFinalizeResponse,
+} from "@/lib/orderSessionTypes";
+import {
   normalizeLegacyShippingType,
   type StorefrontShippingType,
 } from "@/lib/shippingTypes";
+import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
 
 function formatOrderTotal(amount: string, currency: string): string {
   const n = Number(amount);
@@ -23,6 +30,14 @@ function formatOrderTotal(amount: string, currency: string): string {
     style: "currency",
     currency: currency.trim() || "EUR",
   }).format(n);
+}
+
+function formatSessionTotal(amount: number | null, currency: string): string {
+  if (amount == null || Number.isNaN(amount)) return "—";
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currency.trim() || "EUR",
+  }).format(amount);
 }
 
 type OrderCustomerLoad = {
@@ -38,6 +53,16 @@ type OrderCustomerLoad = {
   imageCount: number;
 };
 
+type SessionCheckoutSummary = {
+  contextType: "event" | "storefront";
+  totalPrice: number | null;
+  currency: string;
+  imageCount: number;
+};
+
+/** Values accepted by POST /api/orders/finalize (event); matches server resolveOrderStatusForFinalization. */
+type EventPaymentMethod = "cash" | "card_on_location" | "stripe";
+
 function CustomerPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,7 +72,10 @@ function CustomerPageInner() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [ctx, setCtx] = useState<OrderCustomerLoad | null>(null);
+  const [orderCtx, setOrderCtx] = useState<OrderCustomerLoad | null>(null);
+  const [sessionCtx, setSessionCtx] = useState<SessionCheckoutSummary | null>(
+    null,
+  );
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -56,126 +84,260 @@ function CustomerPageInner() {
   const [fullAddress, setFullAddress] = useState("");
   const [addressNotes, setAddressNotes] = useState("");
   const [lockerId, setLockerId] = useState("");
-  /**
-   * Live URL query for “Back to review”. Next `useSearchParams()` can omit or
-   * lag behind the real address bar — use `window.location.search` and always
-   * ensure `orderId` is present when we have it in scope.
-   */
+  /** Event session checkout: how the customer will pay (passed to finalize as paymentMethod). */
+  const [eventPaymentMethod, setEventPaymentMethod] =
+    useState<EventPaymentMethod>("cash");
+  /** Query for “Back to review” — no orderId (session-based checkout). */
   const [liveQueryForReviewBack, setLiveQueryForReviewBack] = useState("");
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search.replace(/^\?/, ""));
-    if (orderId) {
-      p.set("orderId", orderId);
-    }
+    p.delete("orderId");
     setLiveQueryForReviewBack(p.toString());
-  }, [orderId, searchParams]);
+  }, [searchParams]);
 
   useEffect(() => {
-    if (!orderId) {
-      setLoading(false);
-      return;
-    }
     let cancelled = false;
+    if (orderId) {
+      void (async () => {
+        try {
+          const o = await api<OrderCustomerLoad>(
+            `/api/orders/${encodeURIComponent(orderId)}`,
+          );
+          if (cancelled) return;
+          setOrderCtx(o);
+          setSessionCtx(null);
+          if (o.customerName) setName(o.customerName);
+          if (o.customerPhone) setPhone(o.customerPhone);
+          if (o.shippingType) {
+            setShippingType(normalizeLegacyShippingType(o.shippingType));
+          }
+          const addr = o.shippingAddress;
+          if (addr && typeof addr === "object" && !Array.isArray(addr)) {
+            const fa = (addr as { fullAddress?: unknown }).fullAddress;
+            if (typeof fa === "string") setFullAddress(fa);
+            const n = (addr as { notes?: unknown }).notes;
+            if (typeof n === "string") setAddressNotes(n);
+            const lid = (addr as { lockerId?: unknown }).lockerId;
+            if (typeof lid === "string") setLockerId(lid);
+          }
+        } catch (e) {
+          if (!cancelled) {
+            setError(e instanceof Error ? e.message : "Could not load order");
+            setOrderCtx(null);
+            setSessionCtx(null);
+          }
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     void (async () => {
       try {
-        const o = await api<OrderCustomerLoad>(
-          `/api/orders/${encodeURIComponent(orderId)}`,
-        );
+        const [sessionRes, imagesRes] = await Promise.all([
+          api<GetSessionResponse>("/api/session"),
+          api<GetSessionImagesResponse>("/api/session/images"),
+        ]);
         if (cancelled) return;
-        setCtx(o);
-        if (o.customerName) setName(o.customerName);
-        if (o.customerPhone) setPhone(o.customerPhone);
-        if (o.shippingType) {
-          setShippingType(normalizeLegacyShippingType(o.shippingType));
+        if (!sessionRes.session) {
+          setError("Session expired. Return to your cart to continue.");
+          setOrderCtx(null);
+          setSessionCtx(null);
+          return;
         }
-        const addr = o.shippingAddress;
-        if (addr && typeof addr === "object" && !Array.isArray(addr)) {
-          const fa = (addr as { fullAddress?: unknown }).fullAddress;
-          if (typeof fa === "string") setFullAddress(fa);
-          const n = (addr as { notes?: unknown }).notes;
-          if (typeof n === "string") setAddressNotes(n);
-          const lid = (addr as { lockerId?: unknown }).lockerId;
-          if (typeof lid === "string") setLockerId(lid);
+        if (imagesRes.error === "SESSION_INVALID") {
+          setError("Session expired. Return to your cart to continue.");
+          setOrderCtx(null);
+          setSessionCtx(null);
+          return;
         }
+        const sorted = sortMagnetImagesByPosition(imagesRes.images);
+        const currency = sessionRes.pricing[0]?.currency ?? "EUR";
+        setOrderCtx(null);
+        setSessionCtx({
+          contextType: sessionRes.session.contextType,
+          totalPrice: sessionRes.session.totalPrice,
+          currency,
+          imageCount: sorted.length,
+        });
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Could not load order");
+          setError(
+            e instanceof Error ? e.message : "Could not load your session",
+          );
+          setOrderCtx(null);
+          setSessionCtx(null);
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, [orderId]);
 
+  const isEvent = useMemo(
+    () =>
+      orderCtx
+        ? orderCtx.contextType === "EVENT"
+        : sessionCtx?.contextType === "event",
+    [orderCtx, sessionCtx],
+  );
+
+  const isPaidEdit = orderCtx?.status === "PAID";
+
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!orderId || !ctx) return;
-      setError("");
-      setSaving(true);
-      try {
-        const body =
-          ctx.contextType === "EVENT"
-            ? {
-                customerName: name.trim(),
-                ...(phone.trim() ? { customerPhone: phone.trim() } : {}),
-              }
-            : shippingType === "pickup"
+      if (saving) return;
+      if (orderId && orderCtx) {
+        setError("");
+        setSaving(true);
+        try {
+          const body =
+            orderCtx.contextType === "EVENT"
               ? {
                   customerName: name.trim(),
-                  customerPhone: phone.trim(),
-                  shippingType: "pickup",
-                  shippingAddress: null,
+                  ...(phone.trim() ? { customerPhone: phone.trim() } : {}),
                 }
-              : shippingType === "delivery"
+              : shippingType === "pickup"
                 ? {
                     customerName: name.trim(),
                     customerPhone: phone.trim(),
-                    shippingType: "delivery",
-                    shippingAddress: {
-                      fullAddress: fullAddress.trim(),
-                      notes: addressNotes.trim(),
-                    },
+                    shippingType: "pickup",
+                    shippingAddress: null,
                   }
-                : {
-                    customerName: name.trim(),
-                    customerPhone: phone.trim(),
-                    shippingType: "boxnow",
-                    shippingAddress: { lockerId: lockerId.trim() },
-                  };
-        await api<{ ok: boolean }>(
-          `/api/orders/${encodeURIComponent(orderId)}/customer`,
-          { method: "PATCH", body },
-        );
-        if (ctx.status === "PAID") {
-          router.push(
-            `/order/success?orderId=${encodeURIComponent(orderId)}`,
+                : shippingType === "delivery"
+                  ? {
+                      customerName: name.trim(),
+                      customerPhone: phone.trim(),
+                      shippingType: "delivery",
+                      shippingAddress: {
+                        fullAddress: fullAddress.trim(),
+                        notes: addressNotes.trim(),
+                      },
+                    }
+                  : {
+                      customerName: name.trim(),
+                      customerPhone: phone.trim(),
+                      shippingType: "boxnow",
+                      shippingAddress: { lockerId: lockerId.trim() },
+                    };
+          await api<{ ok: boolean }>(
+            `/api/orders/${encodeURIComponent(orderId)}/customer`,
+            { method: "PATCH", body },
           );
-          return;
-        }
-        const q =
-          typeof window !== "undefined" ? window.location.search : "";
-        if (ctx.contextType === "EVENT") {
-          router.push(`/order/confirmation${q}`);
-        } else {
+          if (orderCtx.status === "PAID") {
+            router.push(
+              `/order/success?orderId=${encodeURIComponent(orderId)}`,
+            );
+            return;
+          }
+          const q =
+            typeof window !== "undefined" ? window.location.search : "";
+          if (orderCtx.contextType === "EVENT") {
+            const p = new URLSearchParams(q.replace(/^\?/, ""));
+            p.set("orderId", orderId);
+            router.push(
+              `/order/confirmation?${p.toString()}`,
+            );
+            return;
+          }
           const p = new URLSearchParams(q.replace(/^\?/, ""));
           p.set("orderId", orderId);
           router.push(`/order/payment?${p.toString()}`);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Could not save");
+        } finally {
+          setSaving(false);
+        }
+        return;
+      }
+
+      if (!sessionCtx) return;
+      setError("");
+      setSaving(true);
+      try {
+        const paymentMethod = isEvent ? eventPaymentMethod : "stripe";
+        const body: Record<string, unknown> = {
+          customerName: name.trim(),
+          paymentMethod,
+        };
+        if (isEvent) {
+          if (phone.trim()) body.phone = phone.trim();
+        } else {
+          body.phone = phone.trim();
+          if (shippingType === "pickup") {
+            body.shippingType = "pickup";
+            body.shippingAddress = null;
+          } else if (shippingType === "delivery") {
+            body.shippingType = "delivery";
+            body.shippingAddress = {
+              fullAddress: fullAddress.trim(),
+              notes: addressNotes.trim(),
+            };
+          } else {
+            body.shippingType = "boxnow";
+            body.shippingAddress = { lockerId: lockerId.trim() };
+          }
+        }
+        const copiesRaw = (() => {
+          try {
+            return sessionStorage.getItem(CHECKOUT_IMAGE_COPIES_STORAGE_KEY);
+          } catch {
+            return null;
+          }
+        })();
+        if (copiesRaw) {
+          try {
+            const parsed: unknown = JSON.parse(copiesRaw);
+            if (Array.isArray(parsed)) body.imageCopies = parsed;
+          } catch {
+            // invalid JSON — finalize may still succeed for bundle pricing
+          }
+        }
+        const result = await api<PostOrderFinalizeResponse>("/api/orders/finalize", {
+          method: "POST",
+          body,
+        });
+        if (!result.orderId) {
+          setError("Could not place order. Try again.");
+          return;
+        }
+        // Only clear after a successful finalize body; on throw/HTTP error, api() rejects and we never reach here.
+        try {
+          sessionStorage.removeItem(CHECKOUT_IMAGE_COPIES_STORAGE_KEY);
+        } catch {
+          // ignore
+        }
+        const q = typeof window !== "undefined" ? window.location.search : "";
+        const p = new URLSearchParams(q.replace(/^\?/, ""));
+        p.set("orderId", result.orderId);
+        if (isEvent) {
+          router.push(`/order/confirmation?${p.toString()}`);
+        } else {
+          router.push(`/order/payment?${p.toString()}`);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not save");
+        setError(err instanceof Error ? err.message : "Could not place order");
       } finally {
         setSaving(false);
       }
     },
     [
       orderId,
-      ctx,
+      orderCtx,
+      sessionCtx,
+      isEvent,
+      isPaidEdit,
+      eventPaymentMethod,
       name,
       phone,
       shippingType,
@@ -186,31 +348,14 @@ function CustomerPageInner() {
     ],
   );
 
-  /**
-   * Back to review: same query as the live customer URL, with `orderId` guaranteed
-   * when `orderId` is set (avoids review pre-commit / duplicate POST).
-   */
   const reviewBackHref = useMemo(() => {
     const p = new URLSearchParams(
       liveQueryForReviewBack || searchParams.toString(),
     );
-    if (orderId) {
-      p.set("orderId", orderId);
-    }
+    p.delete("orderId");
     const q = p.toString();
     return `/order/review${q ? `?${q}` : ""}`;
-  }, [liveQueryForReviewBack, searchParams, orderId]);
-
-  if (!orderId) {
-    return (
-      <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 bg-[#FAFAFA] px-4 py-10">
-        <p className="text-sm text-amber-800">Missing order. Return to review and place your order.</p>
-        <Link href="/order/review" className="text-sm font-medium text-[#2563EB] underline">
-          Back to review
-        </Link>
-      </div>
-    );
-  }
+  }, [liveQueryForReviewBack, searchParams]);
 
   if (loading) {
     return (
@@ -220,21 +365,40 @@ function CustomerPageInner() {
     );
   }
 
-  if (error && !ctx) {
+  if (orderId && error && !orderCtx) {
     return (
       <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 bg-[#FAFAFA] px-4 py-10">
         <p className="text-sm text-red-700">{error}</p>
-        <Link href={reviewBackHref} className="text-sm font-medium text-[#2563EB] underline">
+        <Link
+          href={reviewBackHref}
+          className="text-sm font-medium text-[#2563EB] underline"
+        >
           Back to review
         </Link>
       </div>
     );
   }
 
-  if (!ctx) return null;
+  if (!orderId && error && !sessionCtx) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 bg-[#FAFAFA] px-4 py-10">
+        <p className="text-sm text-red-700">{error}</p>
+        <Link
+          href={reviewBackHref}
+          className="text-sm font-medium text-[#2563EB] underline"
+        >
+          Back to review
+        </Link>
+      </div>
+    );
+  }
 
-  const isEvent = ctx.contextType === "EVENT";
-  const isPaidEdit = ctx.status === "PAID";
+  if (!orderCtx && !sessionCtx) return null;
+
+  const imageCount = orderCtx?.imageCount ?? sessionCtx?.imageCount ?? 0;
+  const totalLabel = orderCtx
+    ? formatOrderTotal(orderCtx.totalPrice, orderCtx.currency)
+    : formatSessionTotal(sessionCtx?.totalPrice ?? null, sessionCtx?.currency ?? "EUR");
 
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 bg-[#FAFAFA] px-4 py-10">
@@ -263,13 +427,13 @@ function CustomerPageInner() {
           <div className="flex justify-between gap-4">
             <dt className="text-[#6B7280]">Photos</dt>
             <dd className="text-right font-medium text-[#111111] tabular-nums">
-              {ctx.imageCount === 1 ? "1 photo" : `${ctx.imageCount} photos`}
+              {imageCount === 1 ? "1 photo" : `${imageCount} photos`}
             </dd>
           </div>
           <div className="flex justify-between gap-4 border-t border-gray-100 pt-2">
             <dt className="text-[#6B7280]">Total</dt>
             <dd className="text-base font-semibold tabular-nums text-[#111111]">
-              {formatOrderTotal(ctx.totalPrice, ctx.currency)}
+              {totalLabel}
             </dd>
           </div>
         </dl>
@@ -309,6 +473,27 @@ function CustomerPageInner() {
             <span className="text-xs text-[#6B7280]">Optional</span>
           )}
         </label>
+
+        {isEvent && sessionCtx && (
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-[#111111]">
+              Payment method <span className="text-red-600">*</span>
+            </span>
+            <select
+              name="eventPaymentMethod"
+              required
+              value={eventPaymentMethod}
+              onChange={(e) =>
+                setEventPaymentMethod(e.target.value as EventPaymentMethod)
+              }
+              className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+            >
+              <option value="cash">Cash at event</option>
+              <option value="card_on_location">Card on location</option>
+              <option value="stripe">Pay online (card)</option>
+            </select>
+          </label>
+        )}
 
         {!isEvent && (
           <>

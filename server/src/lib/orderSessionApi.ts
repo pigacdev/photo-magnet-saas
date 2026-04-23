@@ -17,7 +17,14 @@ export type SerializedOrderSession = {
   id: string;
   contextType: "event" | "storefront";
   contextId: string;
-  status: "active" | "abandoned" | "converted";
+  status: "active" | "abandoned" | "converted" | "expired";
+  /** Session checkout pipeline (independent of Order row). */
+  checkoutStage:
+    | "building"
+    | "customer_details"
+    | "payment_pending"
+    | "completed"
+    | "abandoned";
   createdAt: string;
   startedAt: string;
   lastActiveAt: string;
@@ -106,6 +113,7 @@ export function serializeOrderSession(
     contextType: session.contextType === "EVENT" ? "event" : "storefront",
     contextId: session.contextId,
     status: session.status.toLowerCase() as SerializedOrderSession["status"],
+    checkoutStage: session.checkoutStage.toLowerCase() as SerializedOrderSession["checkoutStage"],
     createdAt: session.createdAt.toISOString(),
     startedAt: session.startedAt.toISOString(),
     lastActiveAt: session.lastActiveAt.toISOString(),

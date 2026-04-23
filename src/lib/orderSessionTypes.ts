@@ -13,6 +13,8 @@ export type OrderSessionPayload = {
   quantity: number | null;
   bundleId: string | null;
   totalPrice: number | null;
+  /** Session checkout pipeline (from GET /api/session). */
+  checkoutStage?: string;
   /** min(magnet count from pricing, effective per-order cap). From GET/PATCH /api/session. */
   maxImagesAllowed: number;
   /** Per-item: cap for quantity input. Bundle: system cap (unused in bundle UI). */
@@ -74,11 +76,27 @@ export type PostSessionImagesResponse = {
   errors?: { filename: string; error: string }[];
 };
 
-/** POST /api/orders — Phase 5F order commit. */
+/** POST /api/orders — legacy order commit (Phase 5F). */
 export type PostOrderCommitResponse = {
   orderId: string;
   status: "PENDING_CASH" | "PENDING_PAYMENT";
 };
+
+/** POST /api/session/checkout/validate — session checks only, no order row. */
+export type PostSessionCheckoutValidateResponse = {
+  ok: true;
+  totalPrice: number;
+  quantity: number;
+};
+
+/** POST /api/orders/finalize — create order after customer + payment method. */
+export type PostOrderFinalizeResponse = {
+  orderId: string;
+  status: string;
+};
+
+/** sessionStorage: JSON array of { imageId, copies } between review and customer (PER_ITEM). */
+export const CHECKOUT_IMAGE_COPIES_STORAGE_KEY = "pm_checkoutImageCopies";
 
 /** GET /api/orders/:id — session-scoped order status (e.g. payment polling) + customer prefill + summary. */
 export type GetOrderStatusResponse = {

@@ -102,11 +102,13 @@ model Pricing {
 }
 
 model OrderSession {
-  id              String             @id @default(uuid())
+  id              String                @id @default(uuid())
   contextType     ContextType
   contextId       String
-  status          OrderSessionStatus @default(ACTIVE)
-  createdAt       DateTime           @default(now())
+  status          OrderSessionStatus    @default(ACTIVE)
+  /// Customer checkout flow (session lifecycle; not the same as Order.status).
+  checkoutStage   SessionCheckoutStage  @default(BUILDING)
+  createdAt       DateTime              @default(now())
   expiresAt       DateTime
   /// Bumped on each successful GET /api/session (presence / debugging / future analytics).
   lastActiveAt    DateTime           @default(now())
@@ -127,6 +129,7 @@ model OrderSession {
   @@index([contextType, contextId])
   @@index([expiresAt])
   @@index([lastActiveAt])
+  @@index([checkoutStage])
 }
 
 model SessionImage {
@@ -271,6 +274,17 @@ enum OrderSessionStatus {
   ACTIVE
   ABANDONED
   CONVERTED
+  /// Auto-abandoned when session exceeded TTL (see checkout cleanup).
+  EXPIRED
+}
+
+/// Session-scoped checkout lifecycle (independent of Order row).
+enum SessionCheckoutStage {
+  BUILDING
+  CUSTOMER_DETAILS
+  PAYMENT_PENDING
+  COMPLETED
+  ABANDONED
 }
 
 enum SessionImageStatus {

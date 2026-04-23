@@ -1,11 +1,10 @@
 /**
- * POST /api/orders — commit OrderSession → Order + OrderImage (Phase 5F).
- * Idempotent: repeats return the same { orderId, status } once orderId is set on the session.
+ * Order routes: list/print, PATCH customer, Stripe helpers.
+ * - POST /api/orders/finalize — create Order from session (preferred).
+ * - POST /api/orders — deprecated; same as finalize without customer binding (legacy).
  */
-import { randomUUID } from "node:crypto";
 import type { Request, Response } from "express";
 import { Router } from "express";
-import type { OrderCommitStatus } from "../../../src/generated/prisma/client";
 import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { sessionConfig } from "../config/session";
@@ -13,20 +12,21 @@ import { authConfig } from "../config/auth";
 import { verifyToken, type JwtPayload } from "../lib/auth";
 import { authenticate, requireRole } from "../middleware/auth";
 import { clearSessionCookie } from "../lib/orderSessionApi";
-import {
-  ORDER_IMAGE_LIST_ORDER_BY,
-  SESSION_IMAGE_LIST_ORDER_BY,
-} from "../lib/magnetImageOrderBy";
-import {
-  copySessionImageToOrder,
-  orderImageStorageKindFromSessionUrl,
-} from "../lib/orderImageStorage";
+import { ORDER_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
 import { validateOrderCustomerBody } from "../lib/orderCustomerValidation";
+import {
+  checkOrgOrderLimit,
+  type OrderCustomerInsert,
+  type PrepareCommitError,
+  prepareOrderSessionCommit,
+  resolveOrderStatusForFinalization,
+  runOrderCommitTransaction,
+} from "../lib/orderSessionCheckoutCommit";
+import { validateOrderSessionContext } from "../lib/sessionContextValidation";
 import {
   expandOrderImagesForPrintSheet,
   generatePrintSheet,
 } from "../lib/generatePrintSheet";
-import { getPerItemEffectiveMaxMagnetsPerOrder } from "../lib/maxMagnetsPerOrder";
 import { renderOrderImages } from "../lib/renderOrderImages";
 import {
   buildOrderEmailHtml,
@@ -34,9 +34,21 @@ import {
   sendNewOrderEmail,
 } from "../lib/email";
 import { loadOrderNotificationContext } from "../lib/orderNotificationContext";
-import { assertCanCreateOrder, ORDER_LIMIT_REACHED } from "../lib/saas";
 
 export const ordersRouter = Router();
+
+function sendOrderPrepareError(res: Response, err: PrepareCommitError) {
+  if (err.status === 403 && err.code === "ORDER_LIMIT_REACHED") {
+    res.status(403).json({
+      code: err.code,
+      message: err.message,
+    });
+    return;
+  }
+  res
+    .status(err.status)
+    .json("code" in err && err.code ? { error: err.error, code: err.code } : { error: err.error });
+}
 
 /** Same rule as seller UI: printable now (paid online or event cash). */
 function isReadyToPrintForSeller(status: string): boolean {
@@ -732,381 +744,240 @@ ordersRouter.patch("/:id/customer", async (req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
-type ImageCopyPayload = { imageId: string; copies: number };
-
-function parseImageCopiesPayload(body: unknown): ImageCopyPayload[] | null {
-  if (!body || typeof body !== "object") return null;
-  const raw = (body as { imageCopies?: unknown }).imageCopies;
-  if (!Array.isArray(raw)) return null;
-  const out: ImageCopyPayload[] = [];
-  for (const row of raw) {
-    if (!row || typeof row !== "object") return null;
-    const imageId = (row as { imageId?: unknown }).imageId;
-    const copies = (row as { copies?: unknown }).copies;
-    if (typeof imageId !== "string" || !imageId.trim()) return null;
-    if (typeof copies !== "number" || !Number.isInteger(copies) || copies < 1) {
-      return null;
-    }
-    out.push({ imageId: imageId.trim(), copies });
-  }
-  return out;
+function toOrderCustomerInsert(
+  data: import("../lib/orderCustomerValidation").ValidatedCustomerPayload,
+): OrderCustomerInsert {
+  return {
+    customerName: data.customerName,
+    customerPhone: data.customerPhone,
+    shippingType: data.shippingType,
+    shippingAddress:
+      data.shippingAddress === null
+        ? null
+        : (data.shippingAddress as Prisma.InputJsonValue),
+  };
 }
 
-function roundMoney2(n: number): string {
-  return (Math.round(n * 100) / 100).toFixed(2);
-}
-
-function selectionComplete(session: {
-  selectedShapeId: string | null;
-  pricingType: "PER_ITEM" | "BUNDLE" | null;
-  quantity: number | null;
-  bundleId: string | null;
-  totalPrice: { toString(): string } | null;
-}): boolean {
-  if (!session.selectedShapeId || !session.pricingType) return false;
-  const pricingOk =
-    (session.pricingType === "PER_ITEM" &&
-      typeof session.quantity === "number" &&
-      session.quantity >= 1) ||
-    (session.pricingType === "BUNDLE" &&
-      typeof session.bundleId === "string" &&
-      session.bundleId.length > 0);
-  if (!pricingOk) return false;
-  if (session.totalPrice == null) return false;
-  const tp = Number(session.totalPrice);
-  return !Number.isNaN(tp) && tp > 0;
-}
-
-ordersRouter.post("/", async (req: Request, res: Response) => {
+/**
+ * POST /api/orders/finalize — only supported path to create an Order with customer details (Phase: checkout finalization).
+ */
+ordersRouter.post("/finalize", async (req: Request, res: Response) => {
   const sessionId = req.cookies?.[sessionConfig.cookieName] as string | undefined;
   if (!sessionId) {
     res.status(400).json({ error: "Session required" });
     return;
   }
 
-  const session = await prisma.orderSession.findUnique({
+  const sessionRow = await prisma.orderSession.findUnique({
     where: { id: String(sessionId) },
     include: { order: true },
   });
+  if (!sessionRow) {
+    clearSessionCookie(res);
+    res.status(400).json({ error: "Session required" });
+    return;
+  }
 
-  if (!session) {
+  if (sessionRow.status === "CONVERTED" && sessionRow.orderId != null) {
+    if (!sessionRow.order) {
+      res.status(500).json({ error: "Could not load order" });
+      return;
+    }
+    console.info("[order.finalize] idempotent", {
+      sessionId: sessionRow.id,
+      orderId: sessionRow.orderId,
+    });
+    res.json({ orderId: sessionRow.orderId, status: sessionRow.order.status });
+    return;
+  }
+
+  const body = req.body as Record<string, unknown>;
+  const paymentMethod =
+    typeof body.paymentMethod === "string" ? body.paymentMethod.trim() : "";
+  if (!paymentMethod) {
+    res.status(400).json({ error: "paymentMethod is required" });
+    return;
+  }
+
+  const orderStatus = resolveOrderStatusForFinalization(
+    sessionRow.contextType,
+    paymentMethod,
+  );
+  if (!orderStatus) {
+    res.status(400).json({ error: "Invalid payment method for this checkout context" });
+    return;
+  }
+
+  const customerBody = {
+    customerName: body.customerName,
+    customerPhone:
+      (typeof body.phone === "string" ? body.phone : body.customerPhone) as unknown,
+    shippingType: (body.shippingMethod ?? body.shippingType) as unknown,
+    shippingAddress: body.shippingAddress,
+  };
+
+  const validated = validateOrderCustomerBody(sessionRow.contextType, customerBody);
+  if ("error" in validated) {
+    res.status(400).json({ error: validated.error });
+    return;
+  }
+
+  const now = new Date();
+  const prep = await prepareOrderSessionCommit(sessionId, req.body, now, orderStatus);
+  if (prep.ok === "idempotent") {
+    console.info("[order.finalize] idempotent", {
+      sessionId: String(sessionId),
+      orderId: prep.orderId,
+    });
+    res.json({ orderId: prep.orderId, status: prep.status });
+    return;
+  }
+  if (!prep.ok) {
+    sendOrderPrepareError(res, prep.err);
+    return;
+  }
+
+  const { prepared } = prep;
+  const contextOk = await validateOrderSessionContext(
+    prepared.session.contextType,
+    String(prepared.session.contextId),
+  );
+  if (!contextOk.ok) {
+    if (contextOk.notFound) {
+      res.status(404).json({ error: "Context not found" });
+    } else {
+      res.status(400).json({ error: contextOk.reason });
+    }
+    return;
+  }
+
+  const limitErr = await checkOrgOrderLimit(prepared.organizationId);
+  if (limitErr) {
+    sendOrderPrepareError(res, limitErr);
+    return;
+  }
+
+  const sessionRowId = prepared.sessionRowId;
+  const stageUpdated = await prisma.orderSession.updateMany({
+    where: { id: sessionRowId, status: "ACTIVE", orderId: null },
+    data: { checkoutStage: "PAYMENT_PENDING", lastActiveAt: now },
+  });
+  if (stageUpdated.count === 0) {
+    const raced = await prisma.orderSession.findUnique({
+      where: { id: sessionRowId },
+      include: { order: true },
+    });
+    if (raced?.orderId && raced.order) {
+      console.info("[order.finalize] idempotent", {
+        sessionId: sessionRowId,
+        orderId: raced.orderId,
+      });
+      res.json({ orderId: raced.orderId, status: raced.order.status });
+      return;
+    }
+    res.status(409).json({ error: "Checkout could not be started" });
+    return;
+  }
+
+  try {
+    const result = await runOrderCommitTransaction(
+      prepared,
+      toOrderCustomerInsert(validated.data),
+    );
+    if (result.kind === "IDEMPOTENT") {
+      console.info("[order.finalize] idempotent", {
+        sessionId: prepared.session.id,
+        orderId: result.orderId,
+      });
+    } else {
+      console.info("[order.finalize]", {
+        sessionId: prepared.session.id,
+        orderId: result.orderId,
+        status: result.status,
+        imageCount: result.imageCount,
+        storage: prepared.orderImageStorageKind,
+      });
+    }
+    res.json({ orderId: result.orderId, status: result.status });
+  } catch (e) {
+    if (e instanceof Error && e.message === "SESSION_INCONSISTENT") {
+      res.status(400).json({ error: "Order already submitted for this session" });
+      return;
+    }
+    console.error("[order.finalize] failed", e);
+    res.status(500).json({ error: "Could not create order" });
+  }
+});
+
+/**
+ * @deprecated Use POST /api/orders/finalize after customer + payment step. Session-only checks: POST /api/session/checkout/validate.
+ */
+ordersRouter.post("/", async (req: Request, res: Response) => {
+  console.warn(
+    "[deprecated] POST /api/orders — prefer POST /api/orders/finalize or session checkout validate",
+  );
+
+  const sessionId = req.cookies?.[sessionConfig.cookieName] as string | undefined;
+  if (!sessionId) {
+    res.status(400).json({ error: "Session required" });
+    return;
+  }
+
+  const existing = await prisma.orderSession.findUnique({
+    where: { id: String(sessionId) },
+  });
+  if (!existing) {
     clearSessionCookie(res);
     res.status(400).json({ error: "Session required" });
     return;
   }
 
   const now = new Date();
-
-  if (session.orderId) {
-    if (!session.order) {
-      res.status(500).json({ error: "Could not load order" });
-      return;
-    }
-    console.info("[order.commit] idempotent", {
-      sessionId: session.id,
-      orderId: session.orderId,
-      status: session.order.status,
+  const prep = await prepareOrderSessionCommit(sessionId, req.body, now, undefined);
+  if (prep.ok === "idempotent") {
+    console.info("[order.commit.legacy] idempotent", {
+      sessionId: existing.id,
+      orderId: prep.orderId,
+      status: prep.status,
     });
-    res.json({
-      orderId: session.orderId,
-      status: session.order.status,
-    });
+    res.json({ orderId: prep.orderId, status: prep.status });
+    return;
+  }
+  if (!prep.ok) {
+    sendOrderPrepareError(res, prep.err);
     return;
   }
 
-  if (session.status === "CONVERTED") {
-    res.status(400).json({
-      error: "Order already submitted for this session",
-    });
+  const limitErr = await checkOrgOrderLimit(prep.prepared.organizationId);
+  if (limitErr) {
+    sendOrderPrepareError(res, limitErr);
     return;
-  }
-  if (session.status !== "ACTIVE") {
-    res.status(400).json({ error: "Session is not active" });
-    return;
-  }
-  if (session.expiresAt <= now) {
-    res.status(400).json({ error: "Session expired" });
-    return;
-  }
-
-  if (!selectionComplete(session)) {
-    res.status(400).json({ error: "Complete shape and pricing before checkout" });
-    return;
-  }
-
-  const sessionImages = await prisma.sessionImage.findMany({
-    where: { sessionId: String(session.id), status: "UPLOADED" },
-    orderBy: SESSION_IMAGE_LIST_ORDER_BY,
-  });
-
-  if (sessionImages.length === 0) {
-    res.status(400).json({ error: "No images to order" });
-    return;
-  }
-
-  for (const img of sessionImages) {
-    if (
-      img.cropX == null ||
-      img.cropY == null ||
-      img.cropWidth == null ||
-      img.cropHeight == null ||
-      img.cropWidth < 1 ||
-      img.cropHeight < 1
-    ) {
-      res.status(400).json({ error: "All images must be cropped before checkout" });
-      return;
-    }
-  }
-
-  let organizationId: string;
-  if (session.contextType === "EVENT") {
-    const event = await prisma.event.findFirst({
-      where: { id: String(session.contextId), deletedAt: null },
-      select: { userId: true },
-    });
-    if (!event) {
-      res.status(400).json({ error: "Event not found" });
-      return;
-    }
-    organizationId = event.userId;
-  } else {
-    const storefront = await prisma.storefront.findFirst({
-      where: { id: String(session.contextId), deletedAt: null },
-      select: { userId: true },
-    });
-    if (!storefront) {
-      res.status(400).json({ error: "Storefront not found" });
-      return;
-    }
-    organizationId = storefront.userId;
-  }
-
-  const pricingRow = await prisma.pricing.findFirst({
-    where: {
-      contextType: session.contextType,
-      contextId: String(session.contextId),
-      deletedAt: null,
-    },
-    orderBy: { displayOrder: "asc" },
-  });
-  const currency = pricingRow?.currency ?? "EUR";
-
-  const orderStatus: OrderCommitStatus =
-    session.contextType === "EVENT" ? "PENDING_CASH" : "PENDING_PAYMENT";
-
-  const copiesBySessionImageId = new Map<string, number>();
-  let commitTotalPrice: Prisma.Decimal | string | number = session.totalPrice!;
-  let commitOrderQuantity: number | null = session.quantity ?? null;
-
-  if (session.pricingType === "PER_ITEM") {
-    const parsed = parseImageCopiesPayload(req.body);
-    if (!parsed) {
-      res.status(400).json({
-        error:
-          "imageCopies is required: an array of { imageId, copies } for each uploaded image",
-      });
-      return;
-    }
-    const idSet = new Set(sessionImages.map((i) => i.id));
-    if (parsed.length !== sessionImages.length) {
-      res.status(400).json({
-        error: "imageCopies must list each uploaded image exactly once",
-      });
-      return;
-    }
-    const seen = new Set<string>();
-    let sumCopies = 0;
-    for (const row of parsed) {
-      if (!idSet.has(row.imageId) || seen.has(row.imageId)) {
-        res.status(400).json({ error: "Invalid imageCopies entries" });
-        return;
-      }
-      seen.add(row.imageId);
-      copiesBySessionImageId.set(row.imageId, row.copies);
-      sumCopies += row.copies;
-    }
-    if (seen.size !== sessionImages.length) {
-      res.status(400).json({
-        error: "imageCopies must list each uploaded image exactly once",
-      });
-      return;
-    }
-    const effectiveMax = await getPerItemEffectiveMaxMagnetsPerOrder(session);
-    if (sumCopies > effectiveMax) {
-      res.status(400).json({
-        error: `Total magnets (${sumCopies}) cannot exceed ${effectiveMax}`,
-      });
-      return;
-    }
-    const perItemRow = await prisma.pricing.findFirst({
-      where: {
-        contextType: session.contextType,
-        contextId: String(session.contextId),
-        type: "PER_ITEM",
-        deletedAt: null,
-      },
-    });
-    if (!perItemRow) {
-      res.status(500).json({ error: "Per-item pricing is not configured" });
-      return;
-    }
-    const unit = Number(perItemRow.price);
-    commitTotalPrice = roundMoney2(unit * sumCopies);
-    commitOrderQuantity = sumCopies;
-  }
-
-  const orderImageStorageKind =
-    sessionImages.length > 0
-      ? orderImageStorageKindFromSessionUrl(sessionImages[0].originalUrl)
-      : "local";
-
-  try {
-    await assertCanCreateOrder(String(organizationId));
-  } catch (err) {
-    if (err instanceof Error && err.message === ORDER_LIMIT_REACHED) {
-      res.status(403).json({
-        code: "ORDER_LIMIT_REACHED",
-        message: "Free plan limit reached. Upgrade to continue.",
-      });
-      return;
-    }
-    if (err instanceof Error && err.message === "Organization not found") {
-      res.status(500).json({ error: "Server configuration error" });
-      return;
-    }
-    throw err;
   }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const sessionRowId = String(session.id);
-      await tx.$executeRawUnsafe(
-        `SELECT id FROM "OrderSession" WHERE id = $1 FOR UPDATE`,
-        sessionRowId,
-      );
-
-      const locked = await tx.orderSession.findUnique({
-        where: { id: sessionRowId },
-        include: { order: true },
-      });
-      if (!locked) {
-        throw new Error("SESSION_MISSING_AFTER_LOCK");
-      }
-      if (locked.orderId && locked.order) {
-        return {
-          kind: "IDEMPOTENT" as const,
-          orderId: locked.orderId,
-          status: locked.order.status,
-          imageCount: 0,
-        };
-      }
-      if (locked.status === "CONVERTED") {
-        throw new Error("SESSION_INCONSISTENT");
-      }
-
-      const orderId = randomUUID();
-      await tx.order.create({
-        data: {
-          id: orderId,
-          organizationId: String(organizationId),
-          contextType: session.contextType,
-          contextId: String(session.contextId),
-          status: orderStatus,
-          totalPrice: commitTotalPrice,
-          currency,
-          pricingType: locked.pricingType!,
-          quantity: commitOrderQuantity,
-          bundleId:
-            locked.bundleId != null ? String(locked.bundleId) : null,
-        },
-      });
-
-      const orderImageRows = [];
-      for (const img of sessionImages) {
-        const orderImageId = randomUUID();
-        const copiedUrl = await copySessionImageToOrder({
-          sessionImageUrl: img.originalUrl,
-          orderId,
-          imageId: orderImageId,
-        });
-        const lineCopies =
-          locked.pricingType === "PER_ITEM"
-            ? (copiesBySessionImageId.get(img.id) ?? 1)
-            : 1;
-        orderImageRows.push({
-          id: orderImageId,
-          orderId,
-          shapeId: String(locked.selectedShapeId),
-          originalUrl: copiedUrl,
-          croppedUrl: null,
-          cropX: img.cropX!,
-          cropY: img.cropY!,
-          cropWidth: img.cropWidth!,
-          cropHeight: img.cropHeight!,
-          rotation: 0,
-          width: img.width,
-          height: img.height,
-          position: img.position,
-          copies: lineCopies,
-        });
-      }
-
-      await tx.orderImage.createMany({
-        data: orderImageRows,
-      });
-
-      await tx.orderSession.update({
-        where: { id: sessionRowId },
-        data: {
-          status: "CONVERTED",
-          lastActiveAt: now,
-          orderId,
-        },
-      });
-
-      await tx.organization.update({
-        where: { id: String(organizationId) },
-        data: {
-          ordersThisMonth: { increment: 1 },
-        },
-      });
-
-      return {
-        kind: "CREATED" as const,
-        orderId,
-        status: orderStatus,
-        imageCount: sessionImages.length,
-      };
-    });
-
+    const result = await runOrderCommitTransaction(prep.prepared, null);
     if (result.kind === "IDEMPOTENT") {
-      console.info("[order.commit] idempotent", {
-        sessionId: session.id,
+      console.info("[order.commit.legacy] idempotent", {
+        sessionId: existing.id,
         orderId: result.orderId,
         status: result.status,
       });
     } else {
-      console.info("[order.commit]", {
-        sessionId: session.id,
+      console.info("[order.commit.legacy]", {
+        sessionId: existing.id,
         orderId: result.orderId,
         imageCount: result.imageCount,
         status: result.status,
-        storage: orderImageStorageKind,
+        storage: prep.prepared.orderImageStorageKind,
       });
     }
-
-    res.json({
-      orderId: result.orderId,
-      status: result.status,
-    });
+    res.json({ orderId: result.orderId, status: result.status });
   } catch (e) {
     if (e instanceof Error && e.message === "SESSION_INCONSISTENT") {
-      res.status(400).json({
-        error: "Order already submitted for this session",
-      });
+      res.status(400).json({ error: "Order already submitted for this session" });
       return;
     }
-    console.error("[order.commit] failed", e);
+    console.error("[order.commit.legacy] failed", e);
     res.status(500).json({ error: "Could not create order" });
   }
 });

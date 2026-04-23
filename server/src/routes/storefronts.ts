@@ -34,7 +34,7 @@ storefrontsRouter.post("/", async (req, res) => {
       sendOrderEmails?: unknown;
     };
 
-  if (!name || !name.trim()) {
+  if (typeof name !== "string" || !name.trim()) {
     res.status(400).json({ error: "Name is required" });
     return;
   }
@@ -175,8 +175,8 @@ storefrontsRouter.patch("/:id", async (req, res) => {
   const storefront = await prisma.storefront.update({
     where: { id },
     data: {
-      ...(name !== undefined && { name: name.trim() }),
-      ...(isActive !== undefined && { isActive }),
+      ...(typeof name === "string" && { name: name.trim() }),
+      ...(typeof isActive === "boolean" && { isActive }),
       ...(maxMagnetsUpdate !== undefined && { maxMagnetsPerOrder: maxMagnetsUpdate }),
       ...brandPatch,
       ...notifPatch,

@@ -21,11 +21,14 @@ import {
   validateOrderSessionContext,
   validateStorefrontOrderContext,
 } from "../lib/sessionContextValidation";
+import { runStaleSessionCheckoutCleanup } from "../lib/sessionCheckoutCleanup";
 import { sessionImagesRouter } from "./sessionImages";
+import { sessionCheckoutRouter } from "./sessionCheckout";
 
 export const sessionRouter = Router();
 
 sessionRouter.use("/images", sessionImagesRouter);
+sessionRouter.use("/checkout", sessionCheckoutRouter);
 
 sessionRouter.post("/start", async (req, res) => {
   const { contextType, contextId } = req.body as {
@@ -47,12 +50,13 @@ sessionRouter.post("/start", async (req, res) => {
   }
 
   const now = new Date();
+  await runStaleSessionCheckoutCleanup(now);
   await prisma.orderSession.updateMany({
     where: {
       status: "ACTIVE",
       expiresAt: { lte: now },
     },
-    data: { status: "ABANDONED" },
+    data: { status: "EXPIRED", checkoutStage: "ABANDONED" },
   });
 
   const wantType = contextType === "event" ? "EVENT" : "STOREFRONT";
@@ -75,7 +79,7 @@ sessionRouter.post("/start", async (req, res) => {
         if (existing.status === "ACTIVE") {
           await prisma.orderSession.update({
             where: { id: existing.id },
-            data: { status: "ABANDONED" },
+            data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
           });
         }
         clearSessionCookie(res);
@@ -88,7 +92,7 @@ sessionRouter.post("/start", async (req, res) => {
         if (!validation.ok) {
           await prisma.orderSession.update({
             where: { id: existing.id },
-            data: { status: "ABANDONED" },
+            data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
           });
           clearSessionCookie(res);
           if (validation.notFound) {
@@ -111,7 +115,7 @@ sessionRouter.post("/start", async (req, res) => {
         if (existing.status === "ACTIVE") {
           await prisma.orderSession.update({
             where: { id: existing.id },
-            data: { status: "ABANDONED" },
+            data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
           });
         }
         clearSessionCookie(res);
@@ -187,11 +191,12 @@ sessionRouter.get("/", async (req, res) => {
     return;
   }
 
+  const now = new Date();
+  await runStaleSessionCheckoutCleanup(now);
+
   const session = await prisma.orderSession.findUnique({
     where: { id: sessionId },
   });
-
-  const now = new Date();
 
   if (!session) {
     clearSessionCookie(res);
@@ -208,7 +213,7 @@ sessionRouter.get("/", async (req, res) => {
   if (session.status === "ACTIVE" && session.expiresAt <= now) {
     await prisma.orderSession.update({
       where: { id: session.id },
-      data: { status: "ABANDONED" },
+      data: { status: "EXPIRED", checkoutStage: "ABANDONED" },
     });
     clearSessionCookie(res);
     res.json({ session: null, shapes: [], pricing: [] });
@@ -223,7 +228,7 @@ sessionRouter.get("/", async (req, res) => {
   if (!contextOk.ok) {
     await prisma.orderSession.update({
       where: { id: session.id },
-      data: { status: "ABANDONED" },
+      data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
     });
     clearSessionCookie(res);
     res.json({ session: null, shapes: [], pricing: [] });
@@ -283,7 +288,7 @@ sessionRouter.patch("/", async (req, res) => {
     if (session.status === "ACTIVE") {
       await prisma.orderSession.update({
         where: { id: session.id },
-        data: { status: "ABANDONED" },
+        data: { status: "EXPIRED", checkoutStage: "ABANDONED" },
       });
     }
     clearSessionCookie(res);
@@ -299,7 +304,7 @@ sessionRouter.patch("/", async (req, res) => {
   if (!contextOk.ok) {
     await prisma.orderSession.update({
       where: { id: session.id },
-      data: { status: "ABANDONED" },
+      data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
     });
     clearSessionCookie(res);
     res.status(400).json({ error: "Context is no longer valid" });
@@ -328,7 +333,7 @@ sessionRouter.delete("/", async (req, res) => {
     if (session?.status === "ACTIVE") {
       await prisma.orderSession.update({
         where: { id: sessionId },
-        data: { status: "ABANDONED" },
+        data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
       });
     }
   }

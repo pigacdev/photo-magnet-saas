@@ -66,7 +66,8 @@ pricingRouter.put("/:contextType/:contextId", async (req, res) => {
       return;
     }
 
-    if (!price || price <= 0) {
+    const priceNum = typeof price === "number" ? price : Number(price);
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
       res.status(400).json({ error: "Price must be greater than 0" });
       return;
     }
@@ -78,7 +79,7 @@ pricingRouter.put("/:contextType/:contextId", async (req, res) => {
         contextType: ct as "EVENT" | "STOREFRONT",
         contextId,
         type: "PER_ITEM",
-        price,
+        price: priceNum,
         currency: "EUR",
         displayOrder: null,
       },

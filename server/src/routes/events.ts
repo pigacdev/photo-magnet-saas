@@ -32,13 +32,20 @@ eventsRouter.post("/", async (req, res) => {
     sendOrderEmails?: unknown;
   };
 
-  if (!name || !startDate || !endDate) {
+  if (
+    typeof name !== "string" ||
+    !name.trim() ||
+    startDate === undefined ||
+    startDate === null ||
+    endDate === undefined ||
+    endDate === null
+  ) {
     res.status(400).json({ error: "Name, start date, and end date are required" });
     return;
   }
 
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const start = new Date(startDate as string | number | Date);
+  const end = new Date(endDate as string | number | Date);
 
   if (isNaN(start.getTime()) || isNaN(end.getTime())) {
     res.status(400).json({ error: "Invalid date format" });
@@ -55,7 +62,13 @@ eventsRouter.post("/", async (req, res) => {
     return;
   }
 
-  if (shapes && shapes.some((s: { widthMm?: number; heightMm?: number }) => !s.widthMm || !s.heightMm || s.widthMm <= 0 || s.heightMm <= 0)) {
+  if (
+    Array.isArray(shapes) &&
+    shapes.some(
+      (s: { widthMm?: number; heightMm?: number }) =>
+        !s.widthMm || !s.heightMm || s.widthMm <= 0 || s.heightMm <= 0,
+    )
+  ) {
     res.status(400).json({ error: "All shapes must have widthMm and heightMm greater than 0" });
     return;
   }
@@ -96,7 +109,7 @@ eventsRouter.post("/", async (req, res) => {
   const event = await prisma.event.create({
     data: {
       userId,
-      name,
+      name: name.trim(),
       startDate: start,
       endDate: end,
       ...(maxMagnets !== undefined && { maxMagnetsPerOrder: maxMagnets }),
@@ -105,7 +118,7 @@ eventsRouter.post("/", async (req, res) => {
     },
   });
 
-  if (shapes && shapes.length > 0) {
+  if (Array.isArray(shapes) && shapes.length > 0) {
     await prisma.allowedShape.createMany({
       data: shapes.map(
         (
@@ -200,15 +213,15 @@ eventsRouter.patch("/:id", async (req, res) => {
     return;
   }
 
-  const start = startDate ? new Date(startDate) : existing.startDate;
-  const end = endDate ? new Date(endDate) : existing.endDate;
+  const start = startDate != null && startDate !== "" ? new Date(startDate as string | number | Date) : existing.startDate;
+  const end = endDate != null && endDate !== "" ? new Date(endDate as string | number | Date) : existing.endDate;
 
-  if (startDate && isNaN(start.getTime())) {
+  if (startDate != null && startDate !== "" && isNaN(start.getTime())) {
     res.status(400).json({ error: "Invalid start date format" });
     return;
   }
 
-  if (endDate && isNaN(end.getTime())) {
+  if (endDate != null && endDate !== "" && isNaN(end.getTime())) {
     res.status(400).json({ error: "Invalid end date format" });
     return;
   }
@@ -254,10 +267,10 @@ eventsRouter.patch("/:id", async (req, res) => {
   const event = await prisma.event.update({
     where: { id },
     data: {
-      ...(name !== undefined && { name }),
-      ...(startDate && { startDate: start }),
-      ...(endDate && { endDate: end }),
-      ...(isActive !== undefined && { isActive }),
+      ...(typeof name === "string" && { name: name.trim() }),
+      ...(startDate != null && startDate !== "" && { startDate: start }),
+      ...(endDate != null && endDate !== "" && { endDate: end }),
+      ...(typeof isActive === "boolean" && { isActive }),
       ...(maxMagnetsUpdate !== undefined && { maxMagnetsPerOrder: maxMagnetsUpdate }),
       ...brandPatch,
       ...notifPatch,
