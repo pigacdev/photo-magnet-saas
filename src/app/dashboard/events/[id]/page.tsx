@@ -320,7 +320,13 @@ export default function EventDetailPage() {
         </button>
       </div>
 
-      <ShareLinkCard label="Customer link" publicUrl={publicEntryUrl} />
+      <ShareLinkCard
+        label="Customer link"
+        publicUrl={publicEntryUrl}
+        variant="event"
+        entityName={event.name}
+        entityId={event.id}
+      />
 
       <div>
         <h2 className="text-lg font-medium text-[#111111]">Shapes</h2>

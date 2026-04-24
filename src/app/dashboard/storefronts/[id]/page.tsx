@@ -298,7 +298,13 @@ export default function StorefrontDetailPage() {
         </button>
       </div>
 
-      <ShareLinkCard label="Customer link" publicUrl={publicEntryUrl} />
+      <ShareLinkCard
+        label="Customer link"
+        publicUrl={publicEntryUrl}
+        variant="storefront"
+        entityName={storefront.name}
+        entityId={storefront.id}
+      />
 
       {/* Shapes */}
       <div>
