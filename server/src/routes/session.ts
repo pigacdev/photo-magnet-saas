@@ -23,6 +23,8 @@ import {
   validateStorefrontOrderContext,
 } from "../lib/sessionContextValidation";
 import { runStaleSessionCheckoutCleanup } from "../lib/sessionCheckoutCleanup";
+import { getStripeOrNull } from "../lib/stripe";
+import { expireOrderSessionOpenStripeCheckout } from "../lib/stripeCheckoutSessionLifecycle";
 import { sessionImagesRouter } from "./sessionImages";
 import { sessionCheckoutRouter } from "./sessionCheckout";
 
@@ -59,11 +61,16 @@ function canReuseOrderSessionAtStart(
  * lifecycle, detach Stripe, snap expiry so the row is clearly not active for reuse.
  */
 async function markOrderSessionReplacedByNewStart(
-  orderSessionId: string,
+  row: { id: string; stripeCheckoutSessionId: string | null },
   now: Date,
 ): Promise<void> {
+  await expireOrderSessionOpenStripeCheckout(
+    getStripeOrNull(),
+    row.id,
+    row.stripeCheckoutSessionId,
+  );
   await prisma.orderSession.update({
-    where: { id: orderSessionId },
+    where: { id: row.id },
     data: {
       status: "EXPIRED",
       checkoutStage: "ABANDONED",
@@ -97,6 +104,17 @@ sessionRouter.post("/start", async (req, res) => {
 
   const now = new Date();
   await runStaleSessionCheckoutCleanup(now);
+  const timedOut = await prisma.orderSession.findMany({
+    where: {
+      status: "ACTIVE",
+      expiresAt: { lte: now },
+    },
+    select: { id: true, stripeCheckoutSessionId: true },
+  });
+  const stripe = getStripeOrNull();
+  for (const s of timedOut) {
+    await expireOrderSessionOpenStripeCheckout(stripe, s.id, s.stripeCheckoutSessionId);
+  }
   await prisma.orderSession.updateMany({
     where: {
       status: "ACTIVE",
@@ -121,7 +139,7 @@ sessionRouter.post("/start", async (req, res) => {
 
       if (!contextMatches) {
         if (existing.status === "ACTIVE") {
-          await markOrderSessionReplacedByNewStart(existing.id, now);
+          await markOrderSessionReplacedByNewStart(existing, now);
         }
         clearSessionCookie(res);
       } else if (canReuseOrderSessionAtStart(existing, now)) {
@@ -132,7 +150,7 @@ sessionRouter.post("/start", async (req, res) => {
 
         if (!validation.ok) {
           if (existing.status === "ACTIVE") {
-            await markOrderSessionReplacedByNewStart(existing.id, now);
+            await markOrderSessionReplacedByNewStart(existing, now);
           }
           clearSessionCookie(res);
           if (validation.notFound) {
@@ -153,7 +171,7 @@ sessionRouter.post("/start", async (req, res) => {
         return;
       } else {
         if (existing.status === "ACTIVE") {
-          await markOrderSessionReplacedByNewStart(existing.id, now);
+          await markOrderSessionReplacedByNewStart(existing, now);
         }
         clearSessionCookie(res);
       }
@@ -301,6 +319,11 @@ sessionRouter.get("/", async (req, res) => {
   }
 
   if (session.status === "ACTIVE" && session.expiresAt <= now) {
+    await expireOrderSessionOpenStripeCheckout(
+      getStripeOrNull(),
+      session.id,
+      session.stripeCheckoutSessionId,
+    );
     await prisma.orderSession.update({
       where: { id: session.id },
       data: { status: "EXPIRED", checkoutStage: "ABANDONED" },
@@ -316,6 +339,11 @@ sessionRouter.get("/", async (req, res) => {
   );
 
   if (!contextOk.ok) {
+    await expireOrderSessionOpenStripeCheckout(
+      getStripeOrNull(),
+      session.id,
+      session.stripeCheckoutSessionId,
+    );
     await prisma.orderSession.update({
       where: { id: session.id },
       data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
@@ -376,6 +404,11 @@ sessionRouter.patch("/", async (req, res) => {
 
   if (session.status !== "ACTIVE" || session.expiresAt <= now) {
     if (session.status === "ACTIVE") {
+      await expireOrderSessionOpenStripeCheckout(
+        getStripeOrNull(),
+        session.id,
+        session.stripeCheckoutSessionId,
+      );
       await prisma.orderSession.update({
         where: { id: session.id },
         data: { status: "EXPIRED", checkoutStage: "ABANDONED" },
@@ -392,6 +425,11 @@ sessionRouter.patch("/", async (req, res) => {
   );
 
   if (!contextOk.ok) {
+    await expireOrderSessionOpenStripeCheckout(
+      getStripeOrNull(),
+      session.id,
+      session.stripeCheckoutSessionId,
+    );
     await prisma.orderSession.update({
       where: { id: session.id },
       data: { status: "ABANDONED", checkoutStage: "ABANDONED" },
@@ -421,6 +459,11 @@ sessionRouter.delete("/", async (req, res) => {
       where: { id: sessionId },
     });
     if (session?.status === "ACTIVE") {
+      await expireOrderSessionOpenStripeCheckout(
+        getStripeOrNull(),
+        sessionId,
+        session.stripeCheckoutSessionId,
+      );
       await prisma.orderSession.update({
         where: { id: sessionId },
         data: { status: "ABANDONED", checkoutStage: "ABANDONED" },

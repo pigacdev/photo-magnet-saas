@@ -14,6 +14,7 @@ import {
 import { prisma } from "../lib/prisma";
 import { sessionConfig } from "../config/session";
 import { getAppPublicUrl, getStripeOrNull } from "../lib/stripe";
+import { expireOrderSessionOpenStripeCheckout } from "../lib/stripeCheckoutSessionLifecycle";
 import { validateOrderCustomerBody } from "../lib/orderCustomerValidation";
 import { customerBodyFromOrderSessionRow } from "../lib/orderSessionPersistedCustomer";
 import { validateOrderSessionContext } from "../lib/sessionContextValidation";
@@ -191,7 +192,14 @@ export async function handleStripeSessionCheckout(
   const successBase = `${appUrl}/order/success`;
   const cancelBase = `${appUrl}/order/payment`;
 
-  async function clearStaleStripeCheckoutSessionId(): Promise<void> {
+  async function clearStaleStripeCheckoutSessionId(
+    priorCheckoutSessionId: string | null,
+  ): Promise<void> {
+    await expireOrderSessionOpenStripeCheckout(
+      stripe,
+      sessionRowId,
+      priorCheckoutSessionId,
+    );
     await prisma.orderSession.update({
       where: { id: sessionRowId },
       data: {
@@ -221,7 +229,7 @@ export async function handleStripeSessionCheckout(
         session.status === "ACTIVE" && session.checkoutStage !== "COMPLETED";
 
       if (!orderSessionAllowsReuse) {
-        await clearStaleStripeCheckoutSessionId();
+        await clearStaleStripeCheckoutSessionId(session.stripeCheckoutSessionId);
       } else {
         try {
           const existing = await stripe.checkout.sessions.retrieve(
@@ -260,13 +268,13 @@ export async function handleStripeSessionCheckout(
               paymentStatus: existing.payment_status,
             },
           );
-          await clearStaleStripeCheckoutSessionId();
+          await clearStaleStripeCheckoutSessionId(session.stripeCheckoutSessionId);
         } catch (retrieveErr) {
           console.warn(
             "[stripe.session-checkout] could not retrieve stored session; clearing and creating new",
             { orderSessionId: sessionRowId, err: retrieveErr },
           );
-          await clearStaleStripeCheckoutSessionId();
+          await clearStaleStripeCheckoutSessionId(session.stripeCheckoutSessionId);
         }
       }
     }

@@ -13,6 +13,7 @@ import {
 import { ORDER_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
 import { renderOrderImages } from "../lib/renderOrderImages";
 import { getAppPublicUrl, getStripeOrNull } from "../lib/stripe";
+import { expireStripeCheckoutSessionIfOpen } from "../lib/stripeCheckoutSessionLifecycle";
 import { sessionConfig } from "../config/session";
 import { isStorefrontCustomerComplete } from "../lib/orderCustomerValidation";
 import { authenticate } from "../middleware/auth";
@@ -152,6 +153,14 @@ stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
     }
 
     const returnToQ = safeReturnToQuery(order);
+
+    if (order.stripeCheckoutSessionId) {
+      console.info("[stripe.checkout] stale session expired", {
+        orderId: order.id,
+        stripeSessionId: order.stripeCheckoutSessionId,
+      });
+      await expireStripeCheckoutSessionIfOpen(s, order.stripeCheckoutSessionId);
+    }
 
     const session = await s.checkout.sessions.create({
       mode: "payment",

@@ -28,6 +28,8 @@ import { MAX_MULTIPART_FILES_PER_REQUEST } from "../../../src/lib/sessionImageLi
 import { getMinRequiredPx } from "../../../src/lib/minRequiredPxForShape";
 import { getMaxImagesAllowed } from "../lib/sessionImageMaxFromSession";
 import { SESSION_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
+import { getStripeOrNull } from "../lib/stripe";
+import { expireOrderSessionOpenStripeCheckout } from "../lib/stripeCheckoutSessionLifecycle";
 
 export const sessionImagesRouter = Router();
 
@@ -186,6 +188,11 @@ async function resolveActiveSessionForRead(
 
   if (session.status !== "ACTIVE" || session.expiresAt <= now) {
     if (session.status === "ACTIVE" && session.expiresAt <= now) {
+      await expireOrderSessionOpenStripeCheckout(
+        getStripeOrNull(),
+        session.id,
+        session.stripeCheckoutSessionId,
+      );
       await prisma.orderSession.update({
         where: { id: session.id },
         data: { status: "ABANDONED" },
@@ -200,6 +207,11 @@ async function resolveActiveSessionForRead(
     session.contextId,
   );
   if (!contextOk.ok) {
+    await expireOrderSessionOpenStripeCheckout(
+      getStripeOrNull(),
+      session.id,
+      session.stripeCheckoutSessionId,
+    );
     await prisma.orderSession.update({
       where: { id: session.id },
       data: { status: "ABANDONED" },
@@ -241,6 +253,11 @@ async function requireActiveSessionForMutation(
   }
 
   if (session.expiresAt <= now) {
+    await expireOrderSessionOpenStripeCheckout(
+      getStripeOrNull(),
+      session.id,
+      session.stripeCheckoutSessionId,
+    );
     await prisma.orderSession.update({
       where: { id: session.id },
       data: { status: "ABANDONED" },
@@ -255,6 +272,11 @@ async function requireActiveSessionForMutation(
     session.contextId,
   );
   if (!contextOk.ok) {
+    await expireOrderSessionOpenStripeCheckout(
+      getStripeOrNull(),
+      session.id,
+      session.stripeCheckoutSessionId,
+    );
     await prisma.orderSession.update({
       where: { id: session.id },
       data: { status: "ABANDONED" },

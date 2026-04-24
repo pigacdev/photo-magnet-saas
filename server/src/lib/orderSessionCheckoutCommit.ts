@@ -6,6 +6,8 @@ import { randomUUID } from "node:crypto";
 import type { OrderCommitStatus } from "../../../src/generated/prisma/client";
 import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "./prisma";
+import { getStripeOrNull } from "./stripe";
+import { expireOrderSessionOpenStripeCheckout } from "./stripeCheckoutSessionLifecycle";
 import { SESSION_IMAGE_LIST_ORDER_BY } from "./magnetImageOrderBy";
 import {
   copySessionImageToOrder,
@@ -352,10 +354,14 @@ export async function runOrderCommitTransaction(
     commitTotalPrice,
     commitOrderQuantity,
   } = prepared;
-  const session = prepared.session;
   const effectiveOrderStatus: OrderCommitStatus = paidStripe ? "PAID" : orderStatus;
 
-  const result = await prisma.$transaction(async (tx) => {
+  /**
+   * DB work only: Stripe (expire) must not run inside this callback — it runs after
+   * `$transaction` resolves so `OrderSession` / `Order` row locks are released first.
+   */
+  const { commit: result, checkoutSessionIdToExpire } = await prisma.$transaction(
+    async (tx) => {
     await tx.$executeRawUnsafe(
       `SELECT id FROM "OrderSession" WHERE id = $1 FOR UPDATE`,
       sessionRowId,
@@ -374,10 +380,13 @@ export async function runOrderCommitTransaction(
         (await tx.order.findUnique({ where: { id: String(locked.orderId) } }));
       if (orderRow) {
         return {
-          kind: "IDEMPOTENT" as const,
-          orderId: locked.orderId,
-          status: orderRow.status,
-          imageCount: 0,
+          commit: {
+            kind: "IDEMPOTENT" as const,
+            orderId: locked.orderId,
+            status: orderRow.status,
+            imageCount: 0,
+          },
+          checkoutSessionIdToExpire: null,
         };
       }
       throw new Error("ORDER_REFERENCE_MISSING");
@@ -399,10 +408,13 @@ export async function runOrderCommitTransaction(
         (await tx.order.findUnique({ where: { id: String(beforeCreate.orderId) } }));
       if (orderRow) {
         return {
-          kind: "IDEMPOTENT" as const,
-          orderId: beforeCreate.orderId,
-          status: orderRow.status,
-          imageCount: 0,
+          commit: {
+            kind: "IDEMPOTENT" as const,
+            orderId: beforeCreate.orderId,
+            status: orderRow.status,
+            imageCount: 0,
+          },
+          checkoutSessionIdToExpire: null,
         };
       }
       throw new Error("ORDER_REFERENCE_MISSING");
@@ -500,12 +512,25 @@ export async function runOrderCommitTransaction(
     });
 
     return {
-      kind: "CREATED" as const,
-      orderId,
-      status: effectiveOrderStatus,
-      imageCount: sessionImages.length,
+      commit: {
+        kind: "CREATED" as const,
+        orderId,
+        status: effectiveOrderStatus,
+        imageCount: sessionImages.length,
+      },
+      /** Snapshot before clearing on `OrderSession`; used only after the transaction commits. */
+      checkoutSessionIdToExpire: beforeCreate.stripeCheckoutSessionId,
     };
-  });
+  },
+  );
+
+  if (result.kind === "CREATED" && checkoutSessionIdToExpire) {
+    await expireOrderSessionOpenStripeCheckout(
+      getStripeOrNull(),
+      sessionRowId,
+      checkoutSessionIdToExpire,
+    );
+  }
 
   return result;
 }

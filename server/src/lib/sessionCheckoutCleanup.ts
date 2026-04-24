@@ -1,4 +1,6 @@
 import { prisma } from "./prisma";
+import { getStripeOrNull } from "./stripe";
+import { expireOrderSessionOpenStripeCheckout } from "./stripeCheckoutSessionLifecycle";
 
 /**
  * Mark stale in-progress sessions as EXPIRED + checkout ABANDONED.
@@ -10,6 +12,18 @@ import { prisma } from "./prisma";
  * File blobs are not deleted (handled in a later phase).
  */
 export async function runStaleSessionCheckoutCleanup(now: Date = new Date()) {
+  const toExpire = await prisma.orderSession.findMany({
+    where: {
+      status: "ACTIVE",
+      checkoutStage: { in: ["BUILDING", "CUSTOMER_DETAILS", "PAYMENT_PENDING"] },
+      expiresAt: { lte: now },
+    },
+    select: { id: true, stripeCheckoutSessionId: true },
+  });
+  const stripe = getStripeOrNull();
+  for (const row of toExpire) {
+    await expireOrderSessionOpenStripeCheckout(stripe, row.id, row.stripeCheckoutSessionId);
+  }
   return prisma.orderSession.updateMany({
     where: {
       status: "ACTIVE",
