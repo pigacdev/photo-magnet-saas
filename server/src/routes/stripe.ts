@@ -415,6 +415,7 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
           where: { id: orderId },
           data: {
             status: "PAID",
+            paymentStatus: "PAID",
             stripeCheckoutSessionId: session.id,
           },
         });

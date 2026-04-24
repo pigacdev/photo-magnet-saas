@@ -183,6 +183,8 @@ model Order {
   contextType             ContextType
   contextId               String
   status                  OrderCommitStatus
+  /// Card/settlement: aligns with `status` (e.g. PAID + PAID after Stripe webhook).
+  paymentStatus           PaymentStatus     @default(PENDING)
   totalPrice              Decimal           @db.Decimal(10, 2)
   currency                String            @default("EUR")
   /// Future: `pickedUpAt DateTime?` when customer collects at event. Not in DB yet.

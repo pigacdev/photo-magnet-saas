@@ -412,12 +412,20 @@ export async function runOrderCommitTransaction(
     }
 
     const orderId = randomUUID();
+    const paymentStatus: Prisma.OrderCreateInput["paymentStatus"] =
+      paidStripe != null
+        ? "PAID"
+        : effectiveOrderStatus === "PENDING_CASH"
+          ? "CASH"
+          : "PENDING";
+
     const orderCreate: Prisma.OrderCreateInput = {
       id: orderId,
       organization: { connect: { id: String(organizationId) } },
       contextType: locked.contextType,
       contextId: String(locked.contextId),
       status: effectiveOrderStatus,
+      paymentStatus,
       totalPrice: commitTotalPrice,
       currency,
       pricingType: locked.pricingType!,
