@@ -15,6 +15,7 @@ import { sessionRouter } from "./routes/session";
 import { systemRouter } from "./routes/system";
 import { ordersRouter } from "./routes/orders";
 import { dashboardRouter } from "./routes/dashboard";
+import { adminRouter } from "./routes/admin";
 import { stripeRouter, stripeWebhookHandler } from "./routes/stripe";
 import { authenticate, requireRole } from "./middleware/auth";
 import { errorHandler } from "./middleware/errorHandler";
@@ -56,7 +57,12 @@ app.use("/api/orders", ordersRouter);
 app.use("/api/stripe", stripeRouter);
 
 // --- Protected routes ---
-app.use("/api/admin", authenticate, requireRole("ADMIN", "STAFF"));
+app.use(
+  "/api/admin",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  adminRouter,
+);
 app.use("/api/events", authenticate, requireRole("ADMIN", "STAFF"), eventsRouter);
 app.use("/api/storefronts", authenticate, requireRole("ADMIN", "STAFF"), storefrontsRouter);
 app.use("/api/pricing", authenticate, requireRole("ADMIN", "STAFF"), pricingRouter);
