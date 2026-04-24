@@ -40,6 +40,11 @@ type OrdersListResponse = {
   };
 };
 
+type OrderContextsResponse = {
+  events: { id: string; name: string }[];
+  storefronts: { id: string; name: string }[];
+};
+
 function startOfTodayLocal(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -192,6 +197,8 @@ function OrdersListContent() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [contexts, setContexts] = useState<OrderContextsResponse | null>(null);
+  const [contextsLoading, setContextsLoading] = useState(true);
 
   const searchFromUrl = searchParams.get("search") ?? "";
   const [searchDraft, setSearchDraft] = useState(searchFromUrl);
@@ -210,6 +217,36 @@ function OrdersListContent() {
     },
     [pathname, router, searchParams],
   );
+
+  useEffect(() => {
+    setContextsLoading(true);
+    api<OrderContextsResponse>("/api/orders/contexts")
+      .then((data) => setContexts(data))
+      .catch(() => setContexts({ events: [], storefronts: [] }))
+      .finally(() => setContextsLoading(false));
+  }, []);
+
+  const contextTypeParam = searchParams.get("contextType");
+  const contextIdParam = searchParams.get("contextId");
+  const contextSelectValue =
+    contextTypeParam &&
+    contextIdParam &&
+    (contextTypeParam === "EVENT" || contextTypeParam === "STOREFRONT")
+      ? `${contextTypeParam}:${contextIdParam}`
+      : "";
+
+  const selectedContextSummary = useMemo(() => {
+    if (!contextTypeParam || !contextIdParam || !contexts) return null;
+    if (contextTypeParam === "EVENT") {
+      const e = contexts.events.find((x) => x.id === contextIdParam);
+      return e ? { label: "Event", name: e.name } : null;
+    }
+    if (contextTypeParam === "STOREFRONT") {
+      const s = contexts.storefronts.find((x) => x.id === contextIdParam);
+      return s ? { label: "Storefront", name: s.name } : null;
+    }
+    return null;
+  }, [contextIdParam, contextTypeParam, contexts]);
 
   const datePresetActive = useMemo(() => {
     const now = new Date();
@@ -354,7 +391,11 @@ function OrdersListContent() {
     Boolean(searchParams.get("search")?.trim()) ||
     Boolean(searchParams.get("status")?.trim()) ||
     Boolean(searchParams.get("dateFrom")) ||
-    Boolean(searchParams.get("dateTo"));
+    Boolean(searchParams.get("dateTo")) ||
+    Boolean(
+      searchParams.get("contextType")?.trim() &&
+        searchParams.get("contextId")?.trim(),
+    );
 
   const page = pagination.page;
   const totalPages = pagination.totalPages;
@@ -398,6 +439,67 @@ function OrdersListContent() {
         <p className="mt-2 text-[#6B7280]">
           Read-only list of orders from your events and storefronts.
         </p>
+        {selectedContextSummary ? (
+          <p className="mt-2 text-sm text-[#2563EB]">
+            Showing orders for{" "}
+            <span className="font-medium">{selectedContextSummary.label}</span>
+            : {selectedContextSummary.name}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-[#6B7280]">Context</span>
+        <select
+          value={contextSelectValue}
+          disabled={contextsLoading}
+          onChange={(e) => {
+            const v = e.target.value;
+            replaceQuery((q) => {
+              if (!v) {
+                q.delete("contextType");
+                q.delete("contextId");
+              } else {
+                const idx = v.indexOf(":");
+                if (idx === -1) return;
+                const t = v.slice(0, idx);
+                const id = v.slice(idx + 1);
+                q.set("contextType", t);
+                q.set("contextId", id);
+              }
+              q.set("page", "1");
+            });
+          }}
+          className="w-full max-w-md min-h-11 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2 disabled:cursor-wait disabled:opacity-60 sm:min-w-[280px]"
+          aria-label="Filter orders by event or storefront"
+        >
+          <option value="">
+            {contextsLoading ? "All contexts (loading…)" : "All contexts"}
+          </option>
+          {contexts && contexts.events.length > 0 ? (
+            <optgroup label="Events">
+              {contexts.events.map((ev) => (
+                <option key={ev.id} value={`EVENT:${ev.id}`}>
+                  {ev.name}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+          {contexts && contexts.storefronts.length > 0 ? (
+            <optgroup label="Storefronts">
+              {contexts.storefronts.map((sf) => (
+                <option key={sf.id} value={`STOREFRONT:${sf.id}`}>
+                  {sf.name}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+        </select>
+        {!contextsLoading && !selectedContextSummary && contexts ? (
+          <p className="text-xs text-[#9CA3AF]">
+            All events and storefronts — use the menu to narrow the list.
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-2">

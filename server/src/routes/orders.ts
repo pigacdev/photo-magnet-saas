@@ -162,12 +162,66 @@ ordersRouter.get(
       }
     }
 
-    const where: {
-      organizationId: string;
-      createdAt?: { gte?: Date; lte?: Date };
-    } = {
+    const contextTypeQ =
+      typeof req.query.contextType === "string"
+        ? req.query.contextType.trim().toUpperCase()
+        : "";
+    const contextIdQ =
+      typeof req.query.contextId === "string" ? req.query.contextId.trim() : "";
+
+    if (contextTypeQ && !contextIdQ) {
+      res
+        .status(400)
+        .json({ error: "contextId is required when contextType is set" });
+      return;
+    }
+    if (contextIdQ && !contextTypeQ) {
+      res
+        .status(400)
+        .json({ error: "contextType is required when contextId is set" });
+      return;
+    }
+
+    let contextType: "EVENT" | "STOREFRONT" | undefined;
+    let contextId: string | undefined;
+    if (contextTypeQ && contextIdQ) {
+      if (contextTypeQ !== "EVENT" && contextTypeQ !== "STOREFRONT") {
+        res.status(400).json({ error: "Invalid contextType" });
+        return;
+      }
+      if (contextTypeQ === "EVENT") {
+        const ev = await prisma.event.findFirst({
+          where: { id: contextIdQ, userId, deletedAt: null },
+          select: { id: true },
+        });
+        if (!ev) {
+          res
+            .status(400)
+            .json({ error: "Unknown event or not accessible" });
+          return;
+        }
+      } else {
+        const sf = await prisma.storefront.findFirst({
+          where: { id: contextIdQ, userId, deletedAt: null },
+          select: { id: true },
+        });
+        if (!sf) {
+          res
+            .status(400)
+            .json({ error: "Unknown storefront or not accessible" });
+          return;
+        }
+      }
+      contextType = contextTypeQ;
+      contextId = contextIdQ;
+    }
+
+    const where: Prisma.OrderWhereInput = {
       organizationId: userId,
       ...(createdAt ? { createdAt } : {}),
+      ...(contextType && contextId
+        ? { contextType, contextId }
+        : {}),
     };
 
     const orders = await prisma.order.findMany({
@@ -278,6 +332,29 @@ ordersRouter.get(
         totalPages,
       },
     });
+  },
+);
+
+/** GET /api/orders/contexts — seller's events and storefronts for order list filter dropdown. */
+ordersRouter.get(
+  "/contexts",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const [events, storefronts] = await Promise.all([
+      prisma.event.findMany({
+        where: { userId, deletedAt: null },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.storefront.findMany({
+        where: { userId, deletedAt: null },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+    res.json({ events, storefronts });
   },
 );
 
