@@ -154,6 +154,8 @@ model SessionImage {
   fileSize        Int
   status          SessionImageStatus @default(UPLOADED)
   createdAt       DateTime           @default(now())
+  /// Set when abandoned-session media cleanup removed the blob (filesystem/S3); row is retained.
+  mediaDeletedAt  DateTime?
   /// Order within the session (crop / print). Assigned on upload: lastPosition + 1 per file.
   /// List queries: always ORDER BY position ASC, createdAt ASC (see server magnetImageOrderBy.ts).
   position        Int
@@ -175,6 +177,7 @@ model SessionImage {
 
   @@index([sessionId])
   @@index([sessionId, position])
+  @@index([sessionId, mediaDeletedAt])
 }
 
 model Order {

@@ -2,13 +2,31 @@
  * Admin-only routes (mounted at /api/admin with authenticate + role).
  * Read-only reconciliation; no Stripe calls, no mutations.
  */
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
 import { Prisma } from "../../../src/generated/prisma/client";
+import { cleanupAbandonedSessionMedia } from "../lib/mediaCleanup";
+import { requireRole } from "../middleware/auth";
 import { prisma } from "../lib/prisma";
 
 export const adminRouter = Router();
 
+/**
+ * When `MEDIA_CLEANUP_SECRET` is set, `POST` media cleanup also requires
+ * `X-Media-Cleanup-Secret: <same value>`. Omitted or empty env = no extra header.
+ */
+function requireMediaCleanupSecret(req: Request, res: Response, next: NextFunction) {
+  const secret = process.env.MEDIA_CLEANUP_SECRET;
+  if (secret == null || String(secret).trim() === "") {
+    next();
+    return;
+  }
+  if (req.get("X-Media-Cleanup-Secret") !== secret) {
+    res.status(403).json({ error: "Invalid or missing media cleanup secret" });
+    return;
+  }
+  next();
+}
 const ORDER_SESSION_STATUSES = ["ACTIVE", "ABANDONED", "CONVERTED", "EXPIRED"] as const;
 type OrderSessionStatusFilter = (typeof ORDER_SESSION_STATUSES)[number];
 
@@ -140,6 +158,7 @@ adminRouter.get("/reconciliation/stripe-orphans", async (req: Request, res: Resp
       contextId: true,
       checkoutStage: true,
       status: true,
+      expiresAt: true,
       totalPrice: true,
       quantity: true,
       checkoutCustomerName: true,
@@ -175,3 +194,34 @@ adminRouter.get("/reconciliation/stripe-orphans", async (req: Request, res: Resp
 
   res.json({ items, total: items.length });
 });
+
+/**
+ * POST /api/admin/media-cleanup/abandoned-sessions/global
+ *
+ * System-wide session upload file cleanup. **ADMIN only** (not STAFF).
+ * Optional second factor: if `MEDIA_CLEANUP_SECRET` is set, client must send
+ * `X-Media-Cleanup-Secret` with the same value.
+ *
+ * Body: `{ "dryRun"?: boolean }` — defaults to `true` (no file deletes; dry run still lists issues).
+ * Scans all organizations; does not delete DB rows. Same eligibility rules as `cleanupAbandonedSessionMedia`.
+ */
+adminRouter.post(
+  "/media-cleanup/abandoned-sessions/global",
+  requireRole("ADMIN"),
+  requireMediaCleanupSecret,
+  async (req: Request, res: Response) => {
+    const rawDry = req.body?.dryRun;
+    const dryRun = typeof rawDry === "boolean" ? rawDry : true;
+
+    try {
+      const result = await cleanupAbandonedSessionMedia({ dryRun });
+      res.json({ ...result, scope: "global" as const });
+    } catch (err) {
+      console.error("[media-cleanup] abandoned-sessions/global", err);
+      res.status(500).json({
+        error: "Media cleanup failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  },
+);
