@@ -5,7 +5,10 @@
 import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
 import { Prisma } from "../../../src/generated/prisma/client";
-import { cleanupAbandonedSessionMedia } from "../lib/mediaCleanup";
+import {
+  cleanupAbandonedSessionMedia,
+  cleanupPrintSheets,
+} from "../lib/mediaCleanup";
 import { requireRole } from "../middleware/auth";
 import { prisma } from "../lib/prisma";
 
@@ -218,6 +221,36 @@ adminRouter.post(
       res.json({ ...result, scope: "global" as const });
     } catch (err) {
       console.error("[media-cleanup] abandoned-sessions/global", err);
+      res.status(500).json({
+        error: "Media cleanup failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/admin/media-cleanup/print-sheets/global
+ *
+ * Deletes generated print-sheet PDFs older than PRINT_SHEET_RETENTION_HOURS (see mediaRetention config).
+ * **ADMIN only.** Same optional `X-Media-Cleanup-Secret` as other media cleanup routes.
+ *
+ * Body: `{ "dryRun"?: boolean }` — defaults to `true`.
+ * Does not modify database rows.
+ */
+adminRouter.post(
+  "/media-cleanup/print-sheets/global",
+  requireRole("ADMIN"),
+  requireMediaCleanupSecret,
+  async (req: Request, res: Response) => {
+    const rawDry = req.body?.dryRun;
+    const dryRun = typeof rawDry === "boolean" ? rawDry : true;
+
+    try {
+      const result = await cleanupPrintSheets({ dryRun });
+      res.json({ ...result, scope: "global" as const });
+    } catch (err) {
+      console.error("[media-cleanup] print-sheets/global", err);
       res.status(500).json({
         error: "Media cleanup failed",
         message: err instanceof Error ? err.message : String(err),

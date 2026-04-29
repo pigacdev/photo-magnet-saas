@@ -280,3 +280,10 @@ export async function cleanupAbandonedSessionMedia(
     ...transparency,
   };
 }
+
+export {
+  cleanupPrintSheets,
+  type CleanupPrintSheetsOptions,
+  type CleanupPrintSheetsResult,
+  type PrintSheetCleanupError,
+} from "./printSheetCleanup";
