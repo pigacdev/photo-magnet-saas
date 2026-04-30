@@ -50,14 +50,18 @@ function sendOrderPrepareError(res: Response, err: PrepareCommitError) {
     .json("code" in err && err.code ? { error: err.error, code: err.code } : { error: err.error });
 }
 
-/** Same rule as seller UI: printable now (paid online or event cash). */
-function isReadyToPrintForSeller(status: string): boolean {
-  return status === "PAID" || status === "PENDING_CASH";
+/** Payment + status must both reflect settled payment before seller print flow. */
+function isReadyToPrintForSeller(order: {
+  status: string;
+  paymentStatus: string;
+}): boolean {
+  return order.status === "PAID" && order.paymentStatus === "PAID";
 }
 
 /** Computed for seller list/detail — not stored in DB. */
 function getDisplayStatus(order: {
   status: string;
+  paymentStatus: string;
   printedAt: Date | null;
   shippedAt: Date | null;
 }):
@@ -68,32 +72,40 @@ function getDisplayStatus(order: {
   | "UNKNOWN" {
   if (order.shippedAt) return "SHIPPED";
   if (order.printedAt) return "PRINTED";
-  if (order.status === "PAID" || order.status === "PENDING_CASH") {
-    return "READY_TO_PRINT";
-  }
-  if (order.status === "PENDING_PAYMENT") {
-    return "AWAITING_PAYMENT";
-  }
+  const financiallyReady =
+    order.status === "PAID" && order.paymentStatus === "PAID";
+  if (financiallyReady) return "READY_TO_PRINT";
+  if (order.status === "PENDING_PAYMENT") return "AWAITING_PAYMENT";
+  if (order.status === "PENDING_CASH") return "AWAITING_PAYMENT";
   return "UNKNOWN";
 }
 
 /** List UI filter — matches seller orders table (shipped → print progress). */
 function deriveSellerListStatusKey(o: {
   shippedAt: Date | null;
+  status: string;
+  paymentStatus: string;
   orderImages: { printed: boolean }[];
-}): "ready" | "partial" | "printed" | "shipped" {
+}): "awaiting_payment" | "ready" | "partial" | "printed" | "shipped" {
   if (o.shippedAt) return "shipped";
+  const paidReady = o.status === "PAID" && o.paymentStatus === "PAID";
   const total = o.orderImages.length;
   const printed = o.orderImages.filter((img) => img.printed).length;
+
+  if (!paidReady) {
+    return "awaiting_payment";
+  }
+
   if (printed === 0) return "ready";
   if (printed < total) return "partial";
   return "printed";
 }
 
 const LIST_STATUS_SORT_PRIORITY: Record<
-  "ready" | "partial" | "printed" | "shipped",
+  "awaiting_payment" | "ready" | "partial" | "printed" | "shipped",
   number
 > = {
+  awaiting_payment: 0,
   ready: 1,
   partial: 2,
   printed: 3,
@@ -122,9 +134,35 @@ ordersRouter.get(
       typeof req.query.search === "string" ? req.query.search.trim() : "";
     const statusRaw =
       typeof req.query.status === "string" ? req.query.status.trim().toLowerCase() : "";
-    const allowedStatus = new Set(["ready", "partial", "printed", "shipped"]);
-    const statusFilter =
-      statusRaw && allowedStatus.has(statusRaw) ? statusRaw : "";
+    const allowedStatus = new Set([
+      "awaiting_payment",
+      "ready",
+      "partial",
+      "printed",
+      "shipped",
+    ]);
+    /** Single or comma-separated (e.g. `printed,shipped`); OR match if any listed key matches. */
+    let statusFilters: ("awaiting_payment" | "ready" | "partial" | "printed" | "shipped")[] =
+      [];
+    if (statusRaw.length > 0) {
+      const parts = statusRaw
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      const seen = new Set<string>();
+      for (const p of parts) {
+        if (!allowedStatus.has(p)) {
+          res.status(400).json({ error: `Invalid status: ${p}` });
+          return;
+        }
+        if (!seen.has(p)) {
+          seen.add(p);
+          statusFilters.push(
+            p as "awaiting_payment" | "ready" | "partial" | "printed" | "shipped",
+          );
+        }
+      }
+    }
 
     let createdAt: { gte?: Date; lte?: Date } | undefined;
     const dateFrom =
@@ -233,6 +271,7 @@ ordersRouter.get(
         customerEmail: true,
         customerPhone: true,
         status: true,
+        paymentStatus: true,
         printedAt: true,
         shippedAt: true,
         contextType: true,
@@ -294,9 +333,10 @@ ordersRouter.get(
       };
     });
 
-    const statusFiltered = statusFilter
-      ? withDerived.filter((x) => x.listStatus === statusFilter)
-      : withDerived;
+    const statusFiltered =
+      statusFilters.length > 0
+        ? withDerived.filter((x) => statusFilters.includes(x.listStatus))
+        : withDerived;
 
     const sortedList = [...statusFiltered].sort((x, y) => {
       if (sortBy === "createdAt") {
@@ -382,9 +422,9 @@ ordersRouter.post(
       res.status(404).json({ error: "Order not found" });
       return;
     }
-    if (!isReadyToPrintForSeller(order.status)) {
+    if (!isReadyToPrintForSeller(order)) {
       res.status(400).json({
-        error: "Order must be paid before printing",
+        error: "Order must be marked as paid before printing",
       });
       return;
     }
@@ -480,15 +520,15 @@ ordersRouter.post(
 
     const order = await prisma.order.findFirst({
       where: { id: orderId, organizationId: owner },
-      select: { id: true, status: true },
+      select: { id: true, status: true, paymentStatus: true },
     });
     if (!order) {
       res.status(404).json({ error: "Order not found" });
       return;
     }
-    if (!isReadyToPrintForSeller(order.status)) {
+    if (!isReadyToPrintForSeller(order)) {
       res.status(400).json({
-        error: "Order must be paid before printing",
+        error: "Order must be marked as paid before printing",
       });
       return;
     }
@@ -588,7 +628,10 @@ ordersRouter.patch(
     const owner = req.user!.userId;
     const existing = await prisma.order.findFirst({
       where: { id: orderId, organizationId: owner },
-      include: {
+      select: {
+        id: true,
+        status: true,
+        paymentStatus: true,
         _count: { select: { orderImages: true } },
       },
     });
@@ -596,9 +639,9 @@ ordersRouter.patch(
       res.status(404).json({ error: "Order not found" });
       return;
     }
-    if (!isReadyToPrintForSeller(existing.status)) {
+    if (!isReadyToPrintForSeller(existing)) {
       res.status(400).json({
-        error: "Order must be paid before marking as printed",
+        error: "Order must be marked as paid before marking as printed",
       });
       return;
     }
@@ -678,6 +721,79 @@ ordersRouter.patch(
       ok: true,
       printedAt: orderRow?.printedAt?.toISOString() ?? null,
       allImagesPrinted,
+    });
+  },
+);
+
+/**
+ * PATCH /api/orders/:id/mark-paid — seller confirms offline payment at EVENT (cash / card on location).
+ */
+ordersRouter.patch(
+  "/:id/mark-paid",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const orderId = String(req.params.id ?? "").trim();
+    if (!orderId) {
+      res.status(400).json({ error: "Order id required" });
+      return;
+    }
+    const owner = req.user!.userId;
+
+    const existing = await prisma.order.findFirst({
+      where: { id: orderId, organizationId: owner },
+      select: {
+        id: true,
+        contextType: true,
+        status: true,
+        paymentStatus: true,
+      },
+    });
+    if (!existing) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+
+    if (existing.contextType !== "EVENT") {
+      res.status(400).json({
+        error: "Only event orders can be marked paid this way",
+      });
+      return;
+    }
+
+    if (existing.status === "PAID" && existing.paymentStatus === "PAID") {
+      res.json({
+        ok: true,
+        status: existing.status,
+        paymentStatus: existing.paymentStatus,
+      });
+      return;
+    }
+
+    if (existing.status !== "PENDING_CASH" || existing.paymentStatus !== "CASH") {
+      res.status(400).json({
+        error:
+          "Only offline event orders awaiting payment confirmation can be marked paid",
+      });
+      return;
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: "PAID",
+        paymentStatus: "PAID",
+      },
+      select: {
+        status: true,
+        paymentStatus: true,
+      },
+    });
+
+    res.json({
+      ok: true,
+      status: updated.status,
+      paymentStatus: updated.paymentStatus,
     });
   },
 );
@@ -1092,6 +1208,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
       res.json({
         orderId: order.id,
         status: order.status,
+        paymentStatus: order.paymentStatus,
         displayStatus: getDisplayStatus(order),
         contextType: order.contextType,
         contextId: order.contextId,
@@ -1109,6 +1226,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
         images: order.orderImages.map((img) => ({
           id: img.id,
           renderedUrl: img.renderedUrl,
+          mediaDeletedAt: img.mediaDeletedAt?.toISOString() ?? null,
           position: img.position,
           shapeId: img.shapeId,
           copies: img.copies,

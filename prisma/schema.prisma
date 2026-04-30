@@ -248,11 +248,14 @@ model OrderImage {
   /// Seller marked this line item produced (Phase 8; reprints do not clear).
   printed      Boolean      @default(false)
   printedAt    DateTime?
+  /// Order-media blobs removed by retention cleanup (`uploads/order-images*`, matching S3 keys); row retained.
+  mediaDeletedAt DateTime?
   order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   allowedShape AllowedShape @relation(fields: [shapeId], references: [id])
 
   @@index([orderId])
   @@index([orderId, position])
+  @@index([orderId, mediaDeletedAt])
   @@index([shapeId])
 }
 

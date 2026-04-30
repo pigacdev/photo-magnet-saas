@@ -7,6 +7,7 @@ import { Router } from "express";
 import { Prisma } from "../../../src/generated/prisma/client";
 import {
   cleanupAbandonedSessionMedia,
+  cleanupOrderMedia,
   cleanupPrintSheets,
 } from "../lib/mediaCleanup";
 import { requireRole } from "../middleware/auth";
@@ -251,6 +252,36 @@ adminRouter.post(
       res.json({ ...result, scope: "global" as const });
     } catch (err) {
       console.error("[media-cleanup] print-sheets/global", err);
+      res.status(500).json({
+        error: "Media cleanup failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/admin/media-cleanup/order-media/global
+ *
+ * Deletes paid order blobs (`uploads/order-images*`, matching S3 keys) past ORDER_MEDIA_RETENTION_DAYS.
+ * **ADMIN only.** Same optional `X-Media-Cleanup-Secret` as other media cleanup routes.
+ *
+ * Body: `{ "dryRun"?: boolean }` — defaults to `true`.
+ * Sets `OrderImage.mediaDeletedAt`; does not delete Order / OrderImage rows.
+ */
+adminRouter.post(
+  "/media-cleanup/order-media/global",
+  requireRole("ADMIN"),
+  requireMediaCleanupSecret,
+  async (req: Request, res: Response) => {
+    const rawDry = req.body?.dryRun;
+    const dryRun = typeof rawDry === "boolean" ? rawDry : true;
+
+    try {
+      const result = await cleanupOrderMedia({ dryRun });
+      res.json({ ...result, scope: "global" as const });
+    } catch (err) {
+      console.error("[media-cleanup] order-media/global", err);
       res.status(500).json({
         error: "Media cleanup failed",
         message: err instanceof Error ? err.message : String(err),

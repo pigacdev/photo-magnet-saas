@@ -1,6 +1,9 @@
 /**
- * Seller print actions: whether the order is allowed to enter the print flow (DB payment enum only).
+ * Seller print actions: order must reflect settled payment (`status` + `paymentStatus`).
  */
-export function isReadyToPrint(status: string): boolean {
-  return status === "PAID" || status === "PENDING_CASH";
+export function isReadyToPrint(order: {
+  status: string;
+  paymentStatus: string;
+}): boolean {
+  return order.status === "PAID" && order.paymentStatus === "PAID";
 }

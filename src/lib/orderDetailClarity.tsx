@@ -5,8 +5,14 @@
 import { fulfillmentLabel } from "@/lib/orderFulfillmentDisplay";
 import { isReadyToPrint } from "@/lib/sellerOrderPrintStatus";
 
-/** Human payment line — DB `Order.status` only (not fulfillment). */
-export function PaymentClarityRow({ status }: { status: string }) {
+/** Human payment line — DB `Order.status` / payment settlement (not fulfillment). */
+export function PaymentClarityRow({
+  status,
+  contextType,
+}: {
+  status: string;
+  contextType?: "EVENT" | "STOREFRONT";
+}) {
   if (status === "PAID") {
     return (
       <div className="flex items-start gap-2.5">
@@ -15,7 +21,11 @@ export function PaymentClarityRow({ status }: { status: string }) {
         </span>
         <div>
           <p className="text-sm font-semibold text-[#111111]">Paid</p>
-          <p className="text-xs text-[#6B7280]">Online payment completed</p>
+          <p className="text-xs text-[#6B7280]">
+            {contextType === "STOREFRONT"
+              ? "Online payment completed"
+              : "Payment confirmed"}
+          </p>
         </div>
       </div>
     );
@@ -27,8 +37,12 @@ export function PaymentClarityRow({ status }: { status: string }) {
           💵
         </span>
         <div>
-          <p className="text-sm font-semibold text-[#111111]">Cash</p>
-          <p className="text-xs text-[#6B7280]">Event / cash order</p>
+          <p className="text-sm font-semibold text-[#111111]">
+            Offline payment
+          </p>
+          <p className="text-xs text-[#6B7280]">
+            Cash or card at event — confirm when collected
+          </p>
         </div>
       </div>
     );
@@ -81,13 +95,14 @@ export function FulfillmentClarityRow(order: {
   shippedAt: string | null;
   printedAt: string | null;
   status: string;
+  paymentStatus: string;
 }) {
   const fl = fulfillmentLabel(order);
 
   let key: "shipped" | "printed" | "ready" | "waiting";
   if (order.shippedAt) key = "shipped";
   else if (order.printedAt) key = "printed";
-  else if (isReadyToPrint(order.status)) key = "ready";
+  else if (isReadyToPrint(order)) key = "ready";
   else key = "waiting";
 
   const { emoji, hint } = fulfillmentEmojiAndHint(key);

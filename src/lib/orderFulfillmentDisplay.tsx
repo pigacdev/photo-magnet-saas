@@ -12,6 +12,7 @@ export function fulfillmentLabel(order: {
   shippedAt: string | null;
   printedAt: string | null;
   status: string;
+  paymentStatus: string;
 }): { label: string; className: string } {
   if (order.shippedAt) {
     return { label: "Shipped", className: "text-[#16A34A]" };
@@ -19,7 +20,7 @@ export function fulfillmentLabel(order: {
   if (order.printedAt) {
     return { label: "Printed", className: "text-[#C2410C]" };
   }
-  if (isReadyToPrint(order.status)) {
+  if (isReadyToPrint(order)) {
     return { label: "Ready to print", className: "text-[#1D4ED8]" };
   }
   return { label: "—", className: "text-[#6B7280]" };
@@ -29,6 +30,7 @@ export function FulfillmentStatusBadge(order: {
   shippedAt: string | null;
   printedAt: string | null;
   status: string;
+  paymentStatus: string;
 }) {
   const { label, className } = fulfillmentLabel(order);
   return (

@@ -25,6 +25,7 @@ import { isReadyToPrint } from "@/lib/sellerOrderPrintStatus";
 type SellerOrderDetail = {
   orderId: string;
   status: string;
+  paymentStatus: string;
   displayStatus: OrderDisplayStatus;
   contextType: "EVENT" | "STOREFRONT";
   contextId: string;
@@ -41,6 +42,8 @@ type SellerOrderDetail = {
   images: {
     id: string;
     renderedUrl: string | null;
+    /** Present when retention cleanup removed blobs; UI may show placeholder instead of `<img>`. */
+    mediaDeletedAt: string | null;
     position: number;
     shapeId: string;
     copies: number;
@@ -57,7 +60,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<
-    "printPreview" | "printSelected" | "markPrinted" | "ship" | null
+    "printPreview" | "printSelected" | "markPrinted" | "markPaid" | "ship" | null
   >(null);
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
   /** Stays true until staggered PDF opens finish — avoids double POST / duplicate tabs. */
@@ -155,6 +158,23 @@ export default function OrderDetailPage() {
     printSelectedLockRef.current = false;
     setIsPrintingSelected(false);
     setActionBusy(null);
+  }
+
+  async function markOrderPaid() {
+    if (!id) return;
+    setActionBusy("markPaid");
+    setError(null);
+    try {
+      await api<{ ok: boolean }>(
+        `/api/orders/${encodeURIComponent(id)}/mark-paid`,
+        { method: "PATCH" },
+      );
+      refreshOrder();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not mark order paid");
+    } finally {
+      setActionBusy(null);
+    }
   }
 
   async function printSelectedImages() {
@@ -371,12 +391,39 @@ export default function OrderDetailPage() {
     }).format(n);
   }
 
-  const canUsePrintFlow = Boolean(
-    order && isReadyToPrint(order.status) && order.images.length > 0,
+  /** Same pattern as Orders list “Created” column. */
+  function formatDate(iso: string) {
+    return new Date(iso).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  }
+
+  const canPrintNow = Boolean(
+    order &&
+      isReadyToPrint(order) &&
+      order.images.length > 0,
   );
+  /** EVENT orders until seller confirms offline payment — show disabled Print + hint. */
+  const eventAwaitingPaidConfirmation = Boolean(
+    order &&
+      order.contextType === "EVENT" &&
+      order.paymentStatus !== "PAID" &&
+      order.images.length > 0,
+  );
+  const showPrintOrderSlot =
+    canPrintNow || eventAwaitingPaidConfirmation;
+
+  const showOfflineMarkPaid = Boolean(
+    order &&
+      order.contextType === "EVENT" &&
+      order.status === "PENDING_CASH" &&
+      order.paymentStatus === "CASH",
+  );
+
   const hasOrderPrinted = Boolean(order?.printedAt);
-  const showPrintOrder = canUsePrintFlow;
-  const showMarkPrinted = Boolean(canUsePrintFlow && !hasOrderPrinted);
+  const showPrintOrder = showPrintOrderSlot;
+  const showMarkPrinted = Boolean(canPrintNow && !hasOrderPrinted);
   const showMarkShipped = Boolean(
     order && order.printedAt && !order.shippedAt,
   );
@@ -429,6 +476,9 @@ export default function OrderDetailPage() {
             <p className="mt-1 break-all font-mono text-xs text-[#6B7280]">
               {order.orderId}
             </p>
+            <p className="mt-1 text-sm text-[#6B7280]">
+              Created: {formatDate(order.createdAt)}
+            </p>
             <p className="mt-2 text-sm text-muted-foreground">
               {order.images.filter((img) => img.printed).length} /{" "}
               {order.images.length} images printed
@@ -440,8 +490,28 @@ export default function OrderDetailPage() {
                     Payment
                   </p>
                   <div className="mt-3">
-                    <PaymentClarityRow status={order.status} />
+                    <PaymentClarityRow
+                      status={order.status}
+                      contextType={order.contextType}
+                    />
                   </div>
+                  {showOfflineMarkPaid && (
+                    <div className="mt-4 flex flex-col gap-2 rounded-lg border border-amber-100 bg-amber-50/90 p-4">
+                      <p className="text-sm text-amber-950">
+                        Confirm payment before printing.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={actionBusy !== null}
+                        onClick={() => void markOrderPaid()}
+                        className="min-h-[44px] rounded-lg border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-950 transition-colors hover:bg-amber-50 disabled:opacity-50"
+                      >
+                        {actionBusy === "markPaid"
+                          ? "Updating…"
+                          : "Mark as paid"}
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
@@ -452,6 +522,7 @@ export default function OrderDetailPage() {
                       shippedAt={order.shippedAt}
                       printedAt={order.printedAt}
                       status={order.status}
+                      paymentStatus={order.paymentStatus}
                     />
                   </div>
                 </div>
@@ -484,7 +555,7 @@ export default function OrderDetailPage() {
                   {showPrintOrder && (
                     <button
                       type="button"
-                      disabled={actionBusy !== null}
+                      disabled={actionBusy !== null || !canPrintNow}
                       onClick={() => void printOrderPreview()}
                       className="min-h-[48px] rounded-lg bg-[#2563EB] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[180px]"
                     >
@@ -521,7 +592,15 @@ export default function OrderDetailPage() {
                     </button>
                   )}
                 </div>
-                {showPrintOrder && !hasOrderPrinted && !printOutcomePrompt && (
+                {eventAwaitingPaidConfirmation && !canPrintNow && (
+                  <p className="text-xs font-medium text-amber-800">
+                    Order must be marked as paid before printing.
+                  </p>
+                )}
+                {showPrintOrder &&
+                  !hasOrderPrinted &&
+                  !printOutcomePrompt &&
+                  canPrintNow && (
                   <p className="text-xs text-[#6B7280]">
                     Open the PDF preview, then confirm when production printing is
                     done.
@@ -867,7 +946,15 @@ export default function OrderDetailPage() {
                             : "border-gray-200"
                         }`}
                       >
-                        {img.renderedUrl ? (
+                        {img.mediaDeletedAt ? (
+                          <div
+                            className={`flex h-full items-center justify-center p-2 text-center text-xs text-[#6B7280] ${
+                              img.printed ? "opacity-60" : ""
+                            }`}
+                          >
+                            Media removed after retention period.
+                          </div>
+                        ) : img.renderedUrl ? (
                           <img
                             src={img.renderedUrl}
                             alt=""
@@ -925,7 +1012,11 @@ export default function OrderDetailPage() {
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <button
                     type="button"
-                    disabled={isPrintingSelected || actionBusy !== null}
+                    disabled={
+                      !canPrintNow ||
+                      isPrintingSelected ||
+                      actionBusy !== null
+                    }
                     onClick={() => void handleMarkSelectedPrinted()}
                     className="rounded border border-gray-300 px-3 py-2 text-sm text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50"
                   >
@@ -935,7 +1026,11 @@ export default function OrderDetailPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={isPrintingSelected || actionBusy !== null}
+                    disabled={
+                      !canPrintNow ||
+                      isPrintingSelected ||
+                      actionBusy !== null
+                    }
                     onClick={() => void printSelectedImages()}
                     className="min-h-[48px] rounded-lg bg-[#2563EB] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
                   >

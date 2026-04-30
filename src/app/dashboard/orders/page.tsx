@@ -133,6 +133,40 @@ function orderCodeLabel(o: SellerOrderListItem): string {
   return o.shortCode ?? o.id.slice(0, 8);
 }
 
+const SELLER_LIST_STATUS_OPTIONS = [
+  { value: "awaiting_payment", label: "Awaiting payment" },
+  { value: "ready", label: "Ready to print" },
+  { value: "partial", label: "Partially printed" },
+  { value: "printed", label: "Printed" },
+  { value: "shipped", label: "Shipped" },
+] as const;
+
+type SellerListStatusValue = (typeof SELLER_LIST_STATUS_OPTIONS)[number]["value"];
+
+function parseStatusSelectionsFromParam(
+  param: string | null,
+): SellerListStatusValue[] {
+  if (!param?.trim()) return [];
+  const out: SellerListStatusValue[] = [];
+  const seen = new Set<string>();
+  for (const raw of param.split(",")) {
+    const s = raw.trim().toLowerCase();
+    if (!s || seen.has(s)) continue;
+    const opt = SELLER_LIST_STATUS_OPTIONS.find((o) => o.value === s);
+    if (!opt) continue;
+    seen.add(s);
+    out.push(opt.value);
+  }
+  return out;
+}
+
+function statusParamFromSelections(selected: SellerListStatusValue[]): string {
+  const set = new Set(selected);
+  return SELLER_LIST_STATUS_OPTIONS.map((o) => o.value)
+    .filter((v) => set.has(v))
+    .join(",");
+}
+
 function OrderCustomerCell({ o }: { o: SellerOrderListItem }) {
   return (
     <div className="space-y-1">
@@ -167,15 +201,31 @@ function OrderPrintStatus({
   if (displayStatus === "SHIPPED") {
     statusLabel = "Shipped";
     statusClass = "text-blue-600";
-  } else if (printed === 0) {
-    statusLabel = "Ready to print";
+  } else if (displayStatus === "AWAITING_PAYMENT") {
+    statusLabel = "Awaiting payment";
     statusClass = "text-gray-500";
-  } else if (printed < total) {
-    statusLabel = "Partially printed";
-    statusClass = "text-orange-600";
+  } else if (displayStatus === "READY_TO_PRINT") {
+    if (printed === 0) {
+      statusLabel = "Ready to print";
+      statusClass = "text-gray-500";
+    } else if (printed < total) {
+      statusLabel = "Partially printed";
+      statusClass = "text-orange-600";
+    } else {
+      statusLabel = "Printed";
+      statusClass = "text-green-600";
+    }
+  } else if (displayStatus === "PRINTED") {
+    if (printed < total) {
+      statusLabel = "Partially printed";
+      statusClass = "text-orange-600";
+    } else {
+      statusLabel = "Printed";
+      statusClass = "text-green-600";
+    }
   } else {
-    statusLabel = "Printed";
-    statusClass = "text-green-600";
+    statusLabel = "—";
+    statusClass = "text-gray-500";
   }
 
   return (
@@ -203,6 +253,23 @@ function OrdersListContent() {
   const searchFromUrl = searchParams.get("search") ?? "";
   const [searchDraft, setSearchDraft] = useState(searchFromUrl);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const detailsRef = useRef<HTMLDetailsElement | null>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!detailsRef.current) return;
+
+      if (!detailsRef.current.contains(event.target as Node)) {
+        detailsRef.current.removeAttribute("open");
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     setSearchDraft(searchFromUrl);
@@ -410,6 +477,11 @@ function OrdersListContent() {
   const sortOrderCol =
     searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
+  const selectedStatuses = useMemo(
+    () => parseStatusSelectionsFromParam(searchParams.get("status")),
+    [searchParams],
+  );
+
   function toggleSort(column: "createdAt" | "status") {
     replaceQuery((q) => {
       const prevBy = q.get("sortBy") === "status" ? "status" : "createdAt";
@@ -575,27 +647,78 @@ function OrdersListContent() {
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
           />
         </label>
-        <label className="flex w-full min-w-[160px] flex-col gap-1.5 sm:w-44">
+        <div className="relative flex w-full min-w-[200px] flex-col gap-1.5 sm:w-56">
           <span className="text-xs font-medium text-[#6B7280]">Status</span>
-          <select
-            value={searchParams.get("status") ?? ""}
-            onChange={(e) => {
-              const v = e.target.value;
-              replaceQuery((q) => {
-                if (v) q.set("status", v);
-                else q.delete("status");
-                q.set("page", "1");
-              });
-            }}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-          >
-            <option value="">All</option>
-            <option value="ready">Ready to print</option>
-            <option value="partial">Partially printed</option>
-            <option value="printed">Printed</option>
-            <option value="shipped">Shipped</option>
-          </select>
-        </label>
+          <details ref={detailsRef} className="group relative">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] marker:hidden focus-visible:ring-2 [&::-webkit-details-marker]:hidden">
+              <span className="min-w-0 truncate">
+                <span className="font-medium text-[#6B7280]">Showing:</span>{" "}
+                {selectedStatuses.length === 0
+                  ? "All"
+                  : selectedStatuses
+                      .map(
+                        (v) =>
+                          SELLER_LIST_STATUS_OPTIONS.find((o) => o.value === v)
+                            ?.label ?? v,
+                      )
+                      .join(", ")}
+              </span>
+              <span
+                className="shrink-0 text-[#9CA3AF] transition-transform group-open:rotate-180"
+                aria-hidden
+              >
+                ▾
+              </span>
+            </summary>
+            <div className="absolute left-0 right-0 z-20 mt-1 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
+              <div className="border-b border-gray-100 px-3 pb-2">
+                <button
+                  type="button"
+                  className="text-sm font-medium text-[#2563EB] hover:underline"
+                  onClick={() => {
+                    replaceQuery((q) => {
+                      q.delete("status");
+                      q.set("page", "1");
+                    });
+                  }}
+                >
+                  All statuses
+                </button>
+              </div>
+              <ul className="max-h-64 overflow-auto px-2 pt-2">
+                {SELLER_LIST_STATUS_OPTIONS.map((opt) => {
+                  const checked = selectedStatuses.includes(opt.value);
+                  return (
+                    <li key={opt.value}>
+                      <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-[#111111] hover:bg-[#F9FAFB]">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            const set = new Set(selectedStatuses);
+                            if (set.has(opt.value)) set.delete(opt.value);
+                            else set.add(opt.value);
+                            const next = SELLER_LIST_STATUS_OPTIONS.map(
+                              (o) => o.value,
+                            ).filter((v) => set.has(v));
+                            replaceQuery((q) => {
+                              const param = statusParamFromSelections(next);
+                              if (param) q.set("status", param);
+                              else q.delete("status");
+                              q.set("page", "1");
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
+                        />
+                        {opt.label}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </details>
+        </div>
         <label className="flex w-full min-w-[120px] flex-col gap-1.5 sm:w-32">
           <span className="text-xs font-medium text-[#6B7280]">Page size</span>
           <select

@@ -287,3 +287,11 @@ export {
   type CleanupPrintSheetsResult,
   type PrintSheetCleanupError,
 } from "./printSheetCleanup";
+
+export {
+  cleanupOrderMedia,
+  type CleanupOrderMediaOptions,
+  type CleanupOrderMediaResult,
+  type FilesFoundByOrderEntry,
+  type OrderMediaCleanupError,
+} from "./orderMediaCleanup";
