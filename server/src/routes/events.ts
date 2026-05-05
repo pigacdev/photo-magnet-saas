@@ -7,6 +7,8 @@ import {
   parseNotificationEmailInput,
   parseSendOrderEmailsInput,
 } from "../lib/parseOrderNotificationSettings";
+import { getEventAnalyticsForSeller } from "../lib/eventAnalytics";
+import { streamEndedEventMediaZip } from "../lib/eventMediaZipExport";
 
 export const eventsRouter = Router();
 
@@ -160,6 +162,29 @@ eventsRouter.get("/", async (req, res) => {
   }));
 
   res.json({ events: eventsWithStatus });
+});
+
+/** GET /api/events/:id/analytics — seller metrics for one event (orders in EVENT context). */
+eventsRouter.get("/:id/analytics", async (req, res) => {
+  const userId = req.user!.userId;
+  const { id } = req.params;
+
+  const analytics = await getEventAnalyticsForSeller(id, userId);
+  if (!analytics) {
+    res.status(404).json({ error: "Event not found" });
+    return;
+  }
+
+  res.json(analytics);
+});
+
+/** GET /api/events/:id/export.zip — ended events only; paid order media on local disk (see README inside ZIP). */
+eventsRouter.get("/:id/export.zip", async (req, res, next) => {
+  try {
+    await streamEndedEventMediaZip(res, req.params.id, req.user!.userId);
+  } catch (e) {
+    next(e);
+  }
 });
 
 eventsRouter.get("/:id", async (req, res) => {
