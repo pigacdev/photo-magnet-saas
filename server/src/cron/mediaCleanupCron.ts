@@ -2,8 +2,10 @@ import cron from "node-cron";
 import type { CleanupAbandonedSessionMediaResult } from "../lib/mediaCleanup";
 import {
   cleanupAbandonedSessionMedia,
+  cleanupExpiredEventMedia,
   cleanupOrderMedia,
   cleanupPrintSheets,
+  type CleanupExpiredEventMediaResult,
   type CleanupOrderMediaResult,
   type CleanupPrintSheetsResult,
 } from "../lib/mediaCleanup";
@@ -54,6 +56,24 @@ function summarizeOrderMedia(r: CleanupOrderMediaResult): Record<string, unknown
     orderImagesMarkedDeleted: r.orderImagesMarkedDeleted,
     foldersDeleted: r.foldersDeleted,
     retentionDays: r.retentionDays,
+  };
+}
+
+function summarizeExpiredEventMedia(
+  r: CleanupExpiredEventMediaResult,
+): Record<string, unknown> {
+  return {
+    eventsScanned: r.eventsScanned,
+    eventsEligible: r.eventsEligible,
+    ordersScanned: r.ordersScanned,
+    orderImagesFound: r.orderImagesFound,
+    filesFound: r.filesFound,
+    filesDeleted: r.filesDeleted,
+    filesAlreadyMissing: r.filesAlreadyMissing,
+    filesSkipped: r.filesSkipped,
+    orderImagesMarkedDeleted: r.orderImagesMarkedDeleted,
+    foldersDeleted: r.foldersDeleted,
+    retentionHours: r.retentionHours,
   };
 }
 
@@ -115,6 +135,14 @@ if (!ENABLE_CRON) {
     void runJob("cleanup-order-media", () =>
       cleanupOrderMedia({ dryRun: false }),
       summarizeOrderMedia,
+    );
+  });
+
+  // Ended-event media (retention after event end); every 6 hours
+  cron.schedule("0 */6 * * *", () => {
+    void runJob("cleanup-expired-event-media", () =>
+      cleanupExpiredEventMedia({ dryRun: false }),
+      summarizeExpiredEventMedia,
     );
   });
 }

@@ -295,3 +295,9 @@ export {
   type FilesFoundByOrderEntry,
   type OrderMediaCleanupError,
 } from "./orderMediaCleanup";
+
+export {
+  cleanupExpiredEventMedia,
+  type CleanupExpiredEventMediaOptions,
+  type CleanupExpiredEventMediaResult,
+} from "./expiredEventMediaCleanup";

@@ -111,7 +111,7 @@ export function isDeletableOrderMediaUrl(originalUrl: string): boolean {
   }
 }
 
-async function orderMediaBlobExists(originalUrl: string): Promise<boolean> {
+export async function orderMediaBlobExists(originalUrl: string): Promise<boolean> {
   if (!isDeletableOrderMediaUrl(originalUrl)) return false;
 
   if (s3Config.bucket && originalUrl.startsWith("http")) {
@@ -147,7 +147,7 @@ async function orderMediaBlobExists(originalUrl: string): Promise<boolean> {
   }
 }
 
-async function deleteOrderMediaBlob(originalUrl: string): Promise<void> {
+export async function deleteOrderMediaBlob(originalUrl: string): Promise<void> {
   if (!isDeletableOrderMediaUrl(originalUrl)) {
     throw new Error("Refusing to delete: not an order-media URL");
   }
@@ -204,7 +204,7 @@ async function pruneEmptyDirsUnderRoot(absRoot: string): Promise<number> {
   return removed;
 }
 
-function collectUrls(row: {
+export function collectOrderImageMediaUrls(row: {
   originalUrl: string;
   croppedUrl: string | null;
   renderedUrl: string | null;
@@ -213,6 +213,29 @@ function collectUrls(row: {
     (u): u is string => typeof u === "string" && u.trim().length > 0,
   );
   return [...new Set(raw.map((u) => u.trim()))];
+}
+
+/** Remove empty directories under order-image upload roots (best-effort). */
+export async function pruneEmptyOrderMediaDirectories(): Promise<{
+  foldersDeleted: number;
+  errors: OrderMediaCleanupError[];
+}> {
+  let foldersDeleted = 0;
+  const errors: OrderMediaCleanupError[] = [];
+  const roots = [
+    path.resolve(process.cwd(), "uploads", "order-images"),
+    path.resolve(process.cwd(), "uploads", "order-images-rendered"),
+  ];
+  for (const root of roots) {
+    try {
+      foldersDeleted += await pruneEmptyDirsUnderRoot(root);
+    } catch (e: unknown) {
+      errors.push({
+        message: `Empty folder prune: ${e instanceof Error ? e.message : String(e)}`,
+      });
+    }
+  }
+  return { foldersDeleted, errors };
 }
 
 /**
@@ -274,7 +297,7 @@ export async function cleanupOrderMedia(
 
   const filesByOrder = new Map<string, number>();
   for (const row of pendingImages) {
-    const urls = collectUrls(row);
+    const urls = collectOrderImageMediaUrls(row);
     filesFound += urls.length;
     filesByOrder.set(row.orderId, (filesByOrder.get(row.orderId) ?? 0) + urls.length);
     for (const url of urls) {
@@ -303,7 +326,7 @@ export async function cleanupOrderMedia(
 
   if (dryRun) {
     for (const row of pendingImages) {
-      for (const url of collectUrls(row)) {
+      for (const url of collectOrderImageMediaUrls(row)) {
         if (!isDeletableOrderMediaUrl(url)) {
           errors.push({
             message: "URL not under order-images storage (would skip)",
@@ -339,7 +362,7 @@ export async function cleanupOrderMedia(
   const deletedAt = now;
 
   for (const row of pendingImages) {
-    const urls = collectUrls(row);
+    const urls = collectOrderImageMediaUrls(row);
 
     const unsafe = urls.filter((u) => !isDeletableOrderMediaUrl(u));
     if (unsafe.length > 0) {
@@ -401,21 +424,9 @@ export async function cleanupOrderMedia(
     }
   }
 
-  let foldersDeleted = 0;
-  const roots = [
-    path.resolve(process.cwd(), "uploads", "order-images"),
-    path.resolve(process.cwd(), "uploads", "order-images-rendered"),
-  ];
-
-  for (const root of roots) {
-    try {
-      foldersDeleted += await pruneEmptyDirsUnderRoot(root);
-    } catch (e: unknown) {
-      errors.push({
-        message: `Empty folder prune: ${e instanceof Error ? e.message : String(e)}`,
-      });
-    }
-  }
+  const pruneOutcome = await pruneEmptyOrderMediaDirectories();
+  let foldersDeleted = pruneOutcome.foldersDeleted;
+  errors.push(...pruneOutcome.errors);
 
   console.info(
     `[order-media-cleanup] completed deleted=${filesDeleted} missing=${filesAlreadyMissing} marked=${orderImagesMarkedDeleted}`,

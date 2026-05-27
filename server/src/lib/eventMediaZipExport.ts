@@ -12,7 +12,11 @@ import {
   extractS3KeyFromPublicUrl,
 } from "./sessionImageStorage";
 import { isDeletableOrderMediaUrl } from "./orderMediaCleanup";
+import { renderOrderImages, type OrderImageRenderInput } from "./renderOrderImages";
 import { s3Config } from "../config/s3";
+import { EVENT_MEDIA_RETENTION_HOURS_AFTER_END } from "../config/mediaRetention";
+
+const MS_PER_HOUR = 60 * 60 * 1000;
 
 function isPaidOrder(o: { status: string; paymentStatus: string }): boolean {
   return o.status === "PAID" && o.paymentStatus === "PAID";
@@ -87,38 +91,164 @@ async function resolveSafeLocalOrderMediaFile(
   }
 }
 
-function pickCandidateUrls(img: {
+type OrderImageZipRow = {
+  id: string;
+  copies: number;
   originalUrl: string;
   croppedUrl: string | null;
   renderedUrl: string | null;
-}): string[] {
-  const out: string[] = [];
-  const push = (u: string | null | undefined) => {
-    if (typeof u === "string" && u.trim().length > 0) out.push(u.trim());
-  };
-  push(img.renderedUrl);
-  push(img.croppedUrl);
-  push(img.originalUrl);
-  return out;
+  cropX: number;
+  cropY: number;
+  cropWidth: number;
+  cropHeight: number;
+};
+
+/** Original must be a local, non-http path with file on disk — matches {@link renderOrderImages} constraints. */
+async function originalFileReadyForRenderPipeline(
+  originalUrl: string,
+): Promise<boolean> {
+  const trimmed = originalUrl.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return false;
+  }
+  if (!isDeletableOrderMediaUrl(trimmed)) return false;
+  const rel = trimmed.replace(/^\/+/, "").replace(/\\/g, "/");
+  if (!rel.startsWith("uploads/order-images/")) return false;
+  const inputPath = path.join(process.cwd(), rel);
+  const root = path.resolve(process.cwd(), "uploads", "order-images");
+  const relToRoot = path.relative(root, path.resolve(inputPath));
+  if (relToRoot.startsWith("..") || path.isAbsolute(relToRoot)) return false;
+  try {
+    const st = await fs.stat(inputPath);
+    return st.isFile();
+  } catch {
+    return false;
+  }
 }
 
-function skipReasonForUrls(urls: string[]): string {
-  if (urls.length === 0) return "no_url_candidates";
-  if (
-    urls.every((u) => u.startsWith("http")) &&
-    s3Config.bucket &&
-    urls.every((u) => {
-      const key = extractS3KeyFromPublicUrl(u);
-      return Boolean(
-        key &&
-          (key.startsWith("order-images/") ||
-            key.startsWith("order-images-rendered/")),
-      );
-    })
-  ) {
-    return "s3_remote_not_supported_yet";
+function cropDimensionsValid(img: OrderImageZipRow): boolean {
+  const w = Math.round(img.cropWidth);
+  const h = Math.round(img.cropHeight);
+  return w >= 1 && h >= 1;
+}
+
+/**
+ * Resolves print-ready media only: existing rendered/cropped assets, or generates rendered JPEG via
+ * {@link renderOrderImages}. Never returns the raw `originalUrl` file.
+ */
+async function resolveFinalOrderImageForZip(
+  orderId: string,
+  img: OrderImageZipRow,
+): Promise<
+  | { ok: true; absPath: string; sourceNote: string }
+  | { ok: false; attempted: string; reason: string }
+> {
+  const attempts: string[] = [];
+
+  const trimmedRendered = img.renderedUrl?.trim();
+  if (trimmedRendered) {
+    attempts.push("renderedUrl");
+    const abs = await resolveSafeLocalOrderMediaFile(trimmedRendered);
+    if (abs) {
+      return { ok: true, absPath: abs, sourceNote: "renderedUrl" };
+    }
   }
-  return "missing_local_file";
+
+  const trimmedCropped = img.croppedUrl?.trim();
+  if (trimmedCropped) {
+    attempts.push("croppedUrl");
+    const abs = await resolveSafeLocalOrderMediaFile(trimmedCropped);
+    if (abs) {
+      return { ok: true, absPath: abs, sourceNote: "croppedUrl" };
+    }
+  }
+
+  if (!cropDimensionsValid(img)) {
+    return {
+      ok: false,
+      attempted: attempts.join("; ") || "none",
+      reason: "invalid_or_missing_crop_no_generated_asset",
+    };
+  }
+
+  const originalOk = await originalFileReadyForRenderPipeline(img.originalUrl);
+  if (!originalOk) {
+    const remoteOriginal = img.originalUrl.trim().startsWith("http");
+    if (
+      remoteOriginal &&
+      s3Config.bucket &&
+      (() => {
+        const key = extractS3KeyFromPublicUrl(img.originalUrl.trim());
+        return Boolean(
+          key &&
+            (key.startsWith("order-images/") ||
+              key.startsWith("order-images-rendered/")),
+        );
+      })()
+    ) {
+      return {
+        ok: false,
+        attempted: [...attempts, "render_from_crop"].join("; "),
+        reason: "s3_original_not_supported_for_render_pipeline",
+      };
+    }
+    return {
+      ok: false,
+      attempted: [...attempts, "render_from_crop"].join("; "),
+      reason: "original_not_available_locally_for_render_pipeline",
+    };
+  }
+
+  attempts.push("render_from_crop");
+
+  const renderInput: OrderImageRenderInput = {
+    id: img.id,
+    originalUrl: img.originalUrl.trim(),
+    cropX: img.cropX,
+    cropY: img.cropY,
+    cropWidth: img.cropWidth,
+    cropHeight: img.cropHeight,
+  };
+
+  try {
+    await renderOrderImages(orderId, [renderInput]);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const short =
+      msg.length > 120 ? `${msg.slice(0, 117)}...` : msg;
+    return {
+      ok: false,
+      attempted: attempts.join("; "),
+      reason: `render_pipeline_failed:${short}`,
+    };
+  }
+
+  const renderedAbs = path.join(
+    process.cwd(),
+    "uploads",
+    "order-images-rendered",
+    orderId,
+    `${img.id}.jpg`,
+  );
+  try {
+    const st = await fs.stat(renderedAbs);
+    if (st.isFile()) {
+      return {
+        ok: true,
+        absPath: renderedAbs,
+        sourceNote: "generated_via_renderOrderImages",
+      };
+    }
+  } catch {
+    /* missing */
+  }
+
+  return {
+    ok: false,
+    attempted: attempts.join("; "),
+    reason: "render_output_missing_after_pipeline",
+  };
 }
 
 function extensionForEntry(absPath: string, fallbackUrl: string): string {
@@ -180,6 +310,17 @@ export async function streamEndedEventMediaZip(
     return;
   }
 
+  const mediaDeletionAt = new Date(
+    event.endDate.getTime() +
+      EVENT_MEDIA_RETENTION_HOURS_AFTER_END * MS_PER_HOUR,
+  );
+  if (now.getTime() > mediaDeletionAt.getTime()) {
+    res.status(410).json({
+      error: "Event media export window has expired.",
+    });
+    return;
+  }
+
   const ordersRaw = await prisma.order.findMany({
     where: {
       organizationId: sellerUserId,
@@ -206,6 +347,10 @@ export async function streamEndedEventMediaZip(
           originalUrl: true,
           croppedUrl: true,
           renderedUrl: true,
+          cropX: true,
+          cropY: true,
+          cropWidth: true,
+          cropHeight: true,
         },
       },
     },
@@ -242,7 +387,7 @@ export async function streamEndedEventMediaZip(
 
   const csvRows: string[] = [csvHeader];
   const skippedLines: string[] = [
-    "order_id\tfolder\timage_index\tcopies\turls_attempted\tskip_reason",
+    "order_id\tfolder\timage_index\tcopies\tattempts\tskip_reason",
   ];
 
   const folderUsed = new Set<string>();
@@ -259,23 +404,12 @@ export async function streamEndedEventMediaZip(
     let imgIdx = 0;
     for (const img of order.orderImages) {
       imgIdx += 1;
-      const candidates = pickCandidateUrls(img);
-      let resolvedAbs: string | null = null;
-      let usedUrl = "";
+      const resolved = await resolveFinalOrderImageForZip(order.id, img);
 
-      for (const url of candidates) {
-        const abs = await resolveSafeLocalOrderMediaFile(url);
-        if (abs) {
-          resolvedAbs = abs;
-          usedUrl = url;
-          break;
-        }
-      }
-
-      if (resolvedAbs) {
-        const ext = extensionForEntry(resolvedAbs, usedUrl);
+      if (resolved.ok) {
+        const ext = extensionForEntry(resolved.absPath, resolved.sourceNote);
         const entryPath = `${zipRoot}/${orderFolder}/image-${imgIdx}-copies-${img.copies}${ext}`;
-        archive.file(resolvedAbs, { name: entryPath });
+        archive.file(resolved.absPath, { name: entryPath });
         included += 1;
         totalIncluded += 1;
       } else {
@@ -286,8 +420,8 @@ export async function streamEndedEventMediaZip(
             orderFolder,
             String(imgIdx),
             String(img.copies),
-            candidates.join("; ").replace(/\r?\n|\t/g, " "),
-            skipReasonForUrls(candidates),
+            resolved.attempted.replace(/\r?\n|\t/g, " "),
+            resolved.reason.replace(/\r?\n|\t/g, " "),
           ].join("\t"),
         );
       }
@@ -317,9 +451,12 @@ export async function streamEndedEventMediaZip(
     "Event media export (paid orders only).",
     "Database rows are not modified by this export.",
     "",
+    "Image files are print-ready only (customer crop / rendered JPEG). Raw originals are never included.",
+    "Missing assets may be regenerated on the fly from local originals using the same pipeline as seller print previews when possible.",
+    "",
     "Some files may be missing because:",
     "- Retention cleanup already removed blobs (check media_files_missing in orders.csv).",
-    "- Assets are stored on S3-only URLs — ZIP packing from S3 is not implemented yet (TODO).",
+    "- Assets are stored on S3-only URLs — ZIP packing and render input from S3 are not implemented yet (TODO).",
     "",
     totalIncluded === 0
       ? "No downloadable media files were found on disk for this export."

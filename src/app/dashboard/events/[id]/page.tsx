@@ -652,6 +652,13 @@ export default function EventDetailPage() {
 
   async function downloadEventArchive() {
     if (!eventId) return;
+    if (
+      analytics?.event.isEnded &&
+      countdownSeconds != null &&
+      countdownSeconds <= 0
+    ) {
+      return;
+    }
     const confirmed = window.confirm(
       "This archive contains event order media currently still available. Media may be deleted after the scheduled cleanup time.",
     );
@@ -743,14 +750,14 @@ export default function EventDetailPage() {
 
   if (isEndedEvent) {
     const delAt = analytics?.event.mediaDeletionAt;
+    const retentionReady = analytics && !analyticsLoading;
+    const countdownKnown = countdownSeconds != null;
     const showCountdown =
-      analytics && !analyticsLoading && countdownSeconds !== null && countdownSeconds > 0;
+      retentionReady && countdownKnown && countdownSeconds > 0;
     const showCleanupExpired =
-      analytics &&
-      !analyticsLoading &&
-      delAt &&
-      countdownSeconds !== null &&
-      countdownSeconds <= 0;
+      retentionReady && delAt && countdownKnown && countdownSeconds <= 0;
+    const exportArchiveBlocked = showCleanupExpired;
+
     return (
       <div className="mx-auto flex max-w-4xl flex-col gap-8">
         <div>
@@ -783,56 +790,75 @@ export default function EventDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-[#F9FAFB] p-5">
-          <p className="text-base font-medium text-[#111111]">
-            This event has ended.
-          </p>
-          <p className="mt-3 text-sm text-[#6B7280]">
-            <span className="font-medium text-[#374151]">Event ran: </span>
-            {formatDateShort(analytics?.event.startsAt ?? event.startDate)} —{" "}
-            {formatDateShort(analytics?.event.endsAt ?? event.endDate)}
+        <p className="text-sm text-[#6B7280]">
+          <span className="font-medium text-[#374151]">This event has ended. </span>
+          <span className="font-medium text-[#374151]">Event ran: </span>
+          {formatDateShort(analytics?.event.startsAt ?? event.startDate)} —{" "}
+          {formatDateShort(analytics?.event.endsAt ?? event.endDate)}
+        </p>
+
+        <div
+          className="rounded-xl border-2 border-amber-400 bg-amber-50 p-5 shadow-sm ring-1 ring-amber-200/90"
+          role="region"
+          aria-label="Event media retention"
+        >
+          <h2 className="text-base font-semibold text-amber-950">
+            Order media cleanup
+          </h2>
+          <p className="mt-1 text-sm text-amber-900/90">
+            Customer photos from this event are kept for a limited time after the event ends.
+            Download the archive before the cleanup time.
           </p>
           {delAt ? (
-            <p className="mt-3 text-sm text-[#6B7280]">
-              Event media is scheduled for deletion on{" "}
-              <span className="font-medium text-[#111111]">
-                {formatDateShort(delAt)}
-              </span>
-              .
+            <p className="mt-4 text-sm text-amber-950">
+              <span className="font-semibold">Scheduled media deletion: </span>
+              <span className="tabular-nums">{formatDateShort(delAt)}</span>
             </p>
           ) : analyticsLoading ? (
-            <p className="mt-3 text-sm text-[#6B7280]">Loading retention schedule…</p>
+            <p className="mt-4 text-sm text-amber-900">Loading retention schedule…</p>
+          ) : analyticsError ? (
+            <p className="mt-4 text-sm text-amber-900">
+              Could not load retention schedule. You can still try to download; the server enforces the deadline.
+            </p>
           ) : null}
-          {showCountdown && countdownSeconds != null ? (
-            <p className="mt-2 text-sm text-[#374151]">
-              <span className="font-medium">Time until scheduled deletion: </span>
-              {formatCountdown(countdownSeconds)}
+          {showCountdown ? (
+            <p className="mt-3 text-sm font-medium text-amber-950">
+              <span className="font-semibold">Time remaining: </span>
+              {formatCountdown(countdownSeconds!)}
             </p>
           ) : null}
           {showCleanupExpired ? (
-            <p className="mt-2 text-sm font-medium text-[#374151]">
+            <p className="mt-3 text-sm font-semibold text-amber-950">
               Media cleanup window has expired.
             </p>
           ) : null}
+        </div>
 
-          <div className="mt-6 border-t border-gray-200 pt-4">
-            <button
-              type="button"
-              disabled={exportLoading}
-              onClick={() => void downloadEventArchive()}
-              className="min-h-[44px] rounded-lg bg-[#111827] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {exportLoading ? "Preparing download…" : "Download event archive"}
-            </button>
-            <p className="mt-2 max-w-xl text-xs text-[#6B7280]">
-              Paid orders only. Missing files (cleanup or cloud storage) are listed in MEDIA_SKIPPED.txt when applicable.
+        <div className="rounded-lg border border-gray-200 bg-[#F9FAFB] p-5">
+          {exportArchiveBlocked ? (
+            <p className="text-sm font-medium text-[#92400E]">
+              Archive download is no longer available after the media cleanup deadline.
             </p>
-            {exportError ? (
-              <p className="mt-2 text-sm text-red-600" role="alert">
-                {exportError}
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={exportLoading}
+                onClick={() => void downloadEventArchive()}
+                className="min-h-[44px] rounded-lg bg-[#111827] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {exportLoading ? "Preparing download…" : "Download event archive"}
+              </button>
+              <p className="mt-2 max-w-xl text-xs text-[#6B7280]">
+                Paid orders only. Missing files (cleanup or cloud storage) are listed in MEDIA_SKIPPED.txt when applicable.
               </p>
-            ) : null}
-          </div>
+            </>
+          )}
+          {exportError ? (
+            <p className="mt-2 text-sm text-red-600" role="alert">
+              {exportError}
+            </p>
+          ) : null}
         </div>
 
         {analyticsBlock}
