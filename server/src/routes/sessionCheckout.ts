@@ -108,6 +108,7 @@ sessionCheckoutRouter.post("/customer", async (req: Request, res: Response) => {
   const body = req.body as Record<string, unknown>;
   const customerBody = {
     customerName: body.customerName,
+    customerEmail: body.customerEmail,
     customerPhone:
       (typeof body.phone === "string" ? body.phone : body.customerPhone) as unknown,
     shippingType: (body.shippingMethod ?? body.shippingType) as unknown,
@@ -144,6 +145,7 @@ sessionCheckoutRouter.post("/customer", async (req: Request, res: Response) => {
     where: { id: String(sessionId) },
     data: {
       checkoutCustomerName: data.customerName,
+      checkoutCustomerEmail: data.customerEmail,
       checkoutCustomerPhone: data.customerPhone,
       checkoutShippingType: data.shippingType,
       checkoutShippingAddress: shippingJson,

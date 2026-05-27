@@ -64,6 +64,7 @@ export function selectionComplete(session: {
 
 export type OrderCustomerInsert = {
   customerName: string | null;
+  customerEmail: string | null;
   customerPhone: string | null;
   shippingType: string | null;
   shippingAddress: Prisma.InputJsonValue | typeof Prisma.JsonNull | null;
@@ -326,6 +327,7 @@ export function toOrderCustomerInsertFromValidated(
 ): OrderCustomerInsert {
   return {
     customerName: data.customerName,
+    customerEmail: data.customerEmail,
     customerPhone: data.customerPhone,
     shippingType: data.shippingType,
     shippingAddress:
@@ -444,6 +446,7 @@ export async function runOrderCommitTransaction(
       quantity: commitOrderQuantity,
       bundleId: locked.bundleId != null ? String(locked.bundleId) : null,
       customerName: customer?.customerName ?? null,
+      customerEmail: customer?.customerEmail ?? null,
       customerPhone: customer?.customerPhone ?? null,
       shippingType: customer?.shippingType ?? null,
       shippingAddress:

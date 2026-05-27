@@ -267,6 +267,7 @@ export default function StorefrontDetailPage() {
         <h2 className="text-sm font-semibold text-[#111111]">Order notifications</h2>
         <p className="mt-1 text-xs text-[#6B7280]">
           When enabled, we email you at the address below each time a customer places an order.
+          In production, this address will also be used as the sender for buyer order confirmation emails.
         </p>
         <label className="mt-3 flex cursor-pointer items-start gap-2">
           <input

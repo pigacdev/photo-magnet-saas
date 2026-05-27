@@ -16,6 +16,10 @@ import { getAppPublicUrl, getStripeOrNull } from "../lib/stripe";
 import { expireStripeCheckoutSessionIfOpen } from "../lib/stripeCheckoutSessionLifecycle";
 import { sessionConfig } from "../config/session";
 import { isStorefrontCustomerComplete } from "../lib/orderCustomerValidation";
+import {
+  enrichOrderCustomerEmailFromStripe,
+  sendBuyerOrderConfirmationIfNeeded,
+} from "../lib/orderBuyerConfirmationEmail";
 import { authenticate } from "../middleware/auth";
 import { handleStripeSessionCheckout } from "./stripeSessionCheckout";
 import {
@@ -105,7 +109,7 @@ stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
   if (!isStorefrontCustomerComplete(order)) {
     res.status(400).json({
       error:
-        "Complete phone, shipping method, and (for delivery) address or (for BoxNow) locker id before paying.",
+        "Complete email, phone, shipping method, and (for delivery) address or (for BoxNow) locker id before paying.",
     });
     return;
   }
@@ -491,6 +495,15 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
           orderId,
           stripeSessionId: session.id,
         });
+        try {
+          await enrichOrderCustomerEmailFromStripe(
+            orderId,
+            session.customer_details?.email ?? session.customer_email,
+          );
+          await sendBuyerOrderConfirmationIfNeeded(orderId);
+        } catch (emailErr) {
+          console.error("[email] buyer confirmation failed after Stripe payment", emailErr);
+        }
         res.status(200).json({ received: true });
         return;
         } else if (orderSessionId) {
@@ -501,6 +514,18 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
         if (r.ok) {
           if (!r.alreadyPaid) {
             await runSessionWebhookPostPaymentOrderProcessing(r.orderId);
+          }
+          try {
+            await enrichOrderCustomerEmailFromStripe(
+              r.orderId,
+              session.customer_details?.email ?? session.customer_email,
+            );
+            await sendBuyerOrderConfirmationIfNeeded(r.orderId);
+          } catch (emailErr) {
+            console.error(
+              "[email] buyer confirmation failed after session-first Stripe payment",
+              emailErr,
+            );
           }
           console.info("[stripe.webhook] session-first checkout", {
             orderId: r.orderId,

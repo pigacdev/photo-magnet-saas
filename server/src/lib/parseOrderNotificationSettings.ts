@@ -1,5 +1,21 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+export function parseValidCustomerEmail(
+  raw: unknown,
+): { kind: "error"; error: string } | { kind: "ok"; value: string } {
+  if (typeof raw !== "string") {
+    return { kind: "error", error: "Email is required" };
+  }
+  const t = raw.trim();
+  if (t.length === 0) {
+    return { kind: "error", error: "Email is required" };
+  }
+  if (!EMAIL_RE.test(t)) {
+    return { kind: "error", error: "Invalid email address" };
+  }
+  return { kind: "ok", value: t };
+}
+
 export type ParseNotifResult<T> =
   | { kind: "omit" }
   | { kind: "ok"; value: T }

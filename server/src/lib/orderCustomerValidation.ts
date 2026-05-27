@@ -3,9 +3,11 @@ import {
   STOREFRONT_SHIPPING_TYPES,
   type StorefrontShippingType,
 } from "../../../src/lib/shippingTypes";
+import { parseValidCustomerEmail } from "./parseOrderNotificationSettings";
 
 export type ValidatedCustomerPayload = {
   customerName: string;
+  customerEmail: string;
   customerPhone: string | null;
   shippingType: string | null;
   shippingAddress:
@@ -26,17 +28,29 @@ function parseStorefrontShippingType(
   return null;
 }
 
+function parseCustomerEmailField(
+  body: Record<string, unknown>,
+): { error: string } | { email: string } {
+  const parsed = parseValidCustomerEmail(body.customerEmail);
+  if (parsed.kind === "error") {
+    return { error: parsed.error };
+  }
+  return { email: parsed.value };
+}
+
 /**
  * Validates body for PATCH /api/orders/:id/customer by storefront vs event rules.
  */
 /** Storefront online payment requires full shipping snapshot (method-specific). */
 export function isStorefrontCustomerComplete(order: {
   customerName: string | null;
+  customerEmail: string | null;
   customerPhone: string | null;
   shippingType: string | null;
   shippingAddress: unknown | null;
 }): boolean {
   if (!order.customerName?.trim()) return false;
+  if (!order.customerEmail?.trim()) return false;
   if (!order.customerPhone?.trim()) return false;
   if (!order.shippingType?.trim()) return false;
 
@@ -74,12 +88,18 @@ export function validateOrderCustomerBody(
     return { error: "Name is required" };
   }
 
+  const emailParsed = parseCustomerEmailField(b);
+  if ("error" in emailParsed) {
+    return { error: emailParsed.error };
+  }
+
   if (contextType === "EVENT") {
     const phone =
       typeof b.customerPhone === "string" ? b.customerPhone.trim() : "";
     return {
       data: {
         customerName: name,
+        customerEmail: emailParsed.email,
         customerPhone: phone.length > 0 ? phone : null,
         shippingType: null,
         shippingAddress: null,
@@ -104,6 +124,7 @@ export function validateOrderCustomerBody(
     return {
       data: {
         customerName: name,
+        customerEmail: emailParsed.email,
         customerPhone: phone,
         shippingType: "pickup",
         shippingAddress: null,
@@ -133,6 +154,7 @@ export function validateOrderCustomerBody(
     return {
       data: {
         customerName: name,
+        customerEmail: emailParsed.email,
         customerPhone: phone,
         shippingType: "delivery",
         shippingAddress: { fullAddress: full, notes },
@@ -154,6 +176,7 @@ export function validateOrderCustomerBody(
   return {
     data: {
       customerName: name,
+      customerEmail: emailParsed.email,
       customerPhone: phone,
       shippingType: "boxnow",
       shippingAddress: { lockerId },

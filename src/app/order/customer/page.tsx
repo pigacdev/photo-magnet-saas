@@ -48,6 +48,7 @@ type OrderCustomerLoad = {
   status: string;
   contextType: "EVENT" | "STOREFRONT";
   customerName: string | null;
+  customerEmail: string | null;
   customerPhone: string | null;
   shippingType: string | null;
   shippingAddress: unknown | null;
@@ -83,6 +84,7 @@ function CustomerPageInner() {
   );
 
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [shippingType, setShippingType] =
     useState<StorefrontShippingType>("delivery");
@@ -114,6 +116,7 @@ function CustomerPageInner() {
           setOrderCtx(o);
           setSessionCtx(null);
           if (o.customerName) setName(o.customerName);
+          if (o.customerEmail) setEmail(o.customerEmail);
           if (o.customerPhone) setPhone(o.customerPhone);
           if (o.shippingType) {
             setShippingType(normalizeLegacyShippingType(o.shippingType));
@@ -226,11 +229,13 @@ function CustomerPageInner() {
             orderCtx.contextType === "EVENT"
               ? {
                   customerName: name.trim(),
+                  customerEmail: email.trim(),
                   ...(phone.trim() ? { customerPhone: phone.trim() } : {}),
                 }
               : shippingType === "pickup"
                 ? {
                     customerName: name.trim(),
+                    customerEmail: email.trim(),
                     customerPhone: phone.trim(),
                     shippingType: "pickup",
                     shippingAddress: null,
@@ -238,6 +243,7 @@ function CustomerPageInner() {
                 : shippingType === "delivery"
                   ? {
                       customerName: name.trim(),
+                      customerEmail: email.trim(),
                       customerPhone: phone.trim(),
                       shippingType: "delivery",
                       shippingAddress: {
@@ -247,6 +253,7 @@ function CustomerPageInner() {
                     }
                   : {
                       customerName: name.trim(),
+                      customerEmail: email.trim(),
                       customerPhone: phone.trim(),
                       shippingType: "boxnow",
                       shippingAddress: { lockerId: lockerId.trim() },
@@ -288,6 +295,7 @@ function CustomerPageInner() {
       try {
         const customerOnly: Record<string, unknown> = {
           customerName: name.trim(),
+          customerEmail: email.trim(),
         };
         if (isEvent) {
           if (phone.trim()) customerOnly.phone = phone.trim();
@@ -377,6 +385,7 @@ function CustomerPageInner() {
       isPaidEdit,
       eventPaymentMethod,
       name,
+      email,
       phone,
       shippingType,
       fullAddress,
@@ -507,6 +516,24 @@ function CustomerPageInner() {
             onChange={(e) => setName(e.target.value)}
             className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
           />
+        </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-[#111111]">
+            Email <span className="text-red-600">*</span>
+          </span>
+          <input
+            type="email"
+            name="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+          />
+          <span className="text-xs text-[#6B7280]">
+            We will send your order confirmation to this address.
+          </span>
         </label>
 
         <label className="flex flex-col gap-1.5">

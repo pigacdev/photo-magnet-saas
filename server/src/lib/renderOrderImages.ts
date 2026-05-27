@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { ORDER_IMAGE_LIST_ORDER_BY } from "./magnetImageOrderBy";
 import { prisma } from "./prisma";
 
 /**
@@ -88,4 +89,41 @@ export async function renderOrderImages(
       );
     }
   }
+}
+
+/**
+ * Renders any order images that do not yet have a persisted `renderedUrl`.
+ * Safe to call repeatedly (e.g. on order load or after commit).
+ */
+export async function ensureOrderImagesRendered(orderId: string): Promise<void> {
+  const images = await prisma.orderImage.findMany({
+    where: {
+      orderId,
+      mediaDeletedAt: null,
+      OR: [{ renderedUrl: null }, { renderedUrl: "" }],
+    },
+    orderBy: ORDER_IMAGE_LIST_ORDER_BY,
+  });
+  if (images.length === 0) return;
+
+  const renderable = images.filter(
+    (img) =>
+      img.cropX != null &&
+      img.cropY != null &&
+      img.cropWidth != null &&
+      img.cropHeight != null,
+  );
+  if (renderable.length === 0) return;
+
+  await renderOrderImages(
+    orderId,
+    renderable.map((img) => ({
+      id: img.id,
+      originalUrl: img.originalUrl,
+      cropX: img.cropX!,
+      cropY: img.cropY!,
+      cropWidth: img.cropWidth!,
+      cropHeight: img.cropHeight!,
+    })),
+  );
 }

@@ -134,6 +134,7 @@ model OrderSession {
   stripePaymentStatus     String?
   /// Customer snapshot for session-first online payment (webhook / post-success order creation). Not in GET /api/session.
   checkoutCustomerName    String?
+  checkoutCustomerEmail   String?
   checkoutCustomerPhone   String?
   checkoutShippingType    String?
   checkoutShippingAddress Json?
@@ -204,6 +205,8 @@ model Order {
   /// When available (card charge id from expanded PI).
   stripeChargeId          String?
   customerEmail           String?
+  /// Set after buyer confirmation email is sent (idempotency guard).
+  buyerConfirmationEmailSentAt DateTime?
   customerName            String?
   customerPhone           String?
   /// Seller marks production done. Reprints do not change this.

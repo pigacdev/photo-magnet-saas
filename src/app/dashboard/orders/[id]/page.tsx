@@ -966,11 +966,11 @@ export default function OrderDetailPage() {
                     Clear selection
                   </button>
                 </div>
-                <ul className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <ul className="mt-4 flex flex-wrap gap-3">
                   {printableImages.map((img) => {
                     const isSelected = selectedImageIds.includes(img.id);
                     return (
-                      <li key={img.id} className="relative">
+                      <li key={img.id} className="relative h-[132px] w-[132px] shrink-0">
                         <button
                           type="button"
                           aria-pressed={isSelected}
@@ -978,7 +978,7 @@ export default function OrderDetailPage() {
                             isSelected ? "Deselect image" : "Select image"
                           }
                           onClick={() => toggleImageSelected(img.id)}
-                          className={`group relative aspect-square w-full overflow-hidden rounded-lg border bg-[#F9FAFB] text-left transition-shadow ${
+                          className={`group relative h-[132px] w-[132px] overflow-hidden rounded-lg border bg-[#F9FAFB] text-left transition-shadow ${
                             isSelected
                               ? "border-[#2563EB] ring-2 ring-[#2563EB]"
                               : "border-gray-200"

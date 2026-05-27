@@ -27,13 +27,16 @@ import {
   expandOrderImagesForPrintSheet,
   generatePrintSheet,
 } from "../lib/generatePrintSheet";
-import { renderOrderImages } from "../lib/renderOrderImages";
+import { renderOrderImages, ensureOrderImagesRendered } from "../lib/renderOrderImages";
 import {
   buildOrderEmailHtml,
   buildOrderEmailSubject,
   sendNewOrderEmail,
 } from "../lib/email";
 import { loadOrderNotificationContext } from "../lib/orderNotificationContext";
+import {
+  sendBuyerOrderConfirmationIfNeeded,
+} from "../lib/orderBuyerConfirmationEmail";
 import {
   allOrderImagesMediaRemoved,
   filterPrintableOrderImages,
@@ -955,6 +958,7 @@ ordersRouter.patch("/:id/customer", async (req: Request, res: Response) => {
     where: { id: orderId },
     data: {
       customerName: data.customerName,
+      customerEmail: data.customerEmail,
       customerPhone: data.customerPhone,
       shippingType: data.shippingType,
       shippingAddress:
@@ -1043,6 +1047,7 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
 
   const customerBody = {
     customerName: body.customerName,
+    customerEmail: body.customerEmail,
     customerPhone:
       (typeof body.phone === "string" ? body.phone : body.customerPhone) as unknown,
     shippingType: (body.shippingMethod ?? body.shippingType) as unknown,
@@ -1130,6 +1135,18 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
         imageCount: result.imageCount,
         storage: prepared.orderImageStorageKind,
       });
+      try {
+        await ensureOrderImagesRendered(result.orderId);
+      } catch (renderErr) {
+        console.error("[order.finalize] ensureOrderImagesRendered failed", renderErr);
+      }
+      if (result.status === "PENDING_CASH") {
+        try {
+          await sendBuyerOrderConfirmationIfNeeded(result.orderId);
+        } catch (err) {
+          console.error("[email] buyer confirmation failed after finalize", err);
+        }
+      }
     }
     res.json({ orderId: result.orderId, status: result.status });
   } catch (e) {
@@ -1238,14 +1255,30 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
   }
 
   if (sellerUser) {
-    const order = await prisma.order.findFirst({
+    let order = await prisma.order.findFirst({
       where: { id: orderId, organizationId: sellerUser.userId },
       include: {
         orderImages: { orderBy: ORDER_IMAGE_LIST_ORDER_BY },
       },
     });
     if (order) {
-      const shapeIds = [...new Set(order.orderImages.map((i) => i.shapeId))];
+      try {
+        await ensureOrderImagesRendered(orderId);
+        order = await prisma.order.findFirst({
+          where: { id: orderId, organizationId: sellerUser.userId },
+          include: {
+            orderImages: { orderBy: ORDER_IMAGE_LIST_ORDER_BY },
+          },
+        });
+      } catch (renderErr) {
+        console.warn("[orders.get] ensureOrderImagesRendered", renderErr);
+      }
+      if (!order) {
+        res.status(404).json({ error: "Order not found" });
+        return;
+      }
+      const orderRow = order;
+      const shapeIds = [...new Set(orderRow.orderImages.map((i) => i.shapeId))];
       const shapes = await prisma.allowedShape.findMany({
         where: { id: { in: shapeIds } },
         select: { id: true, widthMm: true, heightMm: true },
@@ -1254,30 +1287,30 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
       const printSheets = shapeIds.map((sid) => {
         const sh = shapeById.get(sid);
         return {
-          url: `/uploads/print-sheets/${order.id}-${sid}.pdf`,
+          url: `/uploads/print-sheets/${orderRow.id}-${sid}.pdf`,
           widthMm: sh?.widthMm ?? 0,
           heightMm: sh?.heightMm ?? 0,
         };
       });
       res.json({
-        orderId: order.id,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        displayStatus: getDisplayStatus(order),
-        contextType: order.contextType,
-        contextId: order.contextId,
-        totalPrice: order.totalPrice.toString(),
-        currency: order.currency,
-        imageCount: order.orderImages.length,
-        createdAt: order.createdAt.toISOString(),
-        customerName: order.customerName,
-        customerEmail: order.customerEmail,
-        customerPhone: order.customerPhone,
-        shippingType: order.shippingType,
-        shippingAddress: order.shippingAddress,
-        printedAt: order.printedAt?.toISOString() ?? null,
-        shippedAt: order.shippedAt?.toISOString() ?? null,
-        images: order.orderImages.map((img) => ({
+        orderId: orderRow.id,
+        status: orderRow.status,
+        paymentStatus: orderRow.paymentStatus,
+        displayStatus: getDisplayStatus(orderRow),
+        contextType: orderRow.contextType,
+        contextId: orderRow.contextId,
+        totalPrice: orderRow.totalPrice.toString(),
+        currency: orderRow.currency,
+        imageCount: orderRow.orderImages.length,
+        createdAt: orderRow.createdAt.toISOString(),
+        customerName: orderRow.customerName,
+        customerEmail: orderRow.customerEmail,
+        customerPhone: orderRow.customerPhone,
+        shippingType: orderRow.shippingType,
+        shippingAddress: orderRow.shippingAddress,
+        printedAt: orderRow.printedAt?.toISOString() ?? null,
+        shippedAt: orderRow.shippedAt?.toISOString() ?? null,
+        images: orderRow.orderImages.map((img) => ({
           id: img.id,
           renderedUrl:
             img.mediaDeletedAt != null ? null : img.renderedUrl,
@@ -1318,6 +1351,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
       contextType: true,
       contextId: true,
       customerName: true,
+      customerEmail: true,
       customerPhone: true,
       shippingType: true,
       shippingAddress: true,
@@ -1338,6 +1372,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
     contextType: order.contextType,
     contextId: order.contextId,
     customerName: order.customerName,
+    customerEmail: order.customerEmail,
     customerPhone: order.customerPhone,
     shippingType: order.shippingType,
     shippingAddress: order.shippingAddress,

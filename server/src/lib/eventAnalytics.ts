@@ -33,7 +33,7 @@ function customerIdentityKey(o: OrderRow): string {
   return `order:${o.id}`;
 }
 
-function shapeLabel(shape: Pick<AllowedShape, "shapeType" | "widthMm" | "heightMm">): string {
+export function shapeLabel(shape: Pick<AllowedShape, "shapeType" | "widthMm" | "heightMm">): string {
   return `${shape.shapeType} ${shape.widthMm}×${shape.heightMm} mm`;
 }
 
