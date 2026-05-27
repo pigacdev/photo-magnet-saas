@@ -34,8 +34,18 @@ import {
   sendNewOrderEmail,
 } from "../lib/email";
 import { loadOrderNotificationContext } from "../lib/orderNotificationContext";
+import {
+  allOrderImagesMediaRemoved,
+  filterPrintableOrderImages,
+} from "../lib/orderImageMediaAvailability";
 
 export const ordersRouter = Router();
+
+const MEDIA_UNAVAILABLE_AFTER_RETENTION =
+  "Media unavailable: files were removed after the retention period.";
+
+const MARK_PRINTED_NO_PRINTABLE_MEDIA =
+  "No printable images: media was removed after the retention period.";
 
 function sendOrderPrepareError(res: Response, err: PrepareCommitError) {
   if (err.status === 403 && err.code === "ORDER_LIMIT_REACHED") {
@@ -85,17 +95,19 @@ function deriveSellerListStatusKey(o: {
   shippedAt: Date | null;
   status: string;
   paymentStatus: string;
-  orderImages: { printed: boolean }[];
+  orderImages: { printed: boolean; mediaDeletedAt: Date | null }[];
 }): "awaiting_payment" | "ready" | "partial" | "printed" | "shipped" {
   if (o.shippedAt) return "shipped";
   const paidReady = o.status === "PAID" && o.paymentStatus === "PAID";
-  const total = o.orderImages.length;
-  const printed = o.orderImages.filter((img) => img.printed).length;
+  const printable = filterPrintableOrderImages(o.orderImages);
+  const total = printable.length;
+  const printed = printable.filter((img) => img.printed).length;
 
   if (!paidReady) {
     return "awaiting_payment";
   }
 
+  if (total === 0) return "printed";
   if (printed === 0) return "ready";
   if (printed < total) return "partial";
   return "printed";
@@ -279,7 +291,7 @@ ordersRouter.get(
         currency: true,
         createdAt: true,
         orderImages: {
-          select: { printed: true },
+          select: { printed: true, mediaDeletedAt: true },
         },
       },
     });
@@ -308,8 +320,9 @@ ordersRouter.get(
     const sortOrder = sortOrderRaw === "asc" ? "asc" : "desc";
 
     const withDerived = filtered.map((o) => {
-      const totalImages = o.orderImages.length;
-      const printedImages = o.orderImages.filter((img) => img.printed).length;
+      const printable = filterPrintableOrderImages(o.orderImages);
+      const totalImages = printable.length;
+      const printedImages = printable.filter((img) => img.printed).length;
       const listStatus = deriveSellerListStatusKey(o);
       return {
         row: o,
@@ -432,11 +445,21 @@ ordersRouter.post(
       res.status(400).json({ error: "No images to print" });
       return;
     }
+    if (allOrderImagesMediaRemoved(order.orderImages)) {
+      res.status(400).json({ error: MEDIA_UNAVAILABLE_AFTER_RETENTION });
+      return;
+    }
+
+    const printable = filterPrintableOrderImages(order.orderImages);
+    if (printable.length === 0) {
+      res.status(400).json({ error: MEDIA_UNAVAILABLE_AFTER_RETENTION });
+      return;
+    }
 
     try {
       await renderOrderImages(
         orderId,
-        order.orderImages.map((img) => ({
+        printable.map((img) => ({
           id: img.id,
           originalUrl: img.originalUrl,
           cropX: img.cropX,
@@ -450,7 +473,7 @@ ordersRouter.post(
     }
 
     const refreshed = await prisma.orderImage.findMany({
-      where: { orderId },
+      where: { orderId, mediaDeletedAt: null },
       orderBy: ORDER_IMAGE_LIST_ORDER_BY,
     });
     const grouped: Record<string, typeof refreshed> = {};
@@ -520,7 +543,9 @@ ordersRouter.post(
 
     const order = await prisma.order.findFirst({
       where: { id: orderId, organizationId: owner },
-      select: { id: true, status: true, paymentStatus: true },
+      include: {
+        orderImages: { orderBy: ORDER_IMAGE_LIST_ORDER_BY },
+      },
     });
     if (!order) {
       res.status(404).json({ error: "Order not found" });
@@ -532,6 +557,10 @@ ordersRouter.post(
       });
       return;
     }
+    if (allOrderImagesMediaRemoved(order.orderImages)) {
+      res.status(400).json({ error: MEDIA_UNAVAILABLE_AFTER_RETENTION });
+      return;
+    }
 
     const images = await prisma.orderImage.findMany({
       where: { orderId, id: { in: imageIds } },
@@ -541,6 +570,11 @@ ordersRouter.post(
       res.status(400).json({
         error: "One or more images not found on this order",
       });
+      return;
+    }
+
+    if (images.some((img) => img.mediaDeletedAt != null)) {
+      res.status(400).json({ error: MEDIA_UNAVAILABLE_AFTER_RETENTION });
       return;
     }
 
@@ -592,11 +626,16 @@ ordersRouter.post(
     const now = new Date();
     await prisma.$transaction(async (tx) => {
       await tx.orderImage.updateMany({
-        where: { orderId, id: { in: imageIds }, printed: false },
+        where: {
+          orderId,
+          id: { in: imageIds },
+          printed: false,
+          mediaDeletedAt: null,
+        },
         data: { printed: true, printedAt: now },
       });
       const unprinted = await tx.orderImage.count({
-        where: { orderId, printed: false },
+        where: { orderId, printed: false, mediaDeletedAt: null },
       });
       if (unprinted === 0) {
         await tx.order.update({
@@ -632,7 +671,9 @@ ordersRouter.patch(
         id: true,
         status: true,
         paymentStatus: true,
-        _count: { select: { orderImages: true } },
+        orderImages: {
+          select: { id: true, printed: true, mediaDeletedAt: true },
+        },
       },
     });
     if (!existing) {
@@ -645,8 +686,12 @@ ordersRouter.patch(
       });
       return;
     }
-    if (existing._count.orderImages === 0) {
+    if (existing.orderImages.length === 0) {
       res.status(400).json({ error: "No images to mark as printed" });
+      return;
+    }
+    if (allOrderImagesMediaRemoved(existing.orderImages)) {
+      res.status(400).json({ error: MARK_PRINTED_NO_PRINTABLE_MEDIA });
       return;
     }
 
@@ -673,12 +718,16 @@ ordersRouter.patch(
     if (imageIdList && imageIdList.length > 0) {
       const found = await prisma.orderImage.findMany({
         where: { orderId, id: { in: imageIdList } },
-        select: { id: true },
+        select: { id: true, mediaDeletedAt: true },
       });
       if (found.length !== imageIdList.length) {
         res.status(400).json({
           error: "One or more images not found on this order",
         });
+        return;
+      }
+      if (found.some((r) => r.mediaDeletedAt != null)) {
+        res.status(400).json({ error: MEDIA_UNAVAILABLE_AFTER_RETENTION });
         return;
       }
     }
@@ -687,18 +736,23 @@ ordersRouter.patch(
     await prisma.$transaction(async (tx) => {
       if (imageIdList && imageIdList.length > 0) {
         await tx.orderImage.updateMany({
-          where: { orderId, id: { in: imageIdList }, printed: false },
+          where: {
+            orderId,
+            id: { in: imageIdList },
+            printed: false,
+            mediaDeletedAt: null,
+          },
           data: { printed: true, printedAt: now },
         });
       } else {
         await tx.orderImage.updateMany({
-          where: { orderId, printed: false },
+          where: { orderId, printed: false, mediaDeletedAt: null },
           data: { printed: true, printedAt: now },
         });
       }
 
       const unprinted = await tx.orderImage.count({
-        where: { orderId, printed: false },
+        where: { orderId, printed: false, mediaDeletedAt: null },
       });
       if (unprinted === 0) {
         await tx.order.update({
@@ -714,7 +768,7 @@ ordersRouter.patch(
     });
     const allImagesPrinted =
       (await prisma.orderImage.count({
-        where: { orderId, printed: false },
+        where: { orderId, printed: false, mediaDeletedAt: null },
       })) === 0;
 
     res.json({
@@ -1225,7 +1279,8 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
         shippedAt: order.shippedAt?.toISOString() ?? null,
         images: order.orderImages.map((img) => ({
           id: img.id,
-          renderedUrl: img.renderedUrl,
+          renderedUrl:
+            img.mediaDeletedAt != null ? null : img.renderedUrl,
           mediaDeletedAt: img.mediaDeletedAt?.toISOString() ?? null,
           position: img.position,
           shapeId: img.shapeId,

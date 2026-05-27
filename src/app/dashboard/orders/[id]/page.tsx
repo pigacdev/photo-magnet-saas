@@ -117,10 +117,23 @@ export default function OrderDetailPage() {
     );
   }, []);
 
-  const unprintedImageIds = useMemo(
+  const printableImages = useMemo(
     () =>
-      order?.images.filter((img) => !img.printed).map((img) => img.id) ?? [],
-    [order?.images],
+      order?.images.filter((img) => img.mediaDeletedAt == null) ?? [],
+    [order],
+  );
+
+  const allMediaRemoved = useMemo(
+    () =>
+      order !== null &&
+      order.images.length > 0 &&
+      order.images.every((img) => img.mediaDeletedAt != null),
+    [order],
+  );
+
+  const unprintedImageIds = useMemo(
+    () => printableImages.filter((img) => !img.printed).map((img) => img.id),
+    [printableImages],
   );
 
   const selectedImageCount = selectedImageIds.length;
@@ -154,6 +167,13 @@ export default function OrderDetailPage() {
     return () => clearTimeout(t);
   }, [printFeedbackToast]);
 
+  useEffect(() => {
+    if (order && allMediaRemoved) {
+      setSelectedImageIds([]);
+      setPrintOutcomePrompt(false);
+    }
+  }, [order, allMediaRemoved]);
+
   function unlockPrintSelected() {
     printSelectedLockRef.current = false;
     setIsPrintingSelected(false);
@@ -178,7 +198,7 @@ export default function OrderDetailPage() {
   }
 
   async function printSelectedImages() {
-    if (!id || selectedImageIds.length === 0) return;
+    if (!id || selectedImageIds.length === 0 || allMediaRemoved) return;
     if (printSelectedLockRef.current || isPrintingSelected) return;
     printSelectedLockRef.current = true;
     setIsPrintingSelected(true);
@@ -220,7 +240,7 @@ export default function OrderDetailPage() {
   }
 
   async function printOrderPreview() {
-    if (!id) return;
+    if (!id || allMediaRemoved) return;
     setActionBusy("printPreview");
     setError(null);
     try {
@@ -272,7 +292,7 @@ export default function OrderDetailPage() {
   }
 
   async function handleMarkSelectedPrinted() {
-    if (!id || selectedImageIds.length === 0) return;
+    if (!id || selectedImageIds.length === 0 || allMediaRemoved) return;
     setActionBusy("markPrinted");
     setError(null);
     try {
@@ -402,14 +422,16 @@ export default function OrderDetailPage() {
   const canPrintNow = Boolean(
     order &&
       isReadyToPrint(order) &&
-      order.images.length > 0,
+      printableImages.length > 0 &&
+      !allMediaRemoved,
   );
   /** EVENT orders until seller confirms offline payment — show disabled Print + hint. */
   const eventAwaitingPaidConfirmation = Boolean(
     order &&
       order.contextType === "EVENT" &&
       order.paymentStatus !== "PAID" &&
-      order.images.length > 0,
+      order.images.length > 0 &&
+      !allMediaRemoved,
   );
   const showPrintOrderSlot =
     canPrintNow || eventAwaitingPaidConfirmation;
@@ -480,8 +502,17 @@ export default function OrderDetailPage() {
               Created: {formatDate(order.createdAt)}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              {order.images.filter((img) => img.printed).length} /{" "}
-              {order.images.length} images printed
+              {allMediaRemoved ? (
+                <>
+                  Media removed after retention period — printing is not
+                  available.
+                </>
+              ) : (
+                <>
+                  {printableImages.filter((img) => img.printed).length} /{" "}
+                  {printableImages.length} images printed
+                </>
+              )}
             </p>
             <div className="mt-6 rounded-lg border border-gray-200 bg-[#FAFAFA] p-4 sm:p-5">
               <div className="grid gap-6 sm:grid-cols-2 sm:gap-8">
@@ -890,14 +921,21 @@ export default function OrderDetailPage() {
 
           <div>
             <h2 className="text-base font-semibold text-[#111111]">Images</h2>
-            <p className="mt-1 text-xs text-[#6B7280]">
-              Use <span className="font-medium text-[#111111]">Select unprinted</span>{" "}
-              for the usual run, then print only those sheets. Tap cards to adjust.
-              Printed items are dimmed but can be included for reprint.
-            </p>
+            {!allMediaRemoved && printableImages.length > 0 ? (
+              <p className="mt-1 text-xs text-[#6B7280]">
+                Use{" "}
+                <span className="font-medium text-[#111111]">Select unprinted</span>{" "}
+                for the usual run, then print only those sheets. Tap cards to adjust.
+                Printed items are dimmed but can be included for reprint.
+              </p>
+            ) : null}
             {order.images.length === 0 ? (
               <p className="mt-3 text-sm text-[#6B7280]">
                 No images available.
+              </p>
+            ) : allMediaRemoved ? (
+              <p className="mt-3 rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-8 text-center text-sm text-[#6B7280]">
+                Media removed after retention period.
               </p>
             ) : (
               <>
@@ -913,7 +951,7 @@ export default function OrderDetailPage() {
                   <button
                     type="button"
                     onClick={() =>
-                      setSelectedImageIds(order.images.map((img) => img.id))
+                      setSelectedImageIds(printableImages.map((img) => img.id))
                     }
                     className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB]"
                   >
@@ -928,82 +966,74 @@ export default function OrderDetailPage() {
                     Clear selection
                   </button>
                 </div>
-              <ul className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {order.images.map((img) => {
-                  const isSelected = selectedImageIds.includes(img.id);
-                  return (
-                    <li key={img.id} className="relative">
-                      <button
-                        type="button"
-                        aria-pressed={isSelected}
-                        aria-label={
-                          isSelected ? "Deselect image" : "Select image"
-                        }
-                        onClick={() => toggleImageSelected(img.id)}
-                        className={`group relative aspect-square w-full overflow-hidden rounded-lg border bg-[#F9FAFB] text-left transition-shadow ${
-                          isSelected
-                            ? "border-[#2563EB] ring-2 ring-[#2563EB]"
-                            : "border-gray-200"
-                        }`}
-                      >
-                        {img.mediaDeletedAt ? (
-                          <div
-                            className={`flex h-full items-center justify-center p-2 text-center text-xs text-[#6B7280] ${
-                              img.printed ? "opacity-60" : ""
-                            }`}
-                          >
-                            Media removed after retention period.
-                          </div>
-                        ) : img.renderedUrl ? (
-                          <img
-                            src={img.renderedUrl}
-                            alt=""
-                            className={`h-full w-full object-cover ${
-                              img.printed ? "opacity-60" : ""
-                            }`}
-                          />
-                        ) : (
-                          <div
-                            className={`flex h-full items-center justify-center p-2 text-center text-xs text-[#6B7280] ${
-                              img.printed ? "opacity-60" : ""
-                            }`}
-                          >
-                            Not rendered
-                          </div>
-                        )}
-                        <span
-                          className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md border text-sm font-semibold shadow-sm ${
+                <ul className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {printableImages.map((img) => {
+                    const isSelected = selectedImageIds.includes(img.id);
+                    return (
+                      <li key={img.id} className="relative">
+                        <button
+                          type="button"
+                          aria-pressed={isSelected}
+                          aria-label={
+                            isSelected ? "Deselect image" : "Select image"
+                          }
+                          onClick={() => toggleImageSelected(img.id)}
+                          className={`group relative aspect-square w-full overflow-hidden rounded-lg border bg-[#F9FAFB] text-left transition-shadow ${
                             isSelected
-                              ? "border-[#2563EB] bg-[#2563EB] text-white"
-                              : "border-gray-200 bg-white/95 text-[#6B7280]"
-                          }`}
-                          aria-hidden
-                        >
-                          {isSelected ? "✓" : ""}
-                        </span>
-                        <div
-                          className={`pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-3rem)] flex-col gap-0.5 rounded-md border px-2 py-1 text-[10px] font-semibold leading-tight shadow-sm ${
-                            img.printed
-                              ? "border-green-200 bg-green-50/95 text-green-800"
-                              : "border-gray-200 bg-white/95 text-[#6B7280]"
+                              ? "border-[#2563EB] ring-2 ring-[#2563EB]"
+                              : "border-gray-200"
                           }`}
                         >
-                          <span>Copies: {img.copies ?? 1}</span>
-                          <span>
-                            {img.printed ? "✅ Printed" : "⚪ Not printed"}
+                          {img.renderedUrl ? (
+                            <img
+                              src={img.renderedUrl}
+                              alt=""
+                              className={`h-full w-full object-cover ${
+                                img.printed ? "opacity-60" : ""
+                              }`}
+                            />
+                          ) : (
+                            <div
+                              className={`flex h-full items-center justify-center p-2 text-center text-xs text-[#6B7280] ${
+                                img.printed ? "opacity-60" : ""
+                              }`}
+                            >
+                              Not rendered
+                            </div>
+                          )}
+                          <span
+                            className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md border text-sm font-semibold shadow-sm ${
+                              isSelected
+                                ? "border-[#2563EB] bg-[#2563EB] text-white"
+                                : "border-gray-200 bg-white/95 text-[#6B7280]"
+                            }`}
+                            aria-hidden
+                          >
+                            {isSelected ? "✓" : ""}
                           </span>
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+                          <div
+                            className={`pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-3rem)] flex-col gap-0.5 rounded-md border px-2 py-1 text-[10px] font-semibold leading-tight shadow-sm ${
+                              img.printed
+                                ? "border-green-200 bg-green-50/95 text-green-800"
+                                : "border-gray-200 bg-white/95 text-[#6B7280]"
+                            }`}
+                          >
+                            <span>Copies: {img.copies ?? 1}</span>
+                            <span>
+                              {img.printed ? "✅ Printed" : "⚪ Not printed"}
+                            </span>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               </>
             )}
           </div>
           </div>
 
-          {selectedImageIds.length > 0 && (
+          {selectedImageIds.length > 0 && !allMediaRemoved && (
             <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-6">
               <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-[#111111]">

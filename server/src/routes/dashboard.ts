@@ -152,7 +152,9 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
       where: {
         organizationId: orgId,
         shippedAt: null,
-        orderImages: { some: { printed: false } },
+        orderImages: {
+          some: { printed: false, mediaDeletedAt: null },
+        },
       },
     }),
     prisma.order.count({
