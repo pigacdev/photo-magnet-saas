@@ -230,7 +230,9 @@ export function buildBuyerConfirmationHtml(
 
     </div>
 
-    <p style="margin:16px 0 0;font-size:14px;color:#6B7280;">If you have any questions, reply to this email.</p>
+    <p style="margin:16px 0 0;font-size:14px;color:#374151;">You will receive your invoice shortly after we review your order.</p>
+
+    <p style="margin:12px 0 0;font-size:14px;color:#6B7280;">If you have any questions, reply to this email.</p>
 
   </div>
 </body>
