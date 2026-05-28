@@ -45,9 +45,9 @@ export function DashboardSidebar({
 
   return (
     <aside
-      className={`flex h-full w-60 shrink-0 flex-col border-r border-[var(--sidebar-border)] bg-white ${className}`}
+      className={`flex h-full w-60 shrink-0 flex-col border-r border-gray-200 bg-white ${className}`}
     >
-      <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-[var(--sidebar-border)] px-4">
+      <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-gray-200 px-4">
         <Link
           href="/dashboard"
           onClick={onNavigate}
@@ -71,8 +71,8 @@ export function DashboardSidebar({
                 onClick={onNavigate}
                 className={`relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-[var(--sidebar-active)] text-[var(--sidebar-active-foreground)]"
-                    : "text-[var(--sidebar-foreground)] hover:bg-[#F9FAFB] hover:text-[#111111]"
+                    ? "bg-blue-50 text-[#111111]"
+                    : "text-gray-700 hover:bg-gray-50 hover:text-[#111111]"
                 }`}
               >
                 {isActive && (

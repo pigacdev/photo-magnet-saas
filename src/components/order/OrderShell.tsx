@@ -16,7 +16,7 @@ export function OrderShell({
 }: OrderShellProps) {
   return (
     <div
-      className={`flex min-h-screen flex-col bg-[var(--surface)] ${bottomBar ? "pb-36" : ""} ${className}`}
+      className={`flex min-h-screen flex-col bg-surface ${bottomBar ? "pb-36" : ""} ${className}`}
     >
       <div
         className={`flex flex-1 flex-col px-4 pt-8 ${orderContentWidthClass(contentWidth)}`}

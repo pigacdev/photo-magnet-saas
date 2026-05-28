@@ -57,7 +57,7 @@ export function DashboardShell({
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col bg-[var(--surface)]">
+      <div className="flex min-w-0 flex-1 flex-col bg-surface">
         <DashboardHeader
           user={user}
           usage={usage}

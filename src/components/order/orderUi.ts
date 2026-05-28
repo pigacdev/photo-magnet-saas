@@ -14,7 +14,7 @@ export const orderAlertError =
   "rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950";
 
 export const orderLoadingScreen =
-  "flex min-h-screen flex-col items-center justify-center bg-[var(--surface)] px-4";
+  "flex min-h-screen flex-col items-center justify-center bg-surface px-4";
 
 export type OrderContentWidth = "narrow" | "medium" | "wide";
 
