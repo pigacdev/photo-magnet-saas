@@ -15,6 +15,9 @@ import {
   FixedCropCanvas,
   type SessionImageCropPayload,
 } from "@/components/order/FixedCropCanvas";
+import { OrderShell } from "@/components/order/OrderShell";
+import { OrderStepHeader } from "@/components/order/OrderStepHeader";
+import { orderBtnPrimary, orderLoadingScreen } from "@/components/order/orderUi";
 import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
 import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
 import type {
@@ -273,7 +276,7 @@ function OrderCropPageInner() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFA] px-4">
+      <div className={orderLoadingScreen}>
         <p className="text-sm text-[#6B7280]">Loading…</p>
       </div>
     );
@@ -281,31 +284,31 @@ function OrderCropPageInner() {
 
   if (!selectedShape || !current) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 bg-[#FAFAFA] px-4 pb-10 pt-8">
-        <p className="text-sm text-[#6B7280]">Nothing to crop.</p>
-        <Link
-          href={orderBackHref}
-          className="text-center text-sm text-[#2563EB] underline-offset-4 hover:underline"
-        >
-          Back to photos
-        </Link>
-      </div>
+      <OrderShell className="pb-10">
+        <div className="flex flex-col gap-6">
+          <p className="text-sm text-[#6B7280]">Nothing to crop.</p>
+          <Link
+            href={orderBackHref}
+            className="text-center text-sm text-[#2563EB] underline-offset-4 hover:underline"
+          >
+            Back to photos
+          </Link>
+        </div>
+      </OrderShell>
     );
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 bg-[#FAFAFA] px-4 pb-10 pt-8">
-      <header>
-        <p className="text-center text-sm font-medium text-[#6B7280]">
+    <OrderShell contentWidth="medium" className="pb-10">
+      <div className="flex flex-col gap-6">
+        <OrderStepHeader
+          title="Adjust your photo for printing"
+          subtitle="Move and zoom so the magnet looks right — this is how it will print."
+          step={{ current: 3, total: 6, label: `Crop (${index + 1} of ${total})` }}
+        />
+        <p className="-mt-4 text-center text-sm font-medium text-[#6B7280]">
           Image {index + 1} of {total}
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[#111111]">
-          Adjust your photo for printing
-        </h1>
-        <p className="mt-1 text-sm text-[#6B7280]">
-          Move and zoom so the magnet looks right — this is how it will print.
-        </p>
-      </header>
 
       {saveError && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -333,7 +336,7 @@ function OrderCropPageInner() {
           type="button"
           disabled={saving}
           onClick={() => void goNext()}
-          className="w-full rounded-2xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
+          className={orderBtnPrimary}
         >
           {primaryLabel}
         </button>
@@ -367,7 +370,8 @@ function OrderCropPageInner() {
       >
         Back to photos
       </Link>
-    </div>
+      </div>
+    </OrderShell>
   );
 }
 
@@ -375,7 +379,7 @@ export default function OrderCropPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFA] px-4">
+        <div className={orderLoadingScreen}>
           <p className="text-sm text-[#6B7280]">Loading…</p>
         </div>
       }

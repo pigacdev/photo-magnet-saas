@@ -36,7 +36,7 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="dashboard-page mx-auto max-w-2xl">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
           Account
@@ -46,7 +46,7 @@ export default function AccountPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="dashboard-card">
         <h2 className="text-sm font-semibold text-[#111111]">Profile</h2>
         <dl className="mt-4 space-y-3 text-sm">
           <div>
@@ -68,7 +68,7 @@ export default function AccountPage() {
         </dl>
       </section>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="dashboard-card">
         <h2 className="text-sm font-semibold text-[#111111]">Plan &amp; usage</h2>
         <div className="mt-4">
           <UserProfileSummary

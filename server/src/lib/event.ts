@@ -30,17 +30,43 @@ export function enrichEvent(event: EventRecord) {
   };
 }
 
+export function getEventConfigurationIssues(
+  shapeCount: number,
+  pricingCount: number,
+): string[] {
+  const issues: string[] = [];
+  if (shapeCount === 0) {
+    issues.push("At least one magnet shape is required");
+  }
+  if (pricingCount === 0) {
+    issues.push("Pricing is required");
+  }
+  return issues;
+}
+
+export function isEventConfigurationComplete(
+  shapeCount: number,
+  pricingCount: number,
+): boolean {
+  return getEventConfigurationIssues(shapeCount, pricingCount).length === 0;
+}
+
 /**
  * Event must be loadable with `deletedAt: null` by the caller.
  * Enforces: not soft-deleted (`isEventOpen` checks `deletedAt`), within open window + `isActive`,
- * and at least one non-deleted pricing row (`pricingCount` from `Pricing` where `deletedAt: null`).
+ * at least one allowed shape, and at least one non-deleted pricing row.
  */
-export function canAcceptOrders(event: EventRecord, pricingCount: number): { ok: true } | { ok: false; reason: string } {
+export function canAcceptOrders(
+  event: EventRecord,
+  pricingCount: number,
+  shapeCount: number,
+): { ok: true } | { ok: false; reason: string } {
   if (!isEventOpen(event)) {
     return { ok: false, reason: "Event is not open" };
   }
-  if (pricingCount === 0) {
-    return { ok: false, reason: "Pricing not configured" };
+  const configIssues = getEventConfigurationIssues(shapeCount, pricingCount);
+  if (configIssues.length > 0) {
+    return { ok: false, reason: configIssues[0]! };
   }
   return { ok: true };
 }

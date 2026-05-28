@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { OrderShell } from "@/components/order/OrderShell";
+import { OrderStepHeader } from "@/components/order/OrderStepHeader";
+import { orderLoadingScreen } from "@/components/order/orderUi";
 import type {
   GetOrderStatusResponse,
   GetSessionCurrentResponse,
@@ -185,8 +188,9 @@ function OrderSuccessInner() {
           : "Processing payment…";
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 bg-[#FAFAFA] px-4 py-10">
-      <h1 className="text-2xl font-semibold text-[#111111]">{title}</h1>
+    <OrderShell contentWidth="medium" className="pb-10">
+      <div className="flex flex-col gap-6">
+        <OrderStepHeader title={title} />
 
       {(orderId || orderSessionIdParam) &&
         (phase === "idle" || phase === "processing") && (
@@ -222,7 +226,7 @@ function OrderSuccessInner() {
       )}
 
       {orderId ? (
-        <p className="rounded-lg border border-gray-200 bg-white px-4 py-3 font-mono text-sm text-[#111111] break-all">
+        <p className="rounded-xl border border-gray-200 bg-white px-4 py-3 font-mono text-sm text-[#111111] break-all shadow-sm">
           {orderId}
         </p>
       ) : null}
@@ -249,7 +253,8 @@ function OrderSuccessInner() {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </OrderShell>
   );
 }
 
@@ -257,8 +262,8 @@ export default function OrderSuccessPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-lg px-4 py-10 text-sm text-[#6B7280]">
-          Loading…
+        <div className={orderLoadingScreen}>
+          <p className="text-sm text-[#6B7280]">Loading…</p>
         </div>
       }
     >

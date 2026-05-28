@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
+import { OrderShell } from "@/components/order/OrderShell";
+import { OrderStepHeader } from "@/components/order/OrderStepHeader";
+import { orderLoadingScreen } from "@/components/order/orderUi";
 
 type ContextKind = "event" | "storefront";
 
@@ -34,7 +37,7 @@ function resolveContextFromSearchParams(searchParams: URLSearchParams): {
   return null;
 }
 
-export default function OrderUnavailablePage() {
+function OrderUnavailableInner() {
   const searchParams = useSearchParams();
   const [nameByContextKey, setNameByContextKey] = useState<
     Record<string, string>
@@ -85,30 +88,36 @@ export default function OrderUnavailablePage() {
   }, [displayName, context?.kind]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 text-center">
-      <div className="max-w-md w-full space-y-4">
-        {personalizedLine ? (
-          <h1 className="text-2xl font-semibold text-[#111111]">
-            {personalizedLine}
-          </h1>
-        ) : (
-          <h1 className="text-2xl font-semibold text-[#111111]">
-            Store temporarily unavailable
-          </h1>
-        )}
-
-        <p className="text-[#6B7280]">
-          This store has reached its monthly order limit.
-        </p>
-        <p className="text-[#6B7280]">Please try again later.</p>
+    <OrderShell contentWidth="medium" className="justify-center pb-10">
+      <div className="w-full space-y-4 text-center">
+        <OrderStepHeader
+          title={
+            personalizedLine ?? "Store temporarily unavailable"
+          }
+          subtitle="This store has reached its monthly order limit. Please try again later."
+        />
 
         <Link
           href="/"
-          className="inline-block mt-4 text-sm text-[#2563EB] underline"
+          className="inline-block text-sm text-[#2563EB] underline"
         >
           Start a new order
         </Link>
       </div>
-    </div>
+    </OrderShell>
+  );
+}
+
+export default function OrderUnavailablePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className={orderLoadingScreen}>
+          <p className="text-sm text-[#6B7280]">Loading…</p>
+        </div>
+      }
+    >
+      <OrderUnavailableInner />
+    </Suspense>
   );
 }

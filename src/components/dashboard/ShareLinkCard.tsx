@@ -11,6 +11,8 @@ export type ShareLinkCardProps = {
   variant: "event" | "storefront";
   entityName: string;
   entityId: string;
+  /** When false, shows that customer ordering is not yet available. */
+  ordersEnabled?: boolean;
 };
 
 const QR_PX = 168;
@@ -194,6 +196,7 @@ export function ShareLinkCard({
   variant,
   entityName,
   entityId,
+  ordersEnabled = true,
 }: ShareLinkCardProps) {
   const [copied, setCopied] = useState(false);
   const [pngLoading, setPngLoading] = useState(false);
@@ -265,10 +268,14 @@ export function ShareLinkCard({
   }, [baseName, entityName, hasUrl, title, trimmed]);
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
-        {label}
-      </p>
+    <div className="dashboard-card">
+      <h2 className="text-sm font-semibold text-[#111111]">{label}</h2>
+      {!ordersEnabled ? (
+        <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+          Orders are disabled until shapes and pricing are configured and the event
+          is active.
+        </p>
+      ) : null}
       {!hasUrl ? (
         <p className="mt-3 text-sm text-[#6B7280]">QR unavailable</p>
       ) : (

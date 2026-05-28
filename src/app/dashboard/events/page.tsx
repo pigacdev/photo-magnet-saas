@@ -83,9 +83,9 @@ export default function EventsPage() {
             <thead className="border-b border-gray-200 bg-[#F9FAFB]">
               <tr>
                 <th className="px-4 py-3 font-medium text-[#6B7280]">Name</th>
+                <th className="px-4 py-3 font-medium text-[#6B7280]">Status</th>
                 <th className="px-4 py-3 font-medium text-[#6B7280]">Start</th>
                 <th className="px-4 py-3 font-medium text-[#6B7280]">End</th>
-                <th className="px-4 py-3 font-medium text-[#6B7280]">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -111,18 +111,18 @@ export default function EventsPage() {
                       <td className="px-4 py-3">
                         <span className="font-medium text-[#111111]">{event.name}</span>
                       </td>
-                      <td className="px-4 py-3 text-[#6B7280]">
-                        {formatDate(event.startDate)}
-                      </td>
-                      <td className="px-4 py-3 text-[#6B7280]">
-                        {formatDate(event.endDate)}
-                      </td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[event.status].className}`}
                         >
                           {STATUS_BADGE[event.status].label}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-[#6B7280]">
+                        {formatDate(event.startDate)}
+                      </td>
+                      <td className="px-4 py-3 text-[#6B7280]">
+                        {formatDate(event.endDate)}
                       </td>
                     </tr>
                   );

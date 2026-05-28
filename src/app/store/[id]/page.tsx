@@ -5,24 +5,33 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { buildOrderUrlWithReturn } from "@/lib/orderReturnTo";
+import { OrderShell } from "@/components/order/OrderShell";
+import { orderBtnPrimary, orderLoadingScreen } from "@/components/order/orderUi";
+
+type StoreEntryMeta = {
+  name: string;
+  canOrder: boolean;
+  unavailableReason: string | null;
+};
 
 export default function StoreEntryPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-  const [name, setName] = useState<string | null>(null);
+  const [meta, setMeta] = useState<StoreEntryMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    api<{ name: string }>(`/api/public/entry/storefront/${id}`)
-      .then((d) => setName(d.name))
+    api<StoreEntryMeta>(`/api/public/entry/storefront/${id}`)
+      .then((d) => setMeta(d))
       .catch(() => setError("Store not found"))
       .finally(() => setLoading(false));
   }, [id]);
 
   async function startOrder() {
+    if (!meta?.canOrder) return;
     setStarting(true);
     setError("");
     try {
@@ -40,15 +49,15 @@ export default function StoreEntryPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFA] px-4">
+      <div className={orderLoadingScreen}>
         <p className="text-sm text-[#6B7280]">Loading…</p>
       </div>
     );
   }
 
-  if (!name && error) {
+  if (!meta && error) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFA] px-4">
+      <div className={orderLoadingScreen}>
         <p className="text-center text-sm text-[#DC2626]">{error}</p>
         <Link href="/" className="mt-4 text-sm text-[#2563EB]">
           Home
@@ -57,13 +66,23 @@ export default function StoreEntryPage() {
     );
   }
 
+  const canOrder = meta?.canOrder ?? false;
+
   return (
-    <div className="flex min-h-screen flex-col bg-[#FAFAFA] px-4 pb-10 pt-12">
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
+    <OrderShell contentWidth="medium" className="pb-10 pt-4">
+      <div className="mx-auto flex w-full flex-1 flex-col">
         <h1 className="text-center text-2xl font-semibold tracking-tight text-[#111111]">
-          {name}
+          {meta?.name}
         </h1>
-        <p className="mt-2 text-center text-sm text-[#6B7280]">Store — photo magnets</p>
+        <p className="mt-2 text-center text-sm text-[#6B7280]">
+          Store — photo magnets
+        </p>
+
+        {!canOrder && meta?.unavailableReason ? (
+          <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-950">
+            Ordering is not available: {meta.unavailableReason}
+          </p>
+        ) : null}
 
         {error && (
           <p className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-800">
@@ -75,13 +94,13 @@ export default function StoreEntryPage() {
           <button
             type="button"
             onClick={startOrder}
-            disabled={starting}
-            className="w-full rounded-xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:opacity-60"
+            disabled={starting || !canOrder}
+            className={orderBtnPrimary}
           >
-            {starting ? "Starting…" : "Start Order"}
+            {starting ? "Starting…" : "Start order"}
           </button>
         </div>
       </div>
-    </div>
+    </OrderShell>
   );
 }

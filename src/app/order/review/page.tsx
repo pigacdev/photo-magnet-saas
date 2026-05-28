@@ -11,7 +11,11 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { CroppedShapePreview } from "@/components/order/CroppedShapePreview";
+import { MagnetReviewCard } from "@/components/order/MagnetReviewCard";
+import { OrderBottomBar } from "@/components/order/OrderBottomBar";
+import { OrderShell } from "@/components/order/OrderShell";
+import { OrderStepHeader } from "@/components/order/OrderStepHeader";
+import { orderAlertError, orderBtnPrimary } from "@/components/order/orderUi";
 import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
 import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
 import { getIsLowResolution } from "@/lib/sessionImageLowResolution";
@@ -337,182 +341,117 @@ export default function OrderReviewPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FAFAFA] pb-36">
-        <div className="mx-auto max-w-lg px-4 pt-8">
-          <div className="mb-6 h-8 w-48 animate-pulse rounded bg-neutral-200" />
-          <div className="mb-10 space-y-8">
-            {[1, 2].map((k) => (
-              <div key={k} className="space-y-3">
-                <div className="mx-auto aspect-[3/4] max-w-md animate-pulse rounded-xl bg-neutral-200" />
-                <div className="flex gap-3">
-                  <div className="h-12 flex-1 animate-pulse rounded-2xl bg-neutral-200" />
-                  <div className="h-12 flex-1 animate-pulse rounded-2xl bg-neutral-200" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
-          <div className="mx-auto max-w-lg">
+      <OrderShell
+        contentWidth="wide"
+        bottomBar={
+          <OrderBottomBar contentWidth="wide">
             <div className="mb-2 h-5 w-40 animate-pulse rounded bg-neutral-200" />
-            <div className="h-12 w-full animate-pulse rounded-2xl bg-neutral-200" />
-          </div>
+            <div className="h-12 w-full animate-pulse rounded-xl bg-neutral-200" />
+          </OrderBottomBar>
+        }
+      >
+        <div className="mb-6 h-8 w-48 animate-pulse rounded bg-neutral-200" />
+        <div className="grid gap-4 pb-4 md:grid-cols-2">
+          {[1, 2].map((k) => (
+            <div key={k} className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="mx-auto aspect-[3/4] max-w-md animate-pulse rounded-xl bg-neutral-200" />
+              <div className="flex gap-2">
+                <div className="h-12 flex-1 animate-pulse rounded-xl bg-neutral-200" />
+                <div className="h-12 flex-1 animate-pulse rounded-xl bg-neutral-200" />
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      </OrderShell>
     );
   }
 
   if (!session || !selectedShape) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 px-4 py-10">
-        <p className="text-sm text-[#6B7280]">Nothing to review.</p>
-        <Link href="/order" className="text-sm text-[#2563EB] underline">
-          Back to order
-        </Link>
-      </div>
+      <OrderShell>
+        <div className="flex flex-col gap-4 py-2">
+          <p className="text-sm text-[#6B7280]">Nothing to review.</p>
+          <Link href="/order" className="text-sm text-[#2563EB] underline">
+            Back to order
+          </Link>
+        </div>
+      </OrderShell>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#FAFAFA] pb-36">
-      <div className="mx-auto max-w-lg px-4 pt-8">
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
-            Review your magnets
-          </h1>
-          <p className="mt-1 text-sm text-[#6B7280]">
-            This is what will be printed — adjust crops from here if needed.
+  const bottomBar = (
+    <OrderBottomBar contentWidth="wide">
+      {isPerItemPricing ? (
+        <div className="text-center text-sm font-medium text-[#111111]">
+          <p className="tabular-nums">
+            Total magnets: {totalMagnets}
+            {session != null && totalMagnets > magnetCap
+              ? ` (max ${magnetCap})`
+              : ""}
           </p>
-        </header>
-
-        {actionError && (
-          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            {actionError}
+          <p className="mt-1 tabular-nums">
+            Price: {formatMoney(liveTotalPrice, currency)}
           </p>
-        )}
-
-        <ul className="flex flex-col gap-10 pb-4">
-          {images.map((img, i) => {
-            const low = getIsLowResolution(img, selectedShape);
-            return (
-            <li
-              key={img.id}
-              ref={(el) => {
-                if (el) reviewItemRefs.current.set(img.id, el);
-                else reviewItemRefs.current.delete(img.id);
-              }}
-              className="flex flex-col gap-3 scroll-mt-4"
-            >
-              <Link
-                href={cropEditHref(img.id)}
-                onClick={onCropLinkClick}
-                aria-label={`Edit magnet ${i + 1} — adjust crop`}
-                className={`group relative mx-auto block w-full max-w-md touch-manipulation overflow-hidden outline-none ring-offset-2 ring-offset-[#FAFAFA] transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#2563EB] ${previewTapFrameClass}`}
-              >
-                <CroppedShapePreview image={img} shape={selectedShape} />
-                {low && (
-                  <span
-                    className="pointer-events-none absolute left-2 top-2 z-20 max-w-[calc(100%-1rem)] rounded-md bg-amber-100/95 px-2 py-0.5 text-[11px] font-medium leading-tight text-amber-950 shadow-sm ring-1 ring-amber-200/80 backdrop-blur-[2px]"
-                    role="status"
-                  >
-                    ⚠ Low quality
-                  </span>
-                )}
-                <div
-                  className={`pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center bg-gradient-to-t from-black/55 via-black/20 to-transparent px-3 pb-2.5 pt-10 opacity-90 transition-opacity group-hover:opacity-100 group-active:opacity-100 ${
-                    previewTapFrameClass === "rounded-full"
-                      ? "rounded-b-[999px]"
-                      : "rounded-b-xl"
-                  }`}
-                  aria-hidden
-                >
-                  <span className="text-xs font-semibold tracking-wide text-white drop-shadow-sm">
-                    Tap to edit
-                  </span>
-                </div>
-              </Link>
-              {isPerItemPricing && session && (
-                <div className="flex items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    aria-label="Decrease copies for this magnet"
-                    disabled={(copiesByImageId[img.id] ?? 1) <= 1}
-                    onClick={() => adjustCopies(img.id, -1)}
-                    className="flex h-12 min-w-[3rem] shrink-0 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-xl font-semibold text-[#111111] disabled:opacity-40"
-                  >
-                    −
-                  </button>
-                  <span className="min-w-[2.5rem] text-center text-lg font-semibold tabular-nums text-[#111111]">
-                    {copiesByImageId[img.id] ?? 1}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Increase copies for this magnet"
-                    disabled={totalMagnets >= magnetCap}
-                    onClick={() => adjustCopies(img.id, 1)}
-                    className="flex h-12 min-w-[3rem] shrink-0 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-xl font-semibold text-[#111111] disabled:opacity-40"
-                  >
-                    +
-                  </button>
-                </div>
-              )}
-              <div className="flex gap-3">
-                <Link
-                  href={cropEditHref(img.id)}
-                  onClick={onCropLinkClick}
-                  className="flex min-h-12 flex-1 items-center justify-center rounded-2xl border-2 border-gray-300 bg-white text-base font-semibold text-[#111111] transition-colors hover:bg-gray-50"
-                >
-                  Edit
-                </Link>
-                <button
-                  type="button"
-                  disabled={deleteId === img.id}
-                  onClick={() => void onDelete(img.id)}
-                  className="flex min-h-12 flex-1 items-center justify-center rounded-2xl border-2 border-red-200 bg-white text-base font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
-                >
-                  {deleteId === img.id ? "…" : "Delete"}
-                </button>
-              </div>
-            </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur supports-[backdrop-filter]:bg-white/85">
-        <div
-          className="mx-auto flex max-w-lg flex-col gap-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-        >
-          {isPerItemPricing ? (
-            <div className="text-center text-sm font-medium text-[#111111]">
-              <p className="tabular-nums">
-                Total magnets: {totalMagnets}
-                {session != null && totalMagnets > magnetCap
-                  ? ` (max ${magnetCap})`
-                  : ""}
-              </p>
-              <p className="mt-1 tabular-nums">
-                Price:{" "}
-                {formatMoney(liveTotalPrice, currency)}
-              </p>
-            </div>
-          ) : (
-            <p className="text-center text-sm font-medium text-[#111111]">
-              {images.length === 0
-                ? `0 magnets · ${formatMoney(session?.totalPrice ?? null, currency)}`
-                : `${images.length} magnet${images.length === 1 ? "" : "s"} · ${formatMoney(session?.totalPrice ?? null, currency)}`}
-            </p>
-          )}
-          <button
-            type="button"
-            disabled={!canProceed || committing}
-            onClick={() => void onProceed()}
-            className="w-full rounded-2xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {committing ? "Continuing…" : "Proceed to payment"}
-          </button>
         </div>
-      </div>
-    </div>
+      ) : (
+        <p className="text-center text-sm font-medium text-[#111111]">
+          {images.length === 0
+            ? `0 magnets · ${formatMoney(session?.totalPrice ?? null, currency)}`
+            : `${images.length} magnet${images.length === 1 ? "" : "s"} · ${formatMoney(session?.totalPrice ?? null, currency)}`}
+        </p>
+      )}
+      <button
+        type="button"
+        disabled={!canProceed || committing}
+        onClick={() => void onProceed()}
+        className={orderBtnPrimary}
+      >
+        {committing ? "Continuing…" : "Proceed to payment"}
+      </button>
+    </OrderBottomBar>
+  );
+
+  return (
+    <OrderShell contentWidth="wide" bottomBar={bottomBar}>
+      <OrderStepHeader
+        title="Review your magnets"
+        subtitle="This is what will be printed — adjust crops from here if needed."
+        step={{ current: 4, total: 6, label: "Review" }}
+      />
+
+      {actionError && (
+        <p className={`mb-4 ${orderAlertError}`}>{actionError}</p>
+      )}
+
+      <ul className="grid gap-4 pb-4 md:grid-cols-2">
+        {images.map((img, i) => (
+          <li
+            key={img.id}
+            ref={(el) => {
+              if (el) reviewItemRefs.current.set(img.id, el);
+              else reviewItemRefs.current.delete(img.id);
+            }}
+            className="scroll-mt-4"
+          >
+            <MagnetReviewCard
+              image={img}
+              shape={selectedShape}
+              index={i}
+              cropEditHref={cropEditHref(img.id)}
+              onCropLinkClick={onCropLinkClick}
+              isLowResolution={getIsLowResolution(img, selectedShape)}
+              isPerItemPricing={Boolean(isPerItemPricing && session)}
+              copies={copiesByImageId[img.id] ?? 1}
+              magnetCap={magnetCap}
+              totalMagnets={totalMagnets}
+              onAdjustCopies={(delta) => adjustCopies(img.id, delta)}
+              onDelete={() => void onDelete(img.id)}
+              deleting={deleteId === img.id}
+              previewFrameClass={previewTapFrameClass}
+            />
+          </li>
+        ))}
+      </ul>
+    </OrderShell>
   );
 }

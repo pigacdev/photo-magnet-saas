@@ -11,6 +11,9 @@ import {
   useState,
 } from "react";
 import { api } from "@/lib/api";
+import { OrderShell } from "@/components/order/OrderShell";
+import { OrderStepHeader } from "@/components/order/OrderStepHeader";
+import { orderBtnPrimary, orderLoadingScreen } from "@/components/order/orderUi";
 import {
   CHECKOUT_IMAGE_COPIES_STORAGE_KEY,
   type GetSessionImagesResponse,
@@ -406,37 +409,41 @@ function CustomerPageInner() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-10 text-sm text-[#6B7280]">
-        Loading…
+      <div className={orderLoadingScreen}>
+        <p className="text-sm text-[#6B7280]">Loading…</p>
       </div>
     );
   }
 
   if (orderId && error && !orderCtx) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 bg-[#FAFAFA] px-4 py-10">
-        <p className="text-sm text-red-700">{error}</p>
-        <Link
-          href={reviewBackHref}
-          className="text-sm font-medium text-[#2563EB] underline"
-        >
-          Back to review
-        </Link>
-      </div>
+      <OrderShell className="pb-10">
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-red-700">{error}</p>
+          <Link
+            href={reviewBackHref}
+            className="text-sm font-medium text-[#2563EB] underline"
+          >
+            Back to review
+          </Link>
+        </div>
+      </OrderShell>
     );
   }
 
   if (!orderId && error && !sessionCtx) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 bg-[#FAFAFA] px-4 py-10">
-        <p className="text-sm text-red-700">{error}</p>
-        <Link
-          href={reviewBackHref}
-          className="text-sm font-medium text-[#2563EB] underline"
-        >
-          Back to review
-        </Link>
-      </div>
+      <OrderShell className="pb-10">
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-red-700">{error}</p>
+          <Link
+            href={reviewBackHref}
+            className="text-sm font-medium text-[#2563EB] underline"
+          >
+            Back to review
+          </Link>
+        </div>
+      </OrderShell>
     );
   }
 
@@ -456,23 +463,25 @@ function CustomerPageInner() {
         );
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 bg-[#FAFAFA] px-4 py-10">
-      <div>
-        <h1 className="text-2xl font-semibold text-[#111111]">
-          {isPaidEdit
-            ? fromSuccess
-              ? "Update your details"
+    <OrderShell contentWidth="medium" className="pb-10">
+      <div className="flex flex-col gap-6">
+        <OrderStepHeader
+          title={
+            isPaidEdit
+              ? fromSuccess
+                ? "Update your details"
+                : "Your details"
               : "Your details"
-            : "Your details"}
-        </h1>
-        <p className="mt-2 text-sm text-[#6B7280]">
-          {isPaidEdit
-            ? "Fix typos in name, phone, address, or locker id. Your order and payment stay the same."
-            : isEvent
-              ? "We use this for your order at the event."
-              : "Choose how you receive your order. Delivery needs an address; BoxNow needs a locker id."}
-        </p>
-      </div>
+          }
+          subtitle={
+            isPaidEdit
+              ? "Fix typos in name, phone, address, or locker id. Your order and payment stay the same."
+              : isEvent
+                ? "We use this for your order at the event."
+                : "Choose how you receive your order. Delivery needs an address; BoxNow needs a locker id."
+          }
+          step={{ current: 5, total: 6, label: "Details" }}
+        />
 
       <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
@@ -656,7 +665,7 @@ function CustomerPageInner() {
         <button
           type="submit"
           disabled={saving}
-          className="mt-2 w-full rounded-2xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-40"
+          className={`mt-2 ${orderBtnPrimary}`}
         >
           {saving
             ? "Saving…"
@@ -674,7 +683,8 @@ function CustomerPageInner() {
       >
         Back to review
       </Link>
-    </div>
+      </div>
+    </OrderShell>
   );
 }
 
@@ -682,8 +692,8 @@ export default function OrderCustomerPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-lg px-4 py-10 text-sm text-[#6B7280]">
-          Loading…
+        <div className={orderLoadingScreen}>
+          <p className="text-sm text-[#6B7280]">Loading…</p>
         </div>
       }
     >

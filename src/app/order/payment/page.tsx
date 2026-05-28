@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { OrderShell } from "@/components/order/OrderShell";
+import { OrderStepHeader } from "@/components/order/OrderStepHeader";
+import { orderBtnPrimary, orderCard, orderLoadingScreen } from "@/components/order/orderUi";
 
 type CheckoutSessionResponse = {
   url: string;
@@ -48,14 +51,15 @@ function OrderPaymentInner() {
   }, [orderId]);
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 bg-[#FAFAFA] px-4 py-10">
-      <h1 className="text-2xl font-semibold text-[#111111]">Payment</h1>
-      <p className="text-sm text-[#6B7280]">
-        Pay securely with card. Your order is already created; completing checkout
-        charges this order only.
-      </p>
+    <OrderShell contentWidth="medium" className="pb-10">
+      <div className="flex flex-col gap-6">
+        <OrderStepHeader
+          title="Payment"
+          subtitle="Pay securely with card. Your order is already created; completing checkout charges this order only."
+          step={{ current: 6, total: 6, label: "Payment" }}
+        />
       {orderId ? (
-        <p className="rounded-lg border border-gray-200 bg-white px-4 py-3 font-mono text-xs text-[#111111] break-all">
+        <p className={`${orderCard} font-mono text-xs text-[#111111] break-all`}>
           Order: {orderId}
         </p>
       ) : (
@@ -72,7 +76,7 @@ function OrderPaymentInner() {
         type="button"
         disabled={loading || !orderId}
         onClick={() => void onPay()}
-        className="w-full rounded-2xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-40"
+        className={orderBtnPrimary}
       >
         {loading ? "Starting checkout…" : "Pay now"}
       </button>
@@ -80,9 +84,10 @@ function OrderPaymentInner() {
         href={backHref}
         className="text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
       >
-        Back to review
+        Back to customer details
       </Link>
-    </div>
+      </div>
+    </OrderShell>
   );
 }
 
@@ -90,8 +95,8 @@ export default function OrderPaymentPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-lg px-4 py-10 text-sm text-[#6B7280]">
-          Loading…
+        <div className={orderLoadingScreen}>
+          <p className="text-sm text-[#6B7280]">Loading…</p>
         </div>
       }
     >

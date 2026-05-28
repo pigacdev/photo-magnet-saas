@@ -498,7 +498,7 @@ function OrdersListContent() {
   }
 
   const quickBtn =
-    "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors";
+    "inline-flex min-h-11 items-center rounded-lg border px-3 text-sm font-medium transition-colors";
   const quickBtnIdle = `${quickBtn} border-gray-300 bg-white text-[#111111] hover:bg-[#F9FAFB]`;
   const quickBtnActive = `${quickBtn} border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]`;
 
@@ -574,66 +574,59 @@ function OrdersListContent() {
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <span className="text-xs font-medium text-[#6B7280]">Date</span>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => applyDatePreset("today")}
-            className={datePresetActive.today ? quickBtnActive : quickBtnIdle}
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            onClick={() => applyDatePreset("week")}
-            className={datePresetActive.week ? quickBtnActive : quickBtnIdle}
-          >
-            This week
-          </button>
-          <button
-            type="button"
-            onClick={() => applyDatePreset("month")}
-            className={datePresetActive.month ? quickBtnActive : quickBtnIdle}
-          >
-            This month
-          </button>
-          <button
-            type="button"
-            onClick={() => clearDateFilters()}
-            disabled={!hasDateInUrl}
-            className={`${quickBtn} border-gray-300 bg-white text-[#111111] hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-40`}
-          >
-            Clear
-          </button>
-          <span className="hidden sm:inline-block sm:w-px sm:self-stretch sm:bg-gray-200 sm:mx-1" aria-hidden />
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-[#6B7280]">
-              From
-            </span>
-            <input
-              type="date"
-              value={fromDateValue}
-              onChange={(e) =>
-                updateDateFilter("from", e.target.value)
-              }
-              className="h-9 w-[140px] rounded-lg border border-gray-200 px-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-            />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-[#6B7280]">
-              To
-            </span>
-            <input
-              type="date"
-              value={toDateValue}
-              onChange={(e) =>
-                updateDateFilter("to", e.target.value)
-              }
-              className="h-9 w-[140px] rounded-lg border border-gray-200 px-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-            />
-          </label>
+      <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-[#6B7280]">Date</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => applyDatePreset("today")}
+              className={datePresetActive.today ? quickBtnActive : quickBtnIdle}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => applyDatePreset("week")}
+              className={datePresetActive.week ? quickBtnActive : quickBtnIdle}
+            >
+              This week
+            </button>
+            <button
+              type="button"
+              onClick={() => applyDatePreset("month")}
+              className={datePresetActive.month ? quickBtnActive : quickBtnIdle}
+            >
+              This month
+            </button>
+            <button
+              type="button"
+              onClick={() => clearDateFilters()}
+              disabled={!hasDateInUrl}
+              className={`${quickBtn} border-gray-300 bg-white text-[#111111] hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-40`}
+            >
+              Clear
+            </button>
+          </div>
         </div>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-[#6B7280]">From</span>
+          <input
+            type="date"
+            value={fromDateValue}
+            onChange={(e) => updateDateFilter("from", e.target.value)}
+            className="min-h-11 w-[140px] rounded-lg border border-gray-200 px-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-[#6B7280]">To</span>
+          <input
+            type="date"
+            value={toDateValue}
+            onChange={(e) => updateDateFilter("to", e.target.value)}
+            className="min-h-11 w-[140px] rounded-lg border border-gray-200 px-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+          />
+        </label>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
