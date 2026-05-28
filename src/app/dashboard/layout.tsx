@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { getMe, logout, type User } from "@/lib/auth";
+import {
+  getMe,
+  getCachedOrganizationUsage,
+  type User,
+  type OrganizationUsage,
+} from "@/lib/auth";
+import { UserMenu } from "@/components/dashboard/UserMenu";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home" },
@@ -19,6 +25,7 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [usage, setUsage] = useState<OrganizationUsage | null>(null);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
@@ -27,17 +34,17 @@ export default function DashboardLayout({
         router.replace("/login");
       } else {
         setUser(u);
+        setUsage(getCachedOrganizationUsage());
         setChecking(false);
       }
     });
   }, [router]);
 
-  const pathname = usePathname();
-
-  async function handleLogout() {
-    await logout();
-    router.replace("/login");
+  function refreshUsage() {
+    setUsage(getCachedOrganizationUsage());
   }
+
+  const pathname = usePathname();
 
   if (checking) {
     return (
@@ -78,18 +85,9 @@ export default function DashboardLayout({
             </nav>
           </div>
 
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-[#6B7280]">
-              {user?.name || user?.email}
-            </span>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-md px-2 py-1 text-sm font-medium text-[#6B7280] transition-colors hover:bg-[#F9FAFB] hover:text-[#111111]"
-            >
-              Log out
-            </button>
-          </div>
+          {user && (
+            <UserMenu user={user} usage={usage} onUsageRefresh={refreshUsage} />
+          )}
         </div>
       </header>
 

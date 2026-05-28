@@ -11,6 +11,8 @@ export type OrganizationUsage = {
   plan: "FREE" | "PRO";
   ordersThisMonth: number;
   orderLimit: number;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd?: boolean;
 };
 
 type AuthResponse = {

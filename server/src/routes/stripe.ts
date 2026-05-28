@@ -26,6 +26,8 @@ import {
   processSessionFirstCheckoutSessionCompleted,
   runSessionWebhookPostPaymentOrderProcessing,
 } from "../lib/stripeSessionWebhookFinalize";
+import { syncOrganizationFromStripeSubscription } from "../lib/organizationUsage";
+import { getStripeSubscriptionPeriod } from "../lib/stripeSubscriptionPeriod";
 
 export const stripeRouter = Router();
 
@@ -281,6 +283,92 @@ stripeRouter.post("/create-subscription", authenticate, async (req: Request, res
     res.status(500).json({ error: "Could not start subscription checkout" });
   }
 });
+
+stripeRouter.post("/cancel-subscription", authenticate, async (req: Request, res: Response) => {
+  const stripe = getStripeOrNull();
+  if (!stripe) {
+    res.status(503).json({ error: "Stripe not configured" });
+    return;
+  }
+
+  const orgId = req.user!.userId;
+
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+  });
+
+  if (!org) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
+
+  if (org.plan !== "PRO" || !org.stripeSubscriptionId) {
+    res.status(400).json({ error: "No active subscription to cancel" });
+    return;
+  }
+
+  try {
+    const sub = await stripe.subscriptions.update(org.stripeSubscriptionId, {
+      cancel_at_period_end: true,
+    });
+
+    await syncOrganizationFromStripeSubscription(orgId, sub);
+
+    const period = getStripeSubscriptionPeriod(sub);
+    res.json({
+      cancelAtPeriodEnd: sub.cancel_at_period_end,
+      currentPeriodEnd: period?.currentPeriodEnd.toISOString() ?? null,
+    });
+  } catch (e) {
+    console.error("[stripe.cancel-subscription]", e);
+    res.status(500).json({ error: "Could not cancel subscription" });
+  }
+});
+
+stripeRouter.post(
+  "/reactivate-subscription",
+  authenticate,
+  async (req: Request, res: Response) => {
+    const stripe = getStripeOrNull();
+    if (!stripe) {
+      res.status(503).json({ error: "Stripe not configured" });
+      return;
+    }
+
+    const orgId = req.user!.userId;
+
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!org) {
+      res.status(404).json({ error: "Organization not found" });
+      return;
+    }
+
+    if (org.plan !== "PRO" || !org.stripeSubscriptionId) {
+      res.status(400).json({ error: "No subscription to reactivate" });
+      return;
+    }
+
+    try {
+      const sub = await stripe.subscriptions.update(org.stripeSubscriptionId, {
+        cancel_at_period_end: false,
+      });
+
+      await syncOrganizationFromStripeSubscription(orgId, sub);
+
+      const period = getStripeSubscriptionPeriod(sub);
+      res.json({
+        cancelAtPeriodEnd: sub.cancel_at_period_end,
+        currentPeriodEnd: period?.currentPeriodEnd.toISOString() ?? null,
+      });
+    } catch (e) {
+      console.error("[stripe.reactivate-subscription]", e);
+      res.status(500).json({ error: "Could not reactivate subscription" });
+    }
+  },
+);
 
 export async function stripeWebhookHandler(req: Request, res: Response): Promise<void> {
   const stripe = getStripeOrNull();
@@ -583,6 +671,8 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
           console.log("[stripe] subscription synced", org.id);
         }
 
+        await syncOrganizationFromStripeSubscription(org.id, sub);
+
         res.status(200).json({ received: true });
         return;
       }
@@ -616,6 +706,15 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
             },
           });
           console.log("[stripe] org upgraded to PRO", org.id);
+        }
+
+        if (org.stripeSubscriptionId) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(org.stripeSubscriptionId);
+            await syncOrganizationFromStripeSubscription(org.id, sub);
+          } catch (err) {
+            console.warn("[stripe] invoice.paid could not sync subscription period", err);
+          }
         }
 
         res.status(200).json({ received: true });

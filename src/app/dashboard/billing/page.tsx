@@ -7,31 +7,41 @@ import {
   getMe,
   getCachedOrganizationUsage,
   invalidateAuthCache,
+  type User,
+  type OrganizationUsage,
 } from "@/lib/auth";
+import { UserProfileSummary } from "@/components/dashboard/UserProfileSummary";
 
 function BillingContent() {
   const searchParams = useSearchParams();
   const reason = searchParams.get("reason");
   const success = searchParams.get("success");
   const canceled = searchParams.get("canceled");
-  const [plan, setPlan] = useState<"FREE" | "PRO" | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [usage, setUsage] = useState<OrganizationUsage | null>(null);
   const [upgradeError, setUpgradeError] = useState("");
   const [upgrading, setUpgrading] = useState(false);
 
   useEffect(() => {
-    void getMe().then(() => {
-      setPlan(getCachedOrganizationUsage()?.plan ?? null);
+    void getMe().then((u) => {
+      setUser(u);
+      setUsage(getCachedOrganizationUsage());
     });
   }, []);
 
   useEffect(() => {
     if (success === "true") {
       invalidateAuthCache();
-      void getMe().then(() => {
-        setPlan(getCachedOrganizationUsage()?.plan ?? null);
+      void getMe().then((u) => {
+        setUser(u);
+        setUsage(getCachedOrganizationUsage());
       });
     }
   }, [success]);
+
+  function refreshUsage() {
+    setUsage(getCachedOrganizationUsage());
+  }
 
   async function handleUpgrade() {
     setUpgradeError("");
@@ -58,16 +68,18 @@ function BillingContent() {
     }
   }
 
+  const plan = usage?.plan ?? null;
+
   return (
     <div className="mx-auto max-w-lg p-6">
       {success === "true" && (
         <p className="mb-4 text-sm text-green-600">
-          Subscription activated successfully 🎉
+          Subscription activated successfully.
         </p>
       )}
       {canceled === "true" && (
         <p className="mb-4 text-sm text-gray-600">
-          Subscription was canceled.
+          Checkout was canceled.
         </p>
       )}
       {reason === "limit" && (
@@ -77,13 +89,28 @@ function BillingContent() {
         </p>
       )}
 
-      <h2 className="text-lg font-semibold text-[#111111]">
-        Your plan: {plan ?? "…"}
-      </h2>
+      <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+        Billing &amp; plan
+      </h1>
 
       <p className="mt-2 text-sm text-[#6B7280]">
-        Compare benefits and upgrade when you&apos;re ready.
+        Compare benefits and manage your subscription.
       </p>
+
+      {user && usage && (
+        <section className="mt-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-[#111111]">Current plan</h2>
+          <div className="mt-4">
+            <UserProfileSummary
+              user={user}
+              usage={usage}
+              variant="full"
+              showIdentity={false}
+              onSubscriptionChange={refreshUsage}
+            />
+          </div>
+        </section>
+      )}
 
       <div className="mt-6 space-y-3 rounded-lg border border-gray-200 p-5">
         <p className="text-lg font-semibold text-[#111111]">
