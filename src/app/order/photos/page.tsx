@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, apiFormData } from "@/lib/api";
+import { OrderShell } from "@/components/order/OrderShell";
+import { OrderStepHeader } from "@/components/order/OrderStepHeader";
+import { orderBtnPrimary, orderLoadingScreen } from "@/components/order/orderUi";
 import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
 import {
   formatUploadLimitExceededMessage,
@@ -191,25 +194,20 @@ export default function OrderPhotosPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFA] px-4">
+      <div className={orderLoadingScreen}>
         <p className="text-sm text-[#6B7280]">Loading…</p>
       </div>
     );
   }
 
   return (
-    <div
-      className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 bg-[#FAFAFA] px-4 pb-10 pt-8"
-      aria-busy={uploadingPhotos || imagesLoading}
-    >
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
-          Add Photos
-        </h1>
-        <p className="mt-1 text-sm text-[#6B7280]">
-          Choose photos for your magnets
-        </p>
-      </header>
+    <OrderShell contentWidth="medium" className="pb-10">
+      <div className="flex flex-col gap-6" aria-busy={uploadingPhotos || imagesLoading}>
+        <OrderStepHeader
+          title="Add photos"
+          subtitle="Choose photos for your magnets"
+          step={{ current: 2, total: 6, label: "Upload" }}
+        />
 
       <input
         ref={fileInputRef}
@@ -317,9 +315,9 @@ export default function OrderPhotosPage() {
         type="button"
         disabled={images.length === 0 || uploadingPhotos}
         onClick={continueToCrop}
-        className="w-full rounded-2xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50"
+        className={orderBtnPrimary}
       >
-        Continue to Crop
+        Continue to crop
       </button>
 
       <Link
@@ -328,6 +326,7 @@ export default function OrderPhotosPage() {
       >
         Back to shape &amp; price
       </Link>
-    </div>
+      </div>
+    </OrderShell>
   );
 }

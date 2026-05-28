@@ -71,7 +71,7 @@ function BillingContent() {
   const plan = usage?.plan ?? null;
 
   return (
-    <div className="mx-auto max-w-lg p-6">
+    <div className="dashboard-page mx-auto max-w-2xl">
       {success === "true" && (
         <p className="mb-4 text-sm text-green-600">
           Subscription activated successfully.
@@ -165,7 +165,7 @@ export default function BillingPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-lg p-6 text-sm text-[#6B7280]">Loading…</div>
+        <div className="dashboard-page mx-auto max-w-2xl text-sm text-[#6B7280]">Loading…</div>
       }
     >
       <BillingContent />

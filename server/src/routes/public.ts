@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
+import { canAcceptOrders } from "../lib/event";
+import { canStorefrontAcceptOrders } from "../lib/storefront";
 
 export const publicRouter = Router();
 
@@ -15,7 +17,23 @@ publicRouter.get("/entry/:contextType/:contextId", async (req, res) => {
       res.status(404).json({ error: "Not found" });
       return;
     }
-    res.json({ name: event.name });
+
+    const [pricingCount, shapeCount] = await Promise.all([
+      prisma.pricing.count({
+        where: { contextType: "EVENT", contextId: event.id, deletedAt: null },
+      }),
+      prisma.allowedShape.count({
+        where: { contextType: "EVENT", contextId: event.id },
+      }),
+    ]);
+
+    const orderCheck = canAcceptOrders(event, pricingCount, shapeCount);
+
+    res.json({
+      name: event.name,
+      canOrder: orderCheck.ok,
+      unavailableReason: orderCheck.ok ? null : orderCheck.reason,
+    });
     return;
   }
 
@@ -27,7 +45,27 @@ publicRouter.get("/entry/:contextType/:contextId", async (req, res) => {
       res.status(404).json({ error: "Not found" });
       return;
     }
-    res.json({ name: storefront.name });
+
+    const [pricingCount, shapeCount] = await Promise.all([
+      prisma.pricing.count({
+        where: { contextType: "STOREFRONT", contextId: storefront.id, deletedAt: null },
+      }),
+      prisma.allowedShape.count({
+        where: { contextType: "STOREFRONT", contextId: storefront.id },
+      }),
+    ]);
+
+    const orderCheck = canStorefrontAcceptOrders(
+      storefront,
+      pricingCount,
+      shapeCount,
+    );
+
+    res.json({
+      name: storefront.name,
+      canOrder: orderCheck.ok,
+      unavailableReason: orderCheck.ok ? null : orderCheck.reason,
+    });
     return;
   }
 

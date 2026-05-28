@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { normalizeBrandTextInput } from "../lib/brandTextForOrder";
-import { enrichStorefront } from "../lib/storefront";
+import { enrichStorefront, isStorefrontConfigurationComplete } from "../lib/storefront";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
 import {
   parseNotificationEmailInput,
@@ -108,7 +108,15 @@ storefrontsRouter.get("/:id", async (req, res) => {
     orderBy: { displayOrder: "asc" },
   });
 
-  res.json({ storefront: { ...storefront, ...enrichStorefront(storefront), shapes, pricing } });
+  res.json({
+    storefront: {
+      ...storefront,
+      ...enrichStorefront(storefront),
+      shapes,
+      pricing,
+      configurationComplete: isStorefrontConfigurationComplete(shapes.length, pricing.length),
+    },
+  });
 });
 
 storefrontsRouter.patch("/:id", async (req, res) => {
@@ -194,7 +202,13 @@ storefrontsRouter.patch("/:id", async (req, res) => {
   });
 
   res.json({
-    storefront: { ...storefront, ...enrichStorefront(storefront), shapes, pricing },
+    storefront: {
+      ...storefront,
+      ...enrichStorefront(storefront),
+      shapes,
+      pricing,
+      configurationComplete: isStorefrontConfigurationComplete(shapes.length, pricing.length),
+    },
   });
 });
 

@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { OrderShell } from "@/components/order/OrderShell";
+import { OrderStepHeader } from "@/components/order/OrderStepHeader";
+import { orderBtnPrimary, orderLoadingScreen } from "@/components/order/orderUi";
 import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
 import { bestBundleId, shapeLabel } from "@/lib/orderSelectionUi";
 import type {
@@ -205,7 +208,7 @@ export default function OrderPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFA] px-4">
+      <div className={orderLoadingScreen}>
         <p className="text-sm text-[#6B7280]">Loading…</p>
       </div>
     );
@@ -218,18 +221,13 @@ export default function OrderPage() {
   const currency = pricing[0]?.currency ?? "EUR";
 
   return (
-    <div
-      className="mx-auto flex min-h-screen max-w-lg flex-col gap-6 bg-[#FAFAFA] px-4 pb-10 pt-8"
-      aria-busy={saving}
-    >
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
-          Shape &amp; price
-        </h1>
-        <p className="mt-1 text-sm text-[#6B7280]">
-          Tap a shape, then confirm pricing.
-        </p>
-      </header>
+    <OrderShell contentWidth="medium" className="pb-10">
+      <div className="flex flex-col gap-6" aria-busy={saving}>
+        <OrderStepHeader
+          title="Shape & price"
+          subtitle="Tap a shape, then confirm pricing."
+          step={{ current: 1, total: 6, label: "Shape & price" }}
+        />
 
       {patchError && (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -315,7 +313,7 @@ export default function OrderPage() {
         </section>
       )}
 
-      <section className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+      <section className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
@@ -335,7 +333,7 @@ export default function OrderPage() {
         type="button"
         disabled={!canContinue || saving}
         onClick={goToPhotos}
-        className="w-full rounded-2xl bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50"
+        className={orderBtnPrimary}
       >
         Continue
       </button>
@@ -346,6 +344,7 @@ export default function OrderPage() {
       >
         {entryHref === "/" ? "Home" : "Back to entry"}
       </Link>
-    </div>
+      </div>
+    </OrderShell>
   );
 }

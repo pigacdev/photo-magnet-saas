@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { CustomerEditModal } from "@/components/dashboard/CustomerEditModal";
 import {
   FulfillmentClarityRow,
   PaymentClarityRow,
@@ -17,7 +18,6 @@ import {
 import {
   normalizeLegacyShippingType,
   shippingTypeLabel,
-  type StorefrontShippingType,
 } from "@/lib/shippingTypes";
 import type { OrderDisplayStatus } from "@/lib/orderDisplayStatus";
 import { isReadyToPrint } from "@/lib/sellerOrderPrintStatus";
@@ -70,14 +70,6 @@ export default function OrderDetailPage() {
     null,
   );
   const [customerEditOpen, setCustomerEditOpen] = useState(false);
-  const [customerSaving, setCustomerSaving] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editPhone, setEditPhone] = useState("");
-  const [editShippingType, setEditShippingType] =
-    useState<StorefrontShippingType>("delivery");
-  const [editFullAddress, setEditFullAddress] = useState("");
-  const [editAddressNotes, setEditAddressNotes] = useState("");
-  const [editLockerId, setEditLockerId] = useState("");
   /** After a successful "Print order", ask before marking — reinforces preview → confirm flow. */
   const [printOutcomePrompt, setPrintOutcomePrompt] = useState(false);
 
@@ -313,77 +305,6 @@ export default function OrderDetailPage() {
     }
   }
 
-  function openCustomerEdit() {
-    if (!order) return;
-    setEditName(order.customerName ?? "");
-    setEditPhone(order.customerPhone ?? "");
-    setEditShippingType(normalizeLegacyShippingType(order.shippingType));
-    const addr = order.shippingAddress;
-    let fa = "";
-    let notes = "";
-    let lid = "";
-    if (addr && typeof addr === "object" && !Array.isArray(addr)) {
-      const full = (addr as { fullAddress?: unknown }).fullAddress;
-      if (typeof full === "string") fa = full;
-      const n = (addr as { notes?: unknown }).notes;
-      if (typeof n === "string") notes = n;
-      const locker = (addr as { lockerId?: unknown }).lockerId;
-      if (typeof locker === "string") lid = locker;
-    }
-    setEditFullAddress(fa);
-    setEditAddressNotes(notes);
-    setEditLockerId(lid);
-    setCustomerEditOpen(true);
-  }
-
-  async function saveCustomerEdit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!id || !order) return;
-    setCustomerSaving(true);
-    setError(null);
-    try {
-      const body =
-        order.contextType === "EVENT"
-          ? {
-              customerName: editName.trim(),
-              ...(editPhone.trim() ? { customerPhone: editPhone.trim() } : {}),
-            }
-          : editShippingType === "pickup"
-            ? {
-                customerName: editName.trim(),
-                customerPhone: editPhone.trim(),
-                shippingType: "pickup",
-                shippingAddress: null,
-              }
-            : editShippingType === "delivery"
-              ? {
-                  customerName: editName.trim(),
-                  customerPhone: editPhone.trim(),
-                  shippingType: "delivery",
-                  shippingAddress: {
-                    fullAddress: editFullAddress.trim(),
-                    notes: editAddressNotes.trim(),
-                  },
-                }
-              : {
-                  customerName: editName.trim(),
-                  customerPhone: editPhone.trim(),
-                  shippingType: "boxnow",
-                  shippingAddress: { lockerId: editLockerId.trim() },
-                };
-      await api<{ ok: boolean }>(
-        `/api/orders/${encodeURIComponent(id)}/customer`,
-        { method: "PATCH", body },
-      );
-      setCustomerEditOpen(false);
-      loadOrder();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save");
-    } finally {
-      setCustomerSaving(false);
-    }
-  }
-
   async function markShipped() {
     if (!id) return;
     setActionBusy("ship");
@@ -491,29 +412,28 @@ export default function OrderDetailPage() {
               selectedImageIds.length > 0 ? "pb-28 sm:pb-24" : ""
             }`}
           >
+          <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
           <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
             <h1 className="text-lg font-semibold text-[#111111] sm:text-xl">
               Order
             </h1>
-            <p className="mt-1 break-all font-mono text-xs text-[#6B7280]">
-              {order.orderId}
-            </p>
-            <p className="mt-1 text-sm text-[#6B7280]">
-              Created: {formatDate(order.createdAt)}
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {allMediaRemoved ? (
-                <>
-                  Media removed after retention period — printing is not
-                  available.
-                </>
-              ) : (
-                <>
-                  {printableImages.filter((img) => img.printed).length} /{" "}
-                  {printableImages.length} images printed
-                </>
-              )}
-            </p>
+            <div className="mt-2 space-y-1 text-sm text-[#6B7280]">
+              <p className="break-all">{order.orderId}</p>
+              <p>Created: {formatDate(order.createdAt)}</p>
+              <p>
+                {allMediaRemoved ? (
+                  <>
+                    Media removed after retention period — printing is not
+                    available.
+                  </>
+                ) : (
+                  <>
+                    {printableImages.filter((img) => img.printed).length} /{" "}
+                    {printableImages.length} images printed
+                  </>
+                )}
+              </p>
+            </div>
             <div className="mt-6 rounded-lg border border-gray-200 bg-[#FAFAFA] p-4 sm:p-5">
               <div className="grid gap-6 sm:grid-cols-2 sm:gap-8">
                 <div>
@@ -667,149 +587,22 @@ export default function OrderDetailPage() {
               </div>
             )}
 
-            <div className="mt-6 border-t border-gray-100 pt-6">
+          </div>
+
+          <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-sm font-semibold text-[#111111]">
+                <h2 className="text-lg font-semibold text-[#111111] sm:text-xl">
                   Customer & shipping
                 </h2>
-                {!customerEditOpen && (
-                  <button
-                    type="button"
-                    onClick={() => openCustomerEdit()}
-                    className="min-h-[44px] text-left text-sm font-medium text-[#2563EB] hover:underline sm:text-right"
-                  >
-                    Edit customer info
-                  </button>
-                )}
-              </div>
-              {customerEditOpen && order ? (
-                <form
-                  onSubmit={(e) => void saveCustomerEdit(e)}
-                  className="mt-4 flex flex-col gap-4"
+                <button
+                  type="button"
+                  onClick={() => setCustomerEditOpen(true)}
+                  className="min-h-[44px] text-left text-sm font-medium text-[#2563EB] hover:underline sm:text-right"
                 >
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-[#111111]">
-                      Full name <span className="text-red-600">*</span>
-                    </span>
-                    <input
-                      type="text"
-                      name="name"
-                      required
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-[#111111]">
-                      Phone
-                      {order.contextType === "STOREFRONT" && (
-                        <span className="text-red-600"> *</span>
-                      )}
-                    </span>
-                    <input
-                      type="tel"
-                      name="phone"
-                      required={order.contextType === "STOREFRONT"}
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-                    />
-                  </label>
-                  {order.contextType === "STOREFRONT" && (
-                    <>
-                      <label className="flex flex-col gap-1.5">
-                        <span className="text-sm font-medium text-[#111111]">
-                          Shipping method <span className="text-red-600">*</span>
-                        </span>
-                        <select
-                          name="shippingType"
-                          required
-                          value={editShippingType}
-                          onChange={(e) =>
-                            setEditShippingType(
-                              e.target.value as StorefrontShippingType,
-                            )
-                          }
-                          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-                        >
-                          <option value="pickup">Pickup</option>
-                          <option value="delivery">Delivery</option>
-                          <option value="boxnow">BoxNow</option>
-                        </select>
-                      </label>
-                      {editShippingType === "delivery" && (
-                        <>
-                          <label className="flex flex-col gap-1.5">
-                            <span className="text-sm font-medium text-[#111111]">
-                              Delivery address{" "}
-                              <span className="text-red-600">*</span>
-                            </span>
-                            <textarea
-                              name="fullAddress"
-                              required
-                              rows={4}
-                              value={editFullAddress}
-                              onChange={(e) =>
-                                setEditFullAddress(e.target.value)
-                              }
-                              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-                            />
-                          </label>
-                          <label className="flex flex-col gap-1.5">
-                            <span className="text-sm font-medium text-[#111111]">
-                              Delivery notes
-                            </span>
-                            <textarea
-                              name="addressNotes"
-                              rows={2}
-                              value={editAddressNotes}
-                              onChange={(e) =>
-                                setEditAddressNotes(e.target.value)
-                              }
-                              placeholder="Apartment, gate code, instructions (optional)"
-                              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-                            />
-                          </label>
-                        </>
-                      )}
-                      {editShippingType === "boxnow" && (
-                        <label className="flex flex-col gap-1.5">
-                          <span className="text-sm font-medium text-[#111111]">
-                            BoxNow locker id{" "}
-                            <span className="text-red-600">*</span>
-                          </span>
-                          <input
-                            type="text"
-                            name="lockerId"
-                            required
-                            value={editLockerId}
-                            onChange={(e) => setEditLockerId(e.target.value)}
-                            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-                          />
-                        </label>
-                      )}
-                    </>
-                  )}
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <button
-                      type="submit"
-                      disabled={customerSaving}
-                      className="min-h-[44px] rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
-                    >
-                      {customerSaving ? "Saving…" : "Save"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={customerSaving}
-                      onClick={() => setCustomerEditOpen(false)}
-                      className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-[#111111] hover:bg-[#F9FAFB] disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : hasCustomerInfo ? (
+                  Edit customer info
+                </button>
+              </div>
+              {hasCustomerInfo ? (
                 <dl className="mt-3 space-y-2 text-sm">
                   {order.customerName && (
                     <div>
@@ -916,7 +709,7 @@ export default function OrderDetailPage() {
                   No customer details yet.
                 </p>
               )}
-            </div>
+          </div>
           </div>
 
           <div>
@@ -1035,7 +828,7 @@ export default function OrderDetailPage() {
 
           {selectedImageIds.length > 0 && !allMediaRemoved && (
             <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-6">
-              <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-3">
+              <div className="flex w-full flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-[#111111]">
                   {selectedImageIds.length} selected
                 </p>
@@ -1073,6 +866,15 @@ export default function OrderDetailPage() {
             </div>
           )}
         </>
+      )}
+
+      {customerEditOpen && order && (
+        <CustomerEditModal
+          open={customerEditOpen}
+          order={order}
+          onClose={() => setCustomerEditOpen(false)}
+          onSaved={refreshOrder}
+        />
       )}
 
     </div>

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { normalizeBrandTextInput } from "../lib/brandTextForOrder";
-import { enrichEvent } from "../lib/event";
+import { enrichEvent, isEventConfigurationComplete } from "../lib/event";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
 import {
   parseNotificationEmailInput,
@@ -211,7 +211,13 @@ eventsRouter.get("/:id", async (req, res) => {
   });
 
   res.json({
-    event: { ...event, ...enrichEvent(event), shapes, pricing },
+    event: {
+      ...event,
+      ...enrichEvent(event),
+      shapes,
+      pricing,
+      configurationComplete: isEventConfigurationComplete(shapes.length, pricing.length),
+    },
   });
 });
 
@@ -313,7 +319,13 @@ eventsRouter.patch("/:id", async (req, res) => {
   });
 
   res.json({
-    event: { ...event, ...enrichEvent(event), shapes, pricing },
+    event: {
+      ...event,
+      ...enrichEvent(event),
+      shapes,
+      pricing,
+      configurationComplete: isEventConfigurationComplete(shapes.length, pricing.length),
+    },
   });
 });
 

@@ -16,12 +16,8 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "@/lib/api";
-import {
-  PricingEditor,
-  PricingPreview,
-  type PricingRule,
-} from "@/components/PricingEditor";
-import { ShareLinkCard } from "@/components/dashboard/ShareLinkCard";
+import { EventConfigurationForm } from "@/components/dashboard/EventConfigurationForm";
+import { confirmUnsavedChanges } from "@/hooks/useUnsavedChangesWarning";
 
 type AllowedShape = {
   id: string;
@@ -29,6 +25,15 @@ type AllowedShape = {
   widthMm: number;
   heightMm: number;
   displayOrder: number;
+};
+
+type PricingRule = {
+  id: string;
+  type: "PER_ITEM" | "BUNDLE";
+  price: string;
+  currency: string;
+  quantity: number | null;
+  displayOrder: number | null;
 };
 
 type Event = {
@@ -42,6 +47,7 @@ type Event = {
   isActive: boolean;
   isOpen: boolean;
   status: "upcoming" | "active" | "ended" | "inactive";
+  configurationComplete?: boolean;
   maxMagnetsPerOrder: number | null;
   shapes: AllowedShape[];
   pricing: PricingRule[];
@@ -206,44 +212,48 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
   );
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard
-          label="Total orders"
-          value={String(metrics.totalOrders)}
-        />
-        <KpiCard
-          label="Paid orders"
-          value={String(metrics.paidOrders)}
-        />
-        <KpiCard
-          label="Revenue"
-          value={formatMoney(metrics.totalRevenue, currency)}
-        />
-        <KpiCard
-          label="Unique customers"
-          value={String(metrics.uniqueCustomers)}
-        />
-        <KpiCard
-          label="Total images"
-          value={String(metrics.totalImages)}
-        />
-        <KpiCard
-          label="Total magnets (copies)"
-          value={String(metrics.totalCopies)}
-        />
-        <KpiCard
-          label="Average order value"
-          value={formatMoney(metrics.averageOrderValue, currency)}
-          sub="Paid orders only"
-        />
-        <KpiCard
-          label="Avg copies / order"
-          value={metrics.averageCopiesPerOrder.toFixed(2)}
-        />
-      </div>
+    <div className="space-y-6">
+      <section className="dashboard-card">
+        <h2 className="text-sm font-semibold text-[#111111]">Overview</h2>
+        <p className="mt-1 text-xs text-[#6B7280]">Key metrics for this event</p>
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <KpiCard
+            label="Total orders"
+            value={String(metrics.totalOrders)}
+          />
+          <KpiCard
+            label="Paid orders"
+            value={String(metrics.paidOrders)}
+          />
+          <KpiCard
+            label="Revenue"
+            value={formatMoney(metrics.totalRevenue, currency)}
+          />
+          <KpiCard
+            label="Unique customers"
+            value={String(metrics.uniqueCustomers)}
+          />
+          <KpiCard
+            label="Total images"
+            value={String(metrics.totalImages)}
+          />
+          <KpiCard
+            label="Total magnets (copies)"
+            value={String(metrics.totalCopies)}
+          />
+          <KpiCard
+            label="Average order value"
+            value={formatMoney(metrics.averageOrderValue, currency)}
+            sub="Paid orders only"
+          />
+          <KpiCard
+            label="Avg copies / order"
+            value={metrics.averageCopiesPerOrder.toFixed(2)}
+          />
+        </div>
+      </section>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="dashboard-card">
         <h2 className="text-sm font-semibold text-[#111111]">Orders over time</h2>
         <p className="mt-1 text-xs text-[#6B7280]">Count and revenue by day (UTC)</p>
         <div className="mt-4 h-[280px] w-full min-h-[280px] min-w-0">
@@ -313,9 +323,10 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
             </ResponsiveContainer>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+      <section className="dashboard-card">
         <h2 className="text-sm font-semibold text-[#111111]">Sales by shape</h2>
         <p className="mt-1 text-xs text-[#6B7280]">Revenue (paid orders, copy-weighted)</p>
         <div className="mt-4 h-[280px] w-full min-h-[280px] min-w-0">
@@ -357,9 +368,9 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
             </ResponsiveContainer>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="dashboard-card">
         <h2 className="text-sm font-semibold text-[#111111]">Payment breakdown</h2>
         <p className="mt-1 text-xs text-[#6B7280]">Orders and revenue by payment path</p>
         <div className="mt-4 h-[260px] w-full min-h-[260px] min-w-0">
@@ -428,6 +439,7 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
             </ResponsiveContainer>
           </div>
         </div>
+      </section>
       </div>
 
     </div>
@@ -443,11 +455,6 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [publicEntryUrl, setPublicEntryUrl] = useState("");
-  const [brandDraft, setBrandDraft] = useState("");
-  const [brandSaving, setBrandSaving] = useState(false);
-  const [notifEmailDraft, setNotifEmailDraft] = useState("");
-  const [notifSendDraft, setNotifSendDraft] = useState(false);
-  const [notifSaving, setNotifSaving] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"configuration" | "analytics">(
     "configuration",
@@ -458,8 +465,24 @@ export default function EventDetailPage() {
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [configDirty, setConfigDirty] = useState(false);
 
   const isEndedEvent = event?.status === "ended";
+
+  const switchTab = useCallback(
+    (tab: "configuration" | "analytics") => {
+      if (
+        activeTab === "configuration" &&
+        tab !== "configuration" &&
+        configDirty &&
+        !confirmUnsavedChanges()
+      ) {
+        return;
+      }
+      setActiveTab(tab);
+    },
+    [activeTab, configDirty],
+  );
 
   const loadAnalytics = useCallback(async () => {
     if (!eventId) return;
@@ -492,9 +515,6 @@ export default function EventDetailPage() {
     api<{ event: Event }>(`/api/events/${eventId}`)
       .then((data) => {
         setEvent(data.event);
-        setBrandDraft(data.event.brandText ?? "");
-        setNotifEmailDraft(data.event.notificationEmail ?? "");
-        setNotifSendDraft(data.event.sendOrderEmails ?? false);
       })
       .catch(() => setError("Event not found"))
       .finally(() => setLoading(false));
@@ -557,57 +577,6 @@ export default function EventDetailPage() {
     analytics?.event.mediaDeletionCountdownSeconds,
   ]);
 
-  async function saveOrderNotifications() {
-    if (!event) return;
-    setNotifSaving(true);
-    try {
-      const updated = await api<{ event: Event }>(`/api/events/${event.id}`, {
-        method: "PATCH",
-        body: {
-          sendOrderEmails: notifSendDraft,
-          notificationEmail:
-            notifEmailDraft.trim() === "" ? null : notifEmailDraft.trim(),
-        },
-      });
-      setEvent({
-        ...event,
-        ...updated.event,
-        shapes: updated.event.shapes ?? event.shapes,
-        pricing: updated.event.pricing ?? event.pricing,
-      });
-      setNotifEmailDraft(updated.event.notificationEmail ?? "");
-      setNotifSendDraft(updated.event.sendOrderEmails ?? false);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Could not save");
-    } finally {
-      setNotifSaving(false);
-    }
-  }
-
-  async function saveBrandText() {
-    if (!event) return;
-    setBrandSaving(true);
-    try {
-      const updated = await api<{ event: Event }>(`/api/events/${event.id}`, {
-        method: "PATCH",
-        body: {
-          brandText: brandDraft.trim() === "" ? null : brandDraft.trim(),
-        },
-      });
-      setEvent({
-        ...event,
-        ...updated.event,
-        shapes: updated.event.shapes ?? event.shapes,
-        pricing: updated.event.pricing ?? event.pricing,
-      });
-      setBrandDraft(updated.event.brandText ?? "");
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Could not save");
-    } finally {
-      setBrandSaving(false);
-    }
-  }
-
   async function handleToggleActive() {
     if (!event) return;
     const updated = await api<{ event: Event }>(`/api/events/${event.id}`, {
@@ -626,28 +595,6 @@ export default function EventDetailPage() {
     if (!event) return;
     await api(`/api/events/${event.id}`, { method: "DELETE" });
     router.push("/dashboard/events");
-  }
-
-  async function handleRemoveShape(shapeId: string) {
-    if (!event) return;
-    try {
-      await api(`/api/events/${event.id}/shapes/${shapeId}`, { method: "DELETE" });
-      setEvent({ ...event, shapes: event.shapes.filter((s) => s.id !== shapeId) });
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to remove shape");
-    }
-  }
-
-  function handlePricingUpdate(
-    pricing: PricingRule[],
-    meta?: { maxMagnetsPerOrder: number | null },
-  ) {
-    if (!event) return;
-    setEvent({
-      ...event,
-      pricing,
-      ...(meta && { maxMagnetsPerOrder: meta.maxMagnetsPerOrder }),
-    });
   }
 
   async function downloadEventArchive() {
@@ -759,7 +706,7 @@ export default function EventDetailPage() {
     const exportArchiveBlocked = showCleanupExpired;
 
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-8">
+      <div className="dashboard-page">
         <div>
           <Link
             href="/dashboard/events"
@@ -797,6 +744,7 @@ export default function EventDetailPage() {
           {formatDateShort(analytics?.event.endsAt ?? event.endDate)}
         </p>
 
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         <div
           className="rounded-xl border-2 border-amber-400 bg-amber-50 p-5 shadow-sm ring-1 ring-amber-200/90"
           role="region"
@@ -834,9 +782,13 @@ export default function EventDetailPage() {
           ) : null}
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-[#F9FAFB] p-5">
+        <section className="dashboard-card">
+          <h2 className="text-sm font-semibold text-[#111111]">Event archive</h2>
+          <p className="mt-1 text-xs text-[#6B7280]">
+            Download paid-order media before the cleanup deadline.
+          </p>
           {exportArchiveBlocked ? (
-            <p className="text-sm font-medium text-[#92400E]">
+            <p className="mt-4 text-sm font-medium text-[#92400E]">
               Archive download is no longer available after the media cleanup deadline.
             </p>
           ) : (
@@ -845,11 +797,11 @@ export default function EventDetailPage() {
                 type="button"
                 disabled={exportLoading}
                 onClick={() => void downloadEventArchive()}
-                className="min-h-[44px] rounded-lg bg-[#111827] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-4 min-h-[44px] rounded-lg bg-[#111827] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {exportLoading ? "Preparing download…" : "Download event archive"}
               </button>
-              <p className="mt-2 max-w-xl text-xs text-[#6B7280]">
+              <p className="mt-2 text-xs text-[#6B7280]">
                 Paid orders only. Missing files (cleanup or cloud storage) are listed in MEDIA_SKIPPED.txt when applicable.
               </p>
             </>
@@ -859,6 +811,7 @@ export default function EventDetailPage() {
               {exportError}
             </p>
           ) : null}
+        </section>
         </div>
 
         {analyticsBlock}
@@ -867,7 +820,7 @@ export default function EventDetailPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8">
+    <div className="dashboard-page">
       <div>
         <Link
           href="/dashboard/events"
@@ -918,7 +871,7 @@ export default function EventDetailPage() {
           role="tab"
           aria-selected={activeTab === "configuration"}
           className={activeTab === "configuration" ? tabActive : tabIdle}
-          onClick={() => setActiveTab("configuration")}
+          onClick={() => switchTab("configuration")}
         >
           Configuration
         </button>
@@ -927,144 +880,19 @@ export default function EventDetailPage() {
           role="tab"
           aria-selected={activeTab === "analytics"}
           className={activeTab === "analytics" ? tabActive : tabIdle}
-          onClick={() => setActiveTab("analytics")}
+          onClick={() => switchTab("analytics")}
         >
           Analytics
         </button>
       </div>
 
       {activeTab === "configuration" ? (
-        <>
-          <dl className="space-y-3 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-[#6B7280]">Start</dt>
-              <dd className="text-[#111111]">{formatDate(event.startDate)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-[#6B7280]">End</dt>
-              <dd className="text-[#111111]">{formatDate(event.endDate)}</dd>
-            </div>
-          </dl>
-
-          <div className="rounded-lg border border-gray-200 bg-[#FAFAFA] p-4">
-            <h2 className="text-sm font-semibold text-[#111111]">Print branding</h2>
-            <p className="mt-1 text-xs text-[#6B7280]">
-              Shown on seller PDF print sheets. Max 40 characters. Empty uses
-              default <span className="font-mono">@magnetooprints</span>.
-            </p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-              <label className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-xs font-medium text-[#6B7280]">Brand line</span>
-                <input
-                  type="text"
-                  value={brandDraft}
-                  onChange={(e) => setBrandDraft(e.target.value.slice(0, 40))}
-                  maxLength={40}
-                  placeholder="@magnetooprints"
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-                />
-              </label>
-              <button
-                type="button"
-                disabled={brandSaving}
-                onClick={() => void saveBrandText()}
-                className="min-h-[44px] rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
-              >
-                {brandSaving ? "Saving…" : "Save"}
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-gray-200 bg-[#FAFAFA] p-4">
-            <h2 className="text-sm font-semibold text-[#111111]">Order notifications</h2>
-            <p className="mt-1 text-xs text-[#6B7280]">
-              When enabled, we email you at the address below each time a customer places an order.
-              In production, this address will also be used as the sender for buyer order confirmation emails.
-            </p>
-            <label className="mt-3 flex cursor-pointer items-start gap-2">
-              <input
-                type="checkbox"
-                className="mt-0.5 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
-                checked={notifSendDraft}
-                onChange={(e) => setNotifSendDraft(e.target.checked)}
-              />
-              <span className="text-sm text-[#111111]">Send new-order emails</span>
-            </label>
-            <label className="mt-3 flex flex-col gap-1">
-              <span className="text-xs font-medium text-[#6B7280]">Notification email</span>
-              <input
-                type="email"
-                value={notifEmailDraft}
-                onChange={(e) => setNotifEmailDraft(e.target.value)}
-                placeholder="seller@example.com"
-                autoComplete="email"
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-              />
-            </label>
-            <button
-              type="button"
-              disabled={notifSaving}
-              onClick={() => void saveOrderNotifications()}
-              className="mt-3 min-h-[40px] rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
-            >
-              {notifSaving ? "Saving…" : "Save notifications"}
-            </button>
-          </div>
-
-          <ShareLinkCard
-            label="Customer link"
-            publicUrl={publicEntryUrl}
-            variant="event"
-            entityName={event.name}
-            entityId={event.id}
-          />
-
-          <div>
-            <h2 className="text-lg font-medium text-[#111111]">Shapes</h2>
-            {event.shapes.length === 0 ? (
-              <p className="mt-3 text-sm text-[#6B7280]">No shapes configured.</p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {event.shapes.map((shape) => (
-                  <li
-                    key={shape.id}
-                    className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 text-sm"
-                  >
-                    <span className="text-[#111111]">
-                      {shape.shapeType.charAt(0) + shape.shapeType.slice(1).toLowerCase()}{" "}
-                      {shape.widthMm}×{shape.heightMm} mm
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => void handleRemoveShape(shape.id)}
-                      className="text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div>
-            <h2 className="text-lg font-medium text-[#111111]">Pricing</h2>
-            {(event.pricing ?? []).length === 0 ? (
-              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Pricing not configured — customers cannot create orders until pricing is set.
-              </p>
-            ) : (
-              <PricingPreview pricing={event.pricing ?? []} />
-            )}
-            <PricingEditor
-              contextType="event"
-              contextId={event.id}
-              initialPricing={event.pricing ?? []}
-              initialMaxMagnetsPerOrder={event.maxMagnetsPerOrder ?? null}
-              onUpdate={handlePricingUpdate}
-            />
-          </div>
-        </>
+        <EventConfigurationForm
+          event={event}
+          publicEntryUrl={publicEntryUrl}
+          onSaved={(updated) => setEvent(updated as Event)}
+          onDirtyChange={setConfigDirty}
+        />
       ) : (
         analyticsBlock
       )}

@@ -16,18 +16,40 @@ export function enrichStorefront(storefront: StorefrontRecord) {
 
 /**
  * Storefront must be loadable with `deletedAt: null` by the caller.
- * Enforces: not soft-deleted (`isStorefrontOpen` checks `deletedAt`), `isActive === true`,
- * and at least one non-deleted pricing row (`pricingCount` from `Pricing` where `deletedAt: null`).
+ * Enforces: not soft-deleted, `isActive === true`, at least one shape, and pricing rows.
  */
+export function getStorefrontConfigurationIssues(
+  shapeCount: number,
+  pricingCount: number,
+): string[] {
+  const issues: string[] = [];
+  if (shapeCount === 0) {
+    issues.push("At least one magnet shape is required");
+  }
+  if (pricingCount === 0) {
+    issues.push("Pricing is required");
+  }
+  return issues;
+}
+
+export function isStorefrontConfigurationComplete(
+  shapeCount: number,
+  pricingCount: number,
+): boolean {
+  return getStorefrontConfigurationIssues(shapeCount, pricingCount).length === 0;
+}
+
 export function canStorefrontAcceptOrders(
   storefront: StorefrontRecord,
   pricingCount: number,
+  shapeCount: number,
 ): { ok: true } | { ok: false; reason: string } {
   if (!isStorefrontOpen(storefront)) {
     return { ok: false, reason: "Storefront is not open" };
   }
-  if (pricingCount === 0) {
-    return { ok: false, reason: "Pricing not configured" };
+  const configIssues = getStorefrontConfigurationIssues(shapeCount, pricingCount);
+  if (configIssues.length > 0) {
+    return { ok: false, reason: configIssues[0]! };
   }
   return { ok: true };
 }

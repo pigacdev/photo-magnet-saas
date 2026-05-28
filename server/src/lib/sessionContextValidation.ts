@@ -30,11 +30,16 @@ export async function validateEventOrderContext(
     return { ok: false, notFound: true };
   }
 
-  const pricing = await prisma.pricing.findMany({
-    where: { contextType: "EVENT", contextId: event.id, deletedAt: null },
-  });
+  const [pricing, shapeCount] = await Promise.all([
+    prisma.pricing.findMany({
+      where: { contextType: "EVENT", contextId: event.id, deletedAt: null },
+    }),
+    prisma.allowedShape.count({
+      where: { contextType: "EVENT", contextId: event.id },
+    }),
+  ]);
 
-  const check = canAcceptOrders(event, pricing.length);
+  const check = canAcceptOrders(event, pricing.length, shapeCount);
   if (!check.ok) {
     return { ok: false, notFound: false, reason: check.reason };
   }
@@ -53,11 +58,16 @@ export async function validateStorefrontOrderContext(
     return { ok: false, notFound: true };
   }
 
-  const pricing = await prisma.pricing.findMany({
-    where: { contextType: "STOREFRONT", contextId: storefront.id, deletedAt: null },
-  });
+  const [pricing, shapeCount] = await Promise.all([
+    prisma.pricing.findMany({
+      where: { contextType: "STOREFRONT", contextId: storefront.id, deletedAt: null },
+    }),
+    prisma.allowedShape.count({
+      where: { contextType: "STOREFRONT", contextId: storefront.id },
+    }),
+  ]);
 
-  const check = canStorefrontAcceptOrders(storefront, pricing.length);
+  const check = canStorefrontAcceptOrders(storefront, pricing.length, shapeCount);
   if (!check.ok) {
     return { ok: false, notFound: false, reason: check.reason };
   }

@@ -7,6 +7,12 @@
   --border: #d1d5db;
   --primary: #2563eb;
   --primary-foreground: #ffffff;
+  --surface: #f9fafb;
+  --sidebar-width: 15rem;
+  --sidebar-foreground: #374151;
+  --sidebar-border: #e5e7eb;
+  --sidebar-active: #eff6ff;
+  --sidebar-active-foreground: #111111;
 }
 
 @theme inline {
@@ -73,6 +79,16 @@ body {
     -webkit-text-fill-color: #111111;
     box-shadow: 0 0 0 1000px #ffffff inset;
     transition: background-color 99999s ease-out;
+  }
+}
+
+@layer components {
+  .dashboard-page {
+    @apply w-full space-y-6;
+  }
+
+  .dashboard-card {
+    @apply rounded-xl border border-gray-200 bg-white p-6 shadow-sm;
   }
 }
 

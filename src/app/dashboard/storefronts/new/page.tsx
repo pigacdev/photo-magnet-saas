@@ -21,11 +21,11 @@ export default function NewStorefrontPage() {
 
     setLoading(true);
     try {
-      await api("/api/storefronts", {
+      const created = await api<{ storefront: { id: string } }>("/api/storefronts", {
         method: "POST",
         body: { name: name.trim() },
       });
-      router.push("/dashboard/storefronts");
+      router.push(`/dashboard/storefronts/${created.storefront.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create storefront");
     } finally {
@@ -34,13 +34,14 @@ export default function NewStorefrontPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-lg flex-col gap-8">
+    <div className="dashboard-page mx-auto max-w-2xl">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
           Create storefront
         </h1>
         <p className="mt-2 text-sm text-[#6B7280]">
-          Set up a permanent storefront for ongoing photo magnet sales.
+          Set a name first. You will configure shapes, pricing, and other settings
+          on the next screen.
         </p>
       </div>
 
