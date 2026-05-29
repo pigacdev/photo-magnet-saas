@@ -9,6 +9,7 @@ export const DASHBOARD_NAV_ITEMS: ReadonlyArray<{
   { href: "/dashboard/orders", label: "Orders", icon: "orders" },
   { href: "/dashboard/events", label: "Events", icon: "events" },
   { href: "/dashboard/storefronts", label: "Storefront", icon: "storefront" },
+  { href: "/dashboard/calendar", label: "Calendar", icon: "calendar" },
 ];
 
 export function isDashboardNavActive(pathname: string, href: string): boolean {
