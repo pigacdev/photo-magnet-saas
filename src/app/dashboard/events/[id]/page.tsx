@@ -484,6 +484,20 @@ export default function EventDetailPage() {
     [activeTab, configDirty],
   );
 
+  const navigateToOrders = useCallback(() => {
+    if (!eventId) return;
+    if (
+      activeTab === "configuration" &&
+      configDirty &&
+      !confirmUnsavedChanges()
+    ) {
+      return;
+    }
+    router.push(
+      `/dashboard/orders?contextType=EVENT&contextId=${encodeURIComponent(eventId)}`,
+    );
+  }, [activeTab, configDirty, eventId, router]);
+
   const loadAnalytics = useCallback(async () => {
     if (!eventId) return;
     setAnalyticsLoading(true);
@@ -883,6 +897,15 @@ export default function EventDetailPage() {
           onClick={() => switchTab("analytics")}
         >
           Analytics
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={false}
+          className={tabIdle}
+          onClick={() => navigateToOrders()}
+        >
+          Orders
         </button>
       </div>
 
