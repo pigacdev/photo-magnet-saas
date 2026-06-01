@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import {
-  normalizeLegacyShippingType,
+  shippingTypeLabel,
   type StorefrontShippingType,
 } from "@/lib/shippingTypes";
 import {
   buildCustomerPatchBody,
   mapApiCustomerErrorToFields,
   validateCustomerEditForm,
+  valuesFromCustomerOrder,
   type CustomerFieldErrors,
   type CustomerFormValues,
 } from "@/lib/validateOrderCustomerForm";
@@ -31,30 +32,6 @@ export type CustomerEditModalProps = {
   onSaved: () => void;
 };
 
-function valuesFromOrder(order: CustomerEditModalOrder): CustomerFormValues {
-  const addr = order.shippingAddress;
-  let fullAddress = "";
-  let addressNotes = "";
-  let lockerId = "";
-  if (addr && typeof addr === "object" && !Array.isArray(addr)) {
-    const full = (addr as { fullAddress?: unknown }).fullAddress;
-    if (typeof full === "string") fullAddress = full;
-    const notes = (addr as { notes?: unknown }).notes;
-    if (typeof notes === "string") addressNotes = notes;
-    const locker = (addr as { lockerId?: unknown }).lockerId;
-    if (typeof locker === "string") lockerId = locker;
-  }
-  return {
-    customerName: order.customerName ?? "",
-    customerEmail: order.customerEmail ?? "",
-    customerPhone: order.customerPhone ?? "",
-    shippingType: normalizeLegacyShippingType(order.shippingType),
-    fullAddress,
-    addressNotes,
-    lockerId,
-  };
-}
-
 function fieldInputClass(hasError: boolean): string {
   return `w-full rounded-lg border bg-white px-3 py-1.5 text-sm text-[#111111] outline-none focus:ring-2 ${
     hasError
@@ -75,17 +52,18 @@ export function CustomerEditModal({
   onSaved,
 }: CustomerEditModalProps) {
   const [values, setValues] = useState<CustomerFormValues>(() =>
-    valuesFromOrder(order),
+    valuesFromCustomerOrder(order),
   );
   const [fieldErrors, setFieldErrors] = useState<CustomerFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const isEvent = order.contextType === "EVENT";
+  const isShipping = !isEvent && values.shippingType === "delivery";
 
   useEffect(() => {
     if (!open) return;
-    setValues(valuesFromOrder(order));
+    setValues(valuesFromCustomerOrder(order));
     setFieldErrors({});
     setFormError(null);
   }, [open, order]);
@@ -171,7 +149,7 @@ export function CustomerEditModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="customer-edit-title"
-        className="relative w-full max-w-xl overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+        className="relative max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl"
       >
         <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
           <h2
@@ -193,33 +171,32 @@ export function CustomerEditModal({
             <div className="grid gap-2.5 sm:grid-cols-2">
               <label className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-[#111111]">
-                  Full name <span className="text-red-600">*</span>
+                  First name <span className="text-red-600">*</span>
                 </span>
                 <input
                   type="text"
-                  name="name"
-                  autoComplete="name"
-                  value={values.customerName}
-                  onChange={(e) => patchField("customerName", e.target.value)}
-                  className={fieldInputClass(Boolean(fieldErrors.customerName))}
+                  name="firstName"
+                  autoComplete="given-name"
+                  value={values.firstName}
+                  onChange={(e) => patchField("firstName", e.target.value)}
+                  className={fieldInputClass(Boolean(fieldErrors.firstName))}
                 />
-                <FieldHint error={fieldErrors.customerName} />
+                <FieldHint error={fieldErrors.firstName} />
               </label>
 
               <label className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-[#111111]">
-                  Phone
-                  {!isEvent && <span className="text-red-600"> *</span>}
+                  Last name <span className="text-red-600">*</span>
                 </span>
                 <input
-                  type="tel"
-                  name="phone"
-                  autoComplete="tel"
-                  value={values.customerPhone}
-                  onChange={(e) => patchField("customerPhone", e.target.value)}
-                  className={fieldInputClass(Boolean(fieldErrors.customerPhone))}
+                  type="text"
+                  name="lastName"
+                  autoComplete="family-name"
+                  value={values.lastName}
+                  onChange={(e) => patchField("lastName", e.target.value)}
+                  className={fieldInputClass(Boolean(fieldErrors.lastName))}
                 />
-                <FieldHint error={fieldErrors.customerPhone} />
+                <FieldHint error={fieldErrors.lastName} />
               </label>
             </div>
 
@@ -238,11 +215,26 @@ export function CustomerEditModal({
               <FieldHint error={fieldErrors.customerEmail} />
             </label>
 
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-[#111111]">
+                Phone <span className="text-red-600">*</span>
+              </span>
+              <input
+                type="tel"
+                name="phone"
+                autoComplete="tel"
+                value={values.customerPhone}
+                onChange={(e) => patchField("customerPhone", e.target.value)}
+                className={fieldInputClass(Boolean(fieldErrors.customerPhone))}
+              />
+              <FieldHint error={fieldErrors.customerPhone} />
+            </label>
+
             {!isEvent && (
               <>
                 <label className="flex flex-col gap-1">
                   <span className="text-sm font-medium text-[#111111]">
-                    Shipping method <span className="text-red-600">*</span>
+                    Delivery type <span className="text-red-600">*</span>
                   </span>
                   <select
                     name="shippingType"
@@ -256,43 +248,83 @@ export function CustomerEditModal({
                     className={fieldInputClass(false)}
                   >
                     <option value="pickup">Pickup</option>
-                    <option value="delivery">Delivery</option>
+                    <option value="delivery">
+                      {shippingTypeLabel("delivery")}
+                    </option>
                     <option value="boxnow">BoxNow</option>
                   </select>
                 </label>
 
-                {values.shippingType === "delivery" && (
+                {isShipping && (
                   <div className="grid gap-2.5 sm:grid-cols-2">
                     <label className="flex flex-col gap-1 sm:col-span-2">
                       <span className="text-sm font-medium text-[#111111]">
-                        Delivery address{" "}
-                        <span className="text-red-600">*</span>
-                      </span>
-                      <textarea
-                        name="fullAddress"
-                        rows={2}
-                        value={values.fullAddress}
-                        onChange={(e) =>
-                          patchField("fullAddress", e.target.value)
-                        }
-                        className={`${fieldInputClass(Boolean(fieldErrors.fullAddress))} resize-none`}
-                      />
-                      <FieldHint error={fieldErrors.fullAddress} />
-                    </label>
-                    <label className="flex flex-col gap-1 sm:col-span-2">
-                      <span className="text-sm font-medium text-[#111111]">
-                        Delivery notes
+                        Street <span className="text-red-600">*</span>
                       </span>
                       <input
                         type="text"
-                        name="addressNotes"
-                        value={values.addressNotes}
-                        onChange={(e) =>
-                          patchField("addressNotes", e.target.value)
-                        }
-                        placeholder="Apartment, gate code, instructions (optional)"
-                        className={fieldInputClass(false)}
+                        name="street"
+                        value={values.street}
+                        onChange={(e) => patchField("street", e.target.value)}
+                        className={fieldInputClass(Boolean(fieldErrors.street))}
                       />
+                      <FieldHint error={fieldErrors.street} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm font-medium text-[#111111]">
+                        House number <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        name="houseNumber"
+                        value={values.houseNumber}
+                        onChange={(e) =>
+                          patchField("houseNumber", e.target.value)
+                        }
+                        className={fieldInputClass(
+                          Boolean(fieldErrors.houseNumber),
+                        )}
+                      />
+                      <FieldHint error={fieldErrors.houseNumber} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm font-medium text-[#111111]">
+                        City <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        name="city"
+                        value={values.city}
+                        onChange={(e) => patchField("city", e.target.value)}
+                        className={fieldInputClass(Boolean(fieldErrors.city))}
+                      />
+                      <FieldHint error={fieldErrors.city} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm font-medium text-[#111111]">
+                        Post code <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        name="postCode"
+                        value={values.postCode}
+                        onChange={(e) => patchField("postCode", e.target.value)}
+                        className={fieldInputClass(Boolean(fieldErrors.postCode))}
+                      />
+                      <FieldHint error={fieldErrors.postCode} />
+                    </label>
+                    <label className="flex flex-col gap-1 sm:col-span-2">
+                      <span className="text-sm font-medium text-[#111111]">
+                        Country <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        name="country"
+                        value={values.country}
+                        onChange={(e) => patchField("country", e.target.value)}
+                        className={fieldInputClass(Boolean(fieldErrors.country))}
+                      />
+                      <FieldHint error={fieldErrors.country} />
                     </label>
                   </div>
                 )}

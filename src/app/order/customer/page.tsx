@@ -13,19 +13,34 @@ import {
 import { api } from "@/lib/api";
 import { OrderShell } from "@/components/order/OrderShell";
 import { OrderStepHeader } from "@/components/order/OrderStepHeader";
-import { orderBtnPrimary, orderLoadingScreen } from "@/components/order/orderUi";
+import {
+  orderBtnPrimary,
+  orderCard,
+  orderLoadingScreen,
+} from "@/components/order/orderUi";
 import {
   CHECKOUT_IMAGE_COPIES_STORAGE_KEY,
+  type CatalogShape,
   type GetSessionImagesResponse,
   type GetSessionResponse,
   type PostOrderFinalizeResponse,
 } from "@/lib/orderSessionTypes";
+import { orderProductLineLabel } from "@/lib/orderSelectionUi";
+import { readCheckoutImageCopies } from "@/lib/checkoutImageCopiesStorage";
+import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
+import {
+  buildStructuredShippingAddress,
+  joinCustomerName,
+  parseShippingAddressFromJson,
+  splitCustomerName,
+} from "@/lib/shippingAddress";
 import {
   normalizeLegacyShippingType,
   type StorefrontShippingType,
 } from "@/lib/shippingTypes";
-import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
-import { readCheckoutImageCopies } from "@/lib/checkoutImageCopiesStorage";
+
+const orderInputClass =
+  "rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2";
 
 function formatOrderTotal(amount: string, currency: string): string {
   const n = Number(amount);
@@ -44,6 +59,13 @@ function formatSessionTotal(amount: number | null, currency: string): string {
   }).format(amount);
 }
 
+type OrderSummaryShape = {
+  shapeType: string;
+  widthMm: number;
+  heightMm: number;
+  quantity: number;
+};
+
 type OrderCustomerLoad = {
   orderId: string;
   status: string;
@@ -56,6 +78,7 @@ type OrderCustomerLoad = {
   totalPrice: string;
   currency: string;
   imageCount: number;
+  orderSummary?: OrderSummaryShape | null;
 };
 
 type SessionCheckoutSummary = {
@@ -63,12 +86,10 @@ type SessionCheckoutSummary = {
   totalPrice: number | null;
   currency: string;
   imageCount: number;
-  /** Per-item: totals aligned with review using session + sessionStorage copy counts. */
+  selectedShape: CatalogShape | null;
   perItemSummary: { totalMagnets: number; lineTotal: number } | null;
+  bundleQuantity: number | null;
 };
-
-/** Event-only optional note for seller (cash / card on location). */
-type EventPaymentPreference = "cash" | "card_on_location";
 
 function CustomerPageInner() {
   const router = useRouter();
@@ -84,17 +105,17 @@ function CustomerPageInner() {
     null,
   );
 
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [shippingType, setShippingType] =
     useState<StorefrontShippingType>("delivery");
-  const [fullAddress, setFullAddress] = useState("");
-  const [addressNotes, setAddressNotes] = useState("");
-  const [lockerId, setLockerId] = useState("");
-  const [eventPaymentPreference, setEventPaymentPreference] =
-    useState<EventPaymentPreference>("cash");
-  /** Query for “Back to review” — no orderId (session-based checkout). */
+  const [street, setStreet] = useState("");
+  const [houseNumber, setHouseNumber] = useState("");
+  const [city, setCity] = useState("");
+  const [postCode, setPostCode] = useState("");
+  const [country, setCountry] = useState("");
   const [liveQueryForReviewBack, setLiveQueryForReviewBack] = useState("");
 
   useLayoutEffect(() => {
@@ -103,6 +124,32 @@ function CustomerPageInner() {
     p.delete("orderId");
     setLiveQueryForReviewBack(p.toString());
   }, [searchParams]);
+
+  function prefillFromOrder(o: OrderCustomerLoad) {
+    const { firstName: fn, lastName: ln } = splitCustomerName(
+      o.customerName ?? "",
+    );
+    setFirstName(fn);
+    setLastName(ln);
+    if (o.customerEmail) setEmail(o.customerEmail);
+    if (o.customerPhone) setPhone(o.customerPhone);
+    if (o.shippingType) {
+      const normalized = normalizeLegacyShippingType(o.shippingType);
+      if (normalized === "pickup" || normalized === "delivery") {
+        setShippingType(normalized);
+      }
+    }
+    const parsed = parseShippingAddressFromJson(o.shippingAddress);
+    if (parsed.kind === "structured") {
+      setStreet(parsed.structured.street);
+      setHouseNumber(parsed.structured.houseNumber);
+      setCity(parsed.structured.city);
+      setPostCode(parsed.structured.postCode);
+      setCountry(parsed.structured.country);
+    } else if (parsed.kind === "legacy_full") {
+      setStreet(parsed.legacyFullAddress);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -115,21 +162,7 @@ function CustomerPageInner() {
           if (cancelled) return;
           setOrderCtx(o);
           setSessionCtx(null);
-          if (o.customerName) setName(o.customerName);
-          if (o.customerEmail) setEmail(o.customerEmail);
-          if (o.customerPhone) setPhone(o.customerPhone);
-          if (o.shippingType) {
-            setShippingType(normalizeLegacyShippingType(o.shippingType));
-          }
-          const addr = o.shippingAddress;
-          if (addr && typeof addr === "object" && !Array.isArray(addr)) {
-            const fa = (addr as { fullAddress?: unknown }).fullAddress;
-            if (typeof fa === "string") setFullAddress(fa);
-            const n = (addr as { notes?: unknown }).notes;
-            if (typeof n === "string") setAddressNotes(n);
-            const lid = (addr as { lockerId?: unknown }).lockerId;
-            if (typeof lid === "string") setLockerId(lid);
-          }
+          prefillFromOrder(o);
         } catch (e) {
           if (!cancelled) {
             setError(e instanceof Error ? e.message : "Could not load order");
@@ -181,13 +214,19 @@ function CustomerPageInner() {
           isPer && Number.isFinite(pricePer) && pricePer >= 0
             ? Math.round(totalMagnets * pricePer * 100) / 100
             : 0;
+        const selectedShape =
+          sessionRes.shapes.find(
+            (s) => s.id === sessionRes.session!.selectedShapeId,
+          ) ?? null;
         setOrderCtx(null);
         setSessionCtx({
           contextType: sessionRes.session.contextType,
           totalPrice: sessionRes.session.totalPrice,
           currency,
           imageCount: sorted.length,
+          selectedShape,
           perItemSummary: isPer ? { totalMagnets, lineTotal } : null,
+          bundleQuantity: isPer ? null : sessionRes.session.quantity,
         });
       } catch (e) {
         if (!cancelled) {
@@ -216,6 +255,24 @@ function CustomerPageInner() {
   );
 
   const isSubmittedOrderEdit = Boolean(orderId && orderCtx);
+  const isShipping = !isEvent && shippingType === "delivery";
+  const customerName = joinCustomerName(firstName, lastName);
+
+  const buildStorefrontShippingPayload = useCallback(() => {
+    if (shippingType === "pickup") {
+      return { shippingType: "pickup" as const, shippingAddress: null };
+    }
+    return {
+      shippingType: "delivery" as const,
+      shippingAddress: buildStructuredShippingAddress({
+        street,
+        houseNumber,
+        city,
+        postCode,
+        country,
+      }),
+    };
+  }, [shippingType, street, houseNumber, city, postCode, country]);
 
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -228,36 +285,16 @@ function CustomerPageInner() {
           const body =
             orderCtx.contextType === "EVENT"
               ? {
-                  customerName: name.trim(),
+                  customerName,
                   customerEmail: email.trim(),
-                  ...(phone.trim() ? { customerPhone: phone.trim() } : {}),
+                  customerPhone: phone.trim(),
                 }
-              : shippingType === "pickup"
-                ? {
-                    customerName: name.trim(),
-                    customerEmail: email.trim(),
-                    customerPhone: phone.trim(),
-                    shippingType: "pickup",
-                    shippingAddress: null,
-                  }
-                : shippingType === "delivery"
-                  ? {
-                      customerName: name.trim(),
-                      customerEmail: email.trim(),
-                      customerPhone: phone.trim(),
-                      shippingType: "delivery",
-                      shippingAddress: {
-                        fullAddress: fullAddress.trim(),
-                        notes: addressNotes.trim(),
-                      },
-                    }
-                  : {
-                      customerName: name.trim(),
-                      customerEmail: email.trim(),
-                      customerPhone: phone.trim(),
-                      shippingType: "boxnow",
-                      shippingAddress: { lockerId: lockerId.trim() },
-                    };
+              : {
+                  customerName,
+                  customerEmail: email.trim(),
+                  customerPhone: phone.trim(),
+                  ...buildStorefrontShippingPayload(),
+                };
           await api<{ ok: boolean }>(
             `/api/orders/${encodeURIComponent(orderId)}/customer`,
             { method: "PATCH", body },
@@ -286,34 +323,17 @@ function CustomerPageInner() {
       setSaving(true);
       try {
         const customerOnly: Record<string, unknown> = {
-          customerName: name.trim(),
+          customerName,
           customerEmail: email.trim(),
+          phone: phone.trim(),
         };
-        if (isEvent) {
-          if (phone.trim()) customerOnly.phone = phone.trim();
-        } else {
-          customerOnly.phone = phone.trim();
-          if (shippingType === "pickup") {
-            customerOnly.shippingType = "pickup";
-            customerOnly.shippingAddress = null;
-          } else if (shippingType === "delivery") {
-            customerOnly.shippingType = "delivery";
-            customerOnly.shippingAddress = {
-              fullAddress: fullAddress.trim(),
-              notes: addressNotes.trim(),
-            };
-          } else {
-            customerOnly.shippingType = "boxnow";
-            customerOnly.shippingAddress = { lockerId: lockerId.trim() };
-          }
+        if (!isEvent) {
+          Object.assign(customerOnly, buildStorefrontShippingPayload());
         }
 
         const body: Record<string, unknown> = {
           ...customerOnly,
         };
-        if (isEvent) {
-          body.eventPaymentPreference = eventPaymentPreference;
-        }
         const copyRows = readCheckoutImageCopies();
         if (copyRows.length > 0) {
           body.imageCopies = copyRows;
@@ -358,16 +378,12 @@ function CustomerPageInner() {
       orderCtx,
       sessionCtx,
       isEvent,
-      isSubmittedOrderEdit,
-      eventPaymentPreference,
-      name,
+      customerName,
       email,
       phone,
-      shippingType,
-      fullAddress,
-      addressNotes,
-      lockerId,
+      buildStorefrontShippingPayload,
       router,
+      saving,
     ],
   );
 
@@ -379,6 +395,33 @@ function CustomerPageInner() {
     const q = p.toString();
     return `/order/review${q ? `?${q}` : ""}`;
   }, [liveQueryForReviewBack, searchParams]);
+
+  const summaryShape = useMemo((): OrderSummaryShape | null => {
+    if (orderCtx?.orderSummary) return orderCtx.orderSummary;
+    if (!sessionCtx?.selectedShape) return null;
+    const quantity =
+      sessionCtx.perItemSummary?.totalMagnets ??
+      sessionCtx.bundleQuantity ??
+      sessionCtx.imageCount;
+    return {
+      shapeType: sessionCtx.selectedShape.shapeType,
+      widthMm: sessionCtx.selectedShape.widthMm,
+      heightMm: sessionCtx.selectedShape.heightMm,
+      quantity,
+    };
+  }, [orderCtx, sessionCtx]);
+
+  const totalLabel = orderCtx
+    ? formatOrderTotal(orderCtx.totalPrice, orderCtx.currency)
+    : sessionCtx?.perItemSummary
+      ? formatSessionTotal(
+          sessionCtx.perItemSummary.lineTotal,
+          sessionCtx.currency,
+        )
+      : formatSessionTotal(
+          sessionCtx?.totalPrice ?? null,
+          sessionCtx?.currency ?? "EUR",
+        );
 
   if (loading) {
     return (
@@ -422,19 +465,6 @@ function CustomerPageInner() {
 
   if (!orderCtx && !sessionCtx) return null;
 
-  const imageCount = orderCtx?.imageCount ?? sessionCtx?.imageCount ?? 0;
-  const totalLabel = orderCtx
-    ? formatOrderTotal(orderCtx.totalPrice, orderCtx.currency)
-    : sessionCtx?.perItemSummary
-      ? formatSessionTotal(
-          sessionCtx.perItemSummary.lineTotal,
-          sessionCtx.currency,
-        )
-      : formatSessionTotal(
-          sessionCtx?.totalPrice ?? null,
-          sessionCtx?.currency ?? "EUR",
-        );
-
   return (
     <OrderShell contentWidth="medium" className="pb-10">
       <div className="flex flex-col gap-6">
@@ -448,213 +478,251 @@ function CustomerPageInner() {
           }
           subtitle={
             isSubmittedOrderEdit
-              ? "Fix typos in name, phone, address, or locker id."
+              ? "Fix typos in your name, phone, or address."
               : isEvent
                 ? "We use this for your order at the event."
-                : "Choose how you receive your order. Delivery needs an address; BoxNow needs a locker id."
+                : "Choose how you receive your order and enter your shipping details."
           }
           step={{ current: 5, total: 5, label: "Details" }}
         />
 
-      <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
-          Order summary
-        </p>
-        <dl className="mt-3 space-y-2 text-sm">
-          <div className="flex justify-between gap-4">
-            <dt className="text-[#6B7280]">Photos</dt>
-            <dd className="text-right font-medium text-[#111111] tabular-nums">
-              {imageCount === 1 ? "1 photo" : `${imageCount} photos`}
-            </dd>
-          </div>
-          {!orderCtx && sessionCtx?.perItemSummary && (
-            <div className="flex justify-between gap-4">
-              <dt className="text-[#6B7280]">Magnets (total)</dt>
-              <dd className="text-right font-medium text-[#111111] tabular-nums">
-                {sessionCtx.perItemSummary.totalMagnets}
-              </dd>
-            </div>
+        <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-6">
+          {!isEvent && (
+            <section>
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+                Preferred delivery type
+              </h2>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {(
+                  [
+                    { value: "delivery" as const, label: "Shipping" },
+                    { value: "pickup" as const, label: "Pickup" },
+                  ] as const
+                ).map(({ value, label }) => {
+                  const selected = shippingType === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setShippingType(value)}
+                      className={`min-h-[56px] rounded-2xl border-2 px-4 py-3 text-left transition-colors ${
+                        selected
+                          ? "border-[#2563EB] bg-white shadow-sm"
+                          : "border-gray-200 bg-white active:bg-[#F9FAFB]"
+                      }`}
+                    >
+                      <span className="block text-sm font-medium text-[#111111]">
+                        {label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
           )}
-          <div className="flex justify-between gap-4 border-t border-gray-100 pt-2">
-            <dt className="text-[#6B7280]">Total</dt>
-            <dd className="text-base font-semibold tabular-nums text-[#111111]">
-              {totalLabel}
-            </dd>
-          </div>
-        </dl>
-      </div>
 
-      <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-[#111111]">
-            Full name <span className="text-red-600">*</span>
-          </span>
-          <input
-            type="text"
-            name="name"
-            autoComplete="name"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-[#111111]">
-            Email <span className="text-red-600">*</span>
-          </span>
-          <input
-            type="email"
-            name="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-          />
-          <span className="text-xs text-[#6B7280]">
-            We will send your order confirmation to this address.
-          </span>
-        </label>
-
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium text-[#111111]">
-            Phone
-            {!isEvent && <span className="text-red-600"> *</span>}
-          </span>
-          <input
-            type="tel"
-            name="phone"
-            autoComplete="tel"
-            required={!isEvent}
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-          />
-          {isEvent && (
-            <span className="text-xs text-[#6B7280]">Optional</span>
-          )}
-        </label>
-
-        {isEvent && sessionCtx && (
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-[#111111]">
-              Payment preference <span className="text-[#6B7280]">(optional)</span>
-            </span>
-            <select
-              name="eventPaymentPreference"
-              value={eventPaymentPreference}
-              onChange={(e) =>
-                setEventPaymentPreference(e.target.value as EventPaymentPreference)
-              }
-              className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-            >
-              <option value="cash">Cash at event</option>
-              <option value="card_on_location">Card on location</option>
-            </select>
-            <span className="text-xs text-[#6B7280]">
-              Payment is arranged directly with the seller at the event.
-            </span>
-          </label>
-        )}
-
-        {!isEvent && (
-          <>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-[#111111]">
-                Shipping method <span className="text-red-600">*</span>
-              </span>
-              <select
-                name="shippingType"
-                required
-                value={shippingType}
-                onChange={(e) =>
-                  setShippingType(e.target.value as StorefrontShippingType)
-                }
-                className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
-              >
-                <option value="pickup">Pickup</option>
-                <option value="delivery">Delivery</option>
-                <option value="boxnow">BoxNow</option>
-              </select>
-            </label>
-            {shippingType === "delivery" && (
-              <>
+          <section className={orderCard}>
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+              {isEvent ? "Your details" : "Shipping details"}
+            </h2>
+            <div className="mt-4 flex flex-col gap-4">
+              <div className="grid gap-4 md:grid-cols-2">
                 <label className="flex flex-col gap-1.5">
                   <span className="text-sm font-medium text-[#111111]">
-                    Delivery address <span className="text-red-600">*</span>
+                    First name <span className="text-red-600">*</span>
                   </span>
-                  <textarea
-                    name="fullAddress"
+                  <input
+                    type="text"
+                    name="firstName"
+                    autoComplete="given-name"
                     required
-                    rows={4}
-                    value={fullAddress}
-                    onChange={(e) => setFullAddress(e.target.value)}
-                    placeholder="Street, city, postal code, country"
-                    className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className={orderInputClass}
                   />
                 </label>
                 <label className="flex flex-col gap-1.5">
                   <span className="text-sm font-medium text-[#111111]">
-                    Delivery notes
+                    Last name <span className="text-red-600">*</span>
                   </span>
-                  <textarea
-                    name="addressNotes"
-                    rows={2}
-                    value={addressNotes}
-                    onChange={(e) => setAddressNotes(e.target.value)}
-                    placeholder="Apartment, gate code, delivery instructions (optional)"
-                    className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+                  <input
+                    type="text"
+                    name="lastName"
+                    autoComplete="family-name"
+                    required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className={orderInputClass}
                   />
                 </label>
-              </>
-            )}
-            {shippingType === "boxnow" && (
+              </div>
+
               <label className="flex flex-col gap-1.5">
                 <span className="text-sm font-medium text-[#111111]">
-                  BoxNow locker id <span className="text-red-600">*</span>
+                  Email <span className="text-red-600">*</span>
                 </span>
                 <input
-                  type="text"
-                  name="lockerId"
+                  type="email"
+                  name="email"
+                  autoComplete="email"
                   required
-                  autoComplete="off"
-                  value={lockerId}
-                  onChange={(e) => setLockerId(e.target.value)}
-                  placeholder="Locker or pickup point id from BoxNow"
-                  className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={orderInputClass}
+                />
+                <span className="text-xs text-[#6B7280]">
+                  We will send your order confirmation to this address.
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-[#111111]">
+                  Phone <span className="text-red-600">*</span>
+                </span>
+                <input
+                  type="tel"
+                  name="phone"
+                  autoComplete="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className={orderInputClass}
                 />
               </label>
+
+              {isShipping && (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="flex flex-col gap-1.5 md:col-span-2">
+                      <span className="text-sm font-medium text-[#111111]">
+                        Street <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        name="street"
+                        autoComplete="address-line1"
+                        required
+                        value={street}
+                        onChange={(e) => setStreet(e.target.value)}
+                        className={orderInputClass}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-sm font-medium text-[#111111]">
+                        House number <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        name="houseNumber"
+                        autoComplete="off"
+                        required
+                        value={houseNumber}
+                        onChange={(e) => setHouseNumber(e.target.value)}
+                        className={orderInputClass}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-sm font-medium text-[#111111]">
+                        City <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        name="city"
+                        autoComplete="address-level2"
+                        required
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        className={orderInputClass}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-sm font-medium text-[#111111]">
+                        Post code <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        name="postCode"
+                        autoComplete="postal-code"
+                        required
+                        value={postCode}
+                        onChange={(e) => setPostCode(e.target.value)}
+                        className={orderInputClass}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-sm font-medium text-[#111111]">
+                        Country <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        name="country"
+                        autoComplete="country-name"
+                        required
+                        value={country}
+                        onChange={(e) => setCountry(e.target.value)}
+                        className={orderInputClass}
+                      />
+                    </label>
+                  </div>
+                </>
+              )}
+
+            </div>
+          </section>
+
+          <section className={orderCard}>
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+              Order summary
+            </h2>
+            <dl className="mt-3 space-y-2 text-sm">
+              {summaryShape && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-[#6B7280]">Product</dt>
+                  <dd className="text-right font-medium text-[#111111]">
+                    {orderProductLineLabel(summaryShape, summaryShape.quantity)}
+                  </dd>
+                </div>
+              )}
+              <div className="flex justify-between gap-4 border-t border-gray-100 pt-2">
+                <dt className="text-[#6B7280]">Total</dt>
+                <dd className="text-base font-semibold tabular-nums text-[#111111]">
+                  {totalLabel}
+                </dd>
+              </div>
+            </dl>
+            {!isEvent && (
+              <p className="mt-3 text-xs leading-relaxed text-[#6B7280]">
+                Shipping cost and taxes will be calculated based on your details
+                and sent to your email with the invoice.
+              </p>
             )}
-          </>
-        )}
+          </section>
 
-        {error && (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
-            {error}
-          </p>
-        )}
+          {error && (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+              {error}
+            </p>
+          )}
 
-        <button
-          type="submit"
-          disabled={saving}
-          className={`mt-2 ${orderBtnPrimary}`}
+          <button
+            type="submit"
+            disabled={saving}
+            className={orderBtnPrimary}
+          >
+            {saving
+              ? "Saving…"
+              : isSubmittedOrderEdit
+                ? "Save changes"
+                : "Submit order"}
+          </button>
+        </form>
+
+        <Link
+          href={reviewBackHref}
+          className="text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
         >
-          {saving
-            ? "Saving…"
-            : isSubmittedOrderEdit
-              ? "Save changes"
-              : "Submit order"}
-        </button>
-      </form>
-
-      <Link
-        href={reviewBackHref}
-        className="text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
-      >
-        Back to review
-      </Link>
+          Back to review
+        </Link>
       </div>
     </OrderShell>
   );

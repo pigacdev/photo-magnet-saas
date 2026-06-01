@@ -1397,13 +1397,42 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
       shippingAddress: true,
       totalPrice: true,
       currency: true,
-      _count: { select: { orderImages: true } },
+      orderImages: {
+        select: { shapeId: true, copies: true },
+      },
     },
   });
 
   if (!order) {
     res.status(404).json({ error: "Order not found" });
     return;
+  }
+
+  let orderSummary: {
+    shapeType: string;
+    widthMm: number;
+    heightMm: number;
+    quantity: number;
+  } | null = null;
+
+  if (order.orderImages.length > 0) {
+    const shapeId = order.orderImages[0]!.shapeId;
+    const quantity = order.orderImages.reduce(
+      (sum, img) => sum + (img.copies ?? 1),
+      0,
+    );
+    const shape = await prisma.allowedShape.findUnique({
+      where: { id: shapeId },
+      select: { shapeType: true, widthMm: true, heightMm: true },
+    });
+    if (shape) {
+      orderSummary = {
+        shapeType: shape.shapeType,
+        widthMm: shape.widthMm,
+        heightMm: shape.heightMm,
+        quantity,
+      };
+    }
   }
 
   res.json({
@@ -1418,6 +1447,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
     shippingAddress: order.shippingAddress,
     totalPrice: order.totalPrice.toString(),
     currency: order.currency,
-    imageCount: order._count.orderImages,
+    imageCount: order.orderImages.length,
+    orderSummary,
   });
 });

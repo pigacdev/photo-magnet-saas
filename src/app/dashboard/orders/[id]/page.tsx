@@ -18,6 +18,10 @@ import {
   shippingTypeLabel,
 } from "@/lib/shippingTypes";
 import {
+  formatShippingAddressLines,
+  parseShippingAddressFromJson,
+} from "@/lib/shippingAddress";
+import {
   nextStatusOptions,
   orderStatusLabel,
   type OrderWorkflowStatus,
@@ -619,43 +623,31 @@ export default function OrderDetailPage() {
                     normalizeLegacyShippingType(order.shippingType) ===
                       "delivery" &&
                     order.shippingAddress != null &&
-                    typeof order.shippingAddress === "object" &&
-                    !Array.isArray(order.shippingAddress) &&
-                    typeof (order.shippingAddress as { fullAddress?: unknown })
-                      .fullAddress === "string" && (
-                      <div>
-                        <dt className="text-xs text-[#6B7280]">
-                          Delivery address
-                        </dt>
-                        <dd className="mt-1 whitespace-pre-wrap rounded-md bg-[#F9FAFB] p-2 text-sm text-[#111111]">
-                          {
-                            (order.shippingAddress as { fullAddress: string })
-                              .fullAddress
-                          }
-                        </dd>
-                      </div>
-                    )}
-                  {order.contextType === "STOREFRONT" &&
-                    normalizeLegacyShippingType(order.shippingType) ===
-                      "delivery" &&
-                    order.shippingAddress != null &&
-                    typeof order.shippingAddress === "object" &&
-                    !Array.isArray(order.shippingAddress) &&
-                    typeof (order.shippingAddress as { fullAddress?: unknown })
-                      .fullAddress === "string" &&
-                    typeof (order.shippingAddress as { notes?: unknown })
-                      .notes === "string" &&
-                    (order.shippingAddress as { notes: string }).notes
-                      .trim().length > 0 && (
-                      <div>
-                        <dt className="text-xs text-[#6B7280]">
-                          Delivery notes
-                        </dt>
-                        <dd className="mt-1 whitespace-pre-wrap rounded-md bg-[#F9FAFB] p-2 text-sm text-[#111111]">
-                          {(order.shippingAddress as { notes: string }).notes}
-                        </dd>
-                      </div>
-                    )}
+                    (() => {
+                      const parsed = parseShippingAddressFromJson(
+                        order.shippingAddress,
+                      );
+                      const lines =
+                        parsed.kind === "legacy_full"
+                          ? [
+                              parsed.legacyFullAddress,
+                              ...(parsed.legacyNotes
+                                ? [parsed.legacyNotes]
+                                : []),
+                            ]
+                          : formatShippingAddressLines(order.shippingAddress);
+                      if (lines.length === 0) return null;
+                      return (
+                        <div>
+                          <dt className="text-xs text-[#6B7280]">
+                            Delivery address
+                          </dt>
+                          <dd className="mt-1 whitespace-pre-wrap rounded-md bg-[#F9FAFB] p-2 text-sm text-[#111111]">
+                            {lines.join("\n")}
+                          </dd>
+                        </div>
+                      );
+                    })()}
                   {order.contextType === "STOREFRONT" &&
                     normalizeLegacyShippingType(order.shippingType) ===
                       "boxnow" &&

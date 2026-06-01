@@ -10,7 +10,7 @@ export type StorefrontShippingType =
 
 const LABELS: Record<StorefrontShippingType, string> = {
   pickup: "Pickup",
-  delivery: "Delivery",
+  delivery: "Shipping",
   boxnow: "BoxNow",
 };
 

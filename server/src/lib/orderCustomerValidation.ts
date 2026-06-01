@@ -1,5 +1,10 @@
 import type { ContextType } from "../../../src/generated/prisma/client";
 import {
+  isStructuredShippingAddressComplete,
+  parseShippingAddressFromJson,
+  type StructuredShippingAddress,
+} from "../../../src/lib/shippingAddress";
+import {
   STOREFRONT_SHIPPING_TYPES,
   type StorefrontShippingType,
 } from "../../../src/lib/shippingTypes";
@@ -11,6 +16,7 @@ export type ValidatedCustomerPayload = {
   customerPhone: string | null;
   shippingType: string | null;
   shippingAddress:
+    | StructuredShippingAddress
     | { fullAddress: string; notes: string }
     | { lockerId: string }
     | null;
@@ -38,6 +44,54 @@ function parseCustomerEmailField(
   return { email: parsed.value };
 }
 
+function parseCustomerPhoneField(b: Record<string, unknown>): string {
+  if (typeof b.customerPhone === "string") return b.customerPhone.trim();
+  if (typeof b.phone === "string") return b.phone.trim();
+  return "";
+}
+
+function parseStructuredAddressFromBody(
+  addr: unknown,
+): { error: string } | { data: StructuredShippingAddress | { fullAddress: string; notes: string } } {
+  if (!addr || typeof addr !== "object" || Array.isArray(addr)) {
+    return { error: "Address is required for shipping" };
+  }
+  const o = addr as Record<string, unknown>;
+  const structured: StructuredShippingAddress = {
+    street:
+      typeof o.street === "string" ? o.street.trim() : "",
+    houseNumber:
+      typeof o.houseNumber === "string" ? o.houseNumber.trim() : "",
+    city: typeof o.city === "string" ? o.city.trim() : "",
+    postCode:
+      typeof o.postCode === "string" ? o.postCode.trim() : "",
+    country: typeof o.country === "string" ? o.country.trim() : "",
+  };
+  if (isStructuredShippingAddressComplete(structured)) {
+    return { data: structured };
+  }
+  const full =
+    typeof o.fullAddress === "string" ? o.fullAddress.trim() : "";
+  if (full) {
+    const notesRaw = o.notes;
+    const notes =
+      notesRaw === undefined || notesRaw === null
+        ? ""
+        : typeof notesRaw === "string"
+          ? notesRaw.trim()
+          : "";
+    return { data: { fullAddress: full, notes } };
+  }
+  return { error: "Complete shipping address is required" };
+}
+
+function isDeliveryAddressComplete(raw: unknown): boolean {
+  const parsed = parseShippingAddressFromJson(raw);
+  if (parsed.kind === "structured") return true;
+  if (parsed.kind === "legacy_full") return parsed.legacyFullAddress.length > 0;
+  return false;
+}
+
 /**
  * Validates body for PATCH /api/orders/:id/customer by storefront vs event rules.
  */
@@ -57,19 +111,15 @@ export function isStorefrontCustomerComplete(order: {
   const type = parseStorefrontShippingType(order.shippingType);
   if (!type) return false;
 
-  const a = order.shippingAddress;
   if (type === "pickup") {
     return true;
   }
   if (type === "delivery") {
-    if (!a || typeof a !== "object" || Array.isArray(a)) return false;
-    const full = (a as { fullAddress?: unknown }).fullAddress;
-    return typeof full === "string" && full.trim().length > 0;
+    return isDeliveryAddressComplete(order.shippingAddress);
   }
   if (type === "boxnow") {
-    if (!a || typeof a !== "object" || Array.isArray(a)) return false;
-    const lid = (a as { lockerId?: unknown }).lockerId;
-    return typeof lid === "string" && lid.trim().length > 0;
+    const parsed = parseShippingAddressFromJson(order.shippingAddress);
+    return parsed.kind === "locker" && parsed.lockerId.length > 0;
   }
   return false;
 }
@@ -94,21 +144,22 @@ export function validateOrderCustomerBody(
   }
 
   if (contextType === "EVENT") {
-    const phone =
-      typeof b.customerPhone === "string" ? b.customerPhone.trim() : "";
+    const phone = parseCustomerPhoneField(b);
+    if (!phone) {
+      return { error: "Phone is required" };
+    }
     return {
       data: {
         customerName: name,
         customerEmail: emailParsed.email,
-        customerPhone: phone.length > 0 ? phone : null,
+        customerPhone: phone,
         shippingType: null,
         shippingAddress: null,
       },
     };
   }
 
-  const phone =
-    typeof b.customerPhone === "string" ? b.customerPhone.trim() : "";
+  const phone = parseCustomerPhoneField(b);
   if (!phone) {
     return { error: "Phone is required for delivery orders" };
   }
@@ -134,30 +185,17 @@ export function validateOrderCustomerBody(
 
   const addr = b.shippingAddress;
   if (shippingType === "delivery") {
-    if (!addr || typeof addr !== "object" || Array.isArray(addr)) {
-      return { error: "Address is required for delivery" };
+    const parsedAddr = parseStructuredAddressFromBody(addr);
+    if ("error" in parsedAddr) {
+      return parsedAddr;
     }
-    const full =
-      typeof (addr as { fullAddress?: unknown }).fullAddress === "string"
-        ? String((addr as { fullAddress: string }).fullAddress).trim()
-        : "";
-    if (!full) {
-      return { error: "Address is required for delivery" };
-    }
-    const notesRaw = (addr as { notes?: unknown }).notes;
-    const notes =
-      notesRaw === undefined || notesRaw === null
-        ? ""
-        : typeof notesRaw === "string"
-          ? notesRaw.trim()
-          : "";
     return {
       data: {
         customerName: name,
         customerEmail: emailParsed.email,
         customerPhone: phone,
         shippingType: "delivery",
-        shippingAddress: { fullAddress: full, notes },
+        shippingAddress: parsedAddr.data,
       },
     };
   }

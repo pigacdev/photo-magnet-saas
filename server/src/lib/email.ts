@@ -61,6 +61,20 @@ function formatShippingAddressHtml(
     return escapeHtml(JSON.stringify(shippingAddress));
   }
   const o = shippingAddress as Record<string, unknown>;
+  const street = typeof o.street === "string" ? o.street.trim() : "";
+  const houseNumber =
+    typeof o.houseNumber === "string" ? o.houseNumber.trim() : "";
+  const city = typeof o.city === "string" ? o.city.trim() : "";
+  const postCode = typeof o.postCode === "string" ? o.postCode.trim() : "";
+  const country = typeof o.country === "string" ? o.country.trim() : "";
+  if (street || houseNumber || city || postCode || country) {
+    const line1 = [street, houseNumber].filter(Boolean).join(" ");
+    const line2 = [postCode, city].filter(Boolean).join(" ");
+    const parts = [line1, line2, country].filter(Boolean).map((p) =>
+      escapeHtml(p),
+    );
+    return parts.join("<br/>");
+  }
   if ("fullAddress" in o && typeof o.fullAddress === "string") {
     const notes =
       "notes" in o && typeof o.notes === "string" && o.notes.trim()

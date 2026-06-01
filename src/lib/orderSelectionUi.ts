@@ -28,3 +28,23 @@ export function shapeLabel(shape: {
     shape.shapeType.charAt(0) + shape.shapeType.slice(1).toLowerCase();
   return `${t} ${shape.widthMm}×${shape.heightMm} mm`;
 }
+
+function mmToCmLabel(mm: number): string {
+  const cm = mm / 10;
+  return Number.isInteger(cm) ? String(cm) : cm.toFixed(1).replace(/\.0$/, "");
+}
+
+/** e.g. "5×5 cm Square Custom Photo Magnets · 12 magnets" */
+export function orderProductLineLabel(
+  shape: { shapeType: string; widthMm: number; heightMm: number },
+  quantity: number,
+): string {
+  const w = mmToCmLabel(shape.widthMm);
+  const h = mmToCmLabel(shape.heightMm);
+  const t =
+    shape.shapeType.charAt(0) + shape.shapeType.slice(1).toLowerCase();
+  const size =
+    w === h ? `${w}×${h} cm` : `${w}×${h} cm`;
+  const magnetWord = quantity === 1 ? "magnet" : "magnets";
+  return `${size} ${t} Custom Photo Magnets · ${quantity} ${magnetWord}`;
+}
