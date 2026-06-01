@@ -1,46 +1,66 @@
 /**
- * Seller-facing computed status from GET /api/orders (matches server `getDisplayStatus`).
+ * Seller-facing order workflow status labels (matches Prisma OrderStatus).
  */
-export type OrderDisplayStatus =
+export type OrderWorkflowStatus =
+  | "NEW"
+  | "CONFIRMED"
+  | "INVOICE_SENT"
+  | "PAID"
+  | "IN_PRODUCTION"
   | "SHIPPED"
-  | "PRINTED"
-  | "READY_TO_PRINT"
-  | "AWAITING_PAYMENT"
-  | "UNKNOWN";
+  | "COMPLETED"
+  | "CANCELLED";
 
-export const ORDER_DISPLAY_STATUS_LABELS: Record<OrderDisplayStatus, string> = {
-  AWAITING_PAYMENT: "Awaiting payment",
-  READY_TO_PRINT: "Ready to print",
-  PRINTED: "Printed",
+export const ORDER_STATUS_LABELS: Record<OrderWorkflowStatus, string> = {
+  NEW: "New",
+  CONFIRMED: "Confirmed",
+  INVOICE_SENT: "Invoice sent",
+  PAID: "Paid",
+  IN_PRODUCTION: "In production",
   SHIPPED: "Shipped",
-  UNKNOWN: "Unknown",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
 };
 
-export function orderDisplayStatusBadgeClass(status: OrderDisplayStatus): string {
-  switch (status) {
-    case "AWAITING_PAYMENT":
-      return "bg-gray-100 text-[#6B7280]";
-    case "READY_TO_PRINT":
-      return "bg-blue-50 text-[#1D4ED8]";
-    case "PRINTED":
-      return "bg-orange-50 text-[#C2410C]";
-    case "SHIPPED":
-      return "bg-green-50 text-[#16A34A]";
-    default:
-      return "bg-gray-100 text-[#6B7280]";
-  }
+export const ORDER_STATUS_BADGE_CLASS: Record<OrderWorkflowStatus, string> = {
+  NEW: "bg-blue-50 text-[#1D4ED8]",
+  CONFIRMED: "bg-indigo-50 text-indigo-800",
+  INVOICE_SENT: "bg-purple-50 text-purple-800",
+  PAID: "bg-green-50 text-[#16A34A]",
+  IN_PRODUCTION: "bg-orange-50 text-[#C2410C]",
+  SHIPPED: "bg-teal-50 text-teal-800",
+  COMPLETED: "bg-gray-100 text-[#374151]",
+  CANCELLED: "bg-red-50 text-red-700",
+};
+
+export function orderStatusLabel(status: string): string {
+  return ORDER_STATUS_LABELS[status as OrderWorkflowStatus] ?? status;
 }
 
-export function OrderDisplayStatusBadge({
-  displayStatus,
-}: {
-  displayStatus: OrderDisplayStatus;
-}) {
+export function isPrintEligibleStatus(status: string): boolean {
   return (
-    <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${orderDisplayStatusBadgeClass(displayStatus)}`}
-    >
-      {ORDER_DISPLAY_STATUS_LABELS[displayStatus]}
-    </span>
+    status === "PAID" ||
+    status === "IN_PRODUCTION" ||
+    status === "SHIPPED" ||
+    status === "COMPLETED"
   );
+}
+
+/** Allowed next statuses for seller actions (mirrors server orderStatus.ts). */
+export const ORDER_STATUS_TRANSITIONS: Record<
+  OrderWorkflowStatus,
+  OrderWorkflowStatus[]
+> = {
+  NEW: ["CONFIRMED", "CANCELLED"],
+  CONFIRMED: ["INVOICE_SENT", "PAID", "CANCELLED"],
+  INVOICE_SENT: ["PAID", "CANCELLED"],
+  PAID: ["IN_PRODUCTION", "CANCELLED"],
+  IN_PRODUCTION: ["SHIPPED"],
+  SHIPPED: ["COMPLETED"],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+
+export function nextStatusOptions(current: string): OrderWorkflowStatus[] {
+  return ORDER_STATUS_TRANSITIONS[current as OrderWorkflowStatus] ?? [];
 }

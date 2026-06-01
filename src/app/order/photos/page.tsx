@@ -206,7 +206,7 @@ export default function OrderPhotosPage() {
         <OrderStepHeader
           title="Add photos"
           subtitle="Choose photos for your magnets"
-          step={{ current: 2, total: 6, label: "Upload" }}
+          step={{ current: 2, total: 5, label: "Upload" }}
         />
 
       <input

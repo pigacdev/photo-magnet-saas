@@ -11,7 +11,11 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
-import type { OrderDisplayStatus } from "@/lib/orderDisplayStatus";
+import {
+  ORDER_STATUS_BADGE_CLASS,
+  orderStatusLabel,
+  type OrderWorkflowStatus,
+} from "@/lib/orderDisplayStatus";
 
 export type SellerOrderListItem = {
   id: string;
@@ -20,7 +24,6 @@ export type SellerOrderListItem = {
   customerEmail: string | null;
   customerPhone: string | null;
   status: string;
-  displayStatus: OrderDisplayStatus;
   contextType: "EVENT" | "STOREFRONT";
   totalPrice: string;
   currency: string;
@@ -134,11 +137,13 @@ function orderCodeLabel(o: SellerOrderListItem): string {
 }
 
 const SELLER_LIST_STATUS_OPTIONS = [
-  { value: "awaiting_payment", label: "Awaiting payment" },
+  { value: "new", label: "New / awaiting payment" },
   { value: "ready", label: "Ready to print" },
   { value: "partial", label: "Partially printed" },
   { value: "printed", label: "Printed" },
   { value: "shipped", label: "Shipped" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
 ] as const;
 
 type SellerListStatusValue = (typeof SELLER_LIST_STATUS_OPTIONS)[number]["value"];
@@ -183,53 +188,16 @@ function OrderCustomerCell({ o }: { o: SellerOrderListItem }) {
   );
 }
 
-function OrderPrintStatus({
-  totalImages,
-  printedImages,
-  displayStatus,
-}: {
-  totalImages: number;
-  printedImages: number;
-  displayStatus: OrderDisplayStatus;
-}) {
-  const total = totalImages;
-  const printed = printedImages;
-
-  let statusLabel: string;
-  let statusClass: string;
-
-  if (displayStatus === "SHIPPED") {
-    statusLabel = "Shipped";
-    statusClass = "text-blue-600";
-  } else if (displayStatus === "AWAITING_PAYMENT") {
-    statusLabel = "Awaiting payment";
-    statusClass = "text-gray-500";
-  } else if (displayStatus === "READY_TO_PRINT") {
-    if (printed === 0) {
-      statusLabel = "Ready to print";
-      statusClass = "text-gray-500";
-    } else if (printed < total) {
-      statusLabel = "Partially printed";
-      statusClass = "text-orange-600";
-    } else {
-      statusLabel = "Printed";
-      statusClass = "text-green-600";
-    }
-  } else if (displayStatus === "PRINTED") {
-    if (printed < total) {
-      statusLabel = "Partially printed";
-      statusClass = "text-orange-600";
-    } else {
-      statusLabel = "Printed";
-      statusClass = "text-green-600";
-    }
-  } else {
-    statusLabel = "—";
-    statusClass = "text-gray-500";
-  }
-
+function OrderStatusCell({ status }: { status: string }) {
+  const key = status as OrderWorkflowStatus;
+  const badgeClass =
+    ORDER_STATUS_BADGE_CLASS[key] ?? "bg-gray-100 text-[#6B7280]";
   return (
-    <span className={`text-sm ${statusClass}`}>{statusLabel}</span>
+    <span
+      className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${badgeClass}`}
+    >
+      {orderStatusLabel(status)}
+    </span>
   );
 }
 
@@ -805,11 +773,7 @@ function OrdersListContent() {
                           <OrderCustomerCell o={o} />
                         </td>
                         <td className="px-4 py-3">
-                          <OrderPrintStatus
-                            totalImages={o.totalImages}
-                            printedImages={o.printedImages}
-                            displayStatus={o.displayStatus}
-                          />
+                          <OrderStatusCell status={o.status} />
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-[#6B7280]">
                           {formatDate(o.createdAt)}
@@ -844,11 +808,7 @@ function OrdersListContent() {
                         <span className="font-medium text-[#111111]">
                           {orderCodeLabel(o)}
                         </span>
-                        <OrderPrintStatus
-                          totalImages={o.totalImages}
-                          printedImages={o.printedImages}
-                          displayStatus={o.displayStatus}
-                        />
+                        <OrderStatusCell status={o.status} />
                       </div>
                       <div className="mt-3">
                         <OrderCustomerCell o={o} />

@@ -406,7 +406,7 @@ export default function OrderReviewPage() {
         onClick={() => void onProceed()}
         className={orderBtnPrimary}
       >
-        {committing ? "Continuing…" : "Proceed to payment"}
+        {committing ? "Continuing…" : "Continue to details"}
       </button>
     </OrderBottomBar>
   );
@@ -416,7 +416,7 @@ export default function OrderReviewPage() {
       <OrderStepHeader
         title="Review your magnets"
         subtitle="This is what will be printed — adjust crops from here if needed."
-        step={{ current: 4, total: 6, label: "Review" }}
+        step={{ current: 4, total: 5, label: "Review" }}
       />
 
       {actionError && (

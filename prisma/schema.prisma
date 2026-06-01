@@ -186,9 +186,7 @@ model Order {
   organizationId          String
   contextType             ContextType
   contextId               String
-  status                  OrderCommitStatus
-  /// Card/settlement: aligns with `status` (e.g. PAID + PAID after Stripe webhook).
-  paymentStatus           PaymentStatus     @default(PENDING)
+  status                  OrderStatus       @default(NEW)
   totalPrice              Decimal           @db.Decimal(10, 2)
   currency                String            @default("EUR")
   /// Future: `pickedUpAt DateTime?` when customer collects at event. Not in DB yet.
@@ -215,6 +213,10 @@ model Order {
   shippedAt               DateTime?
   shippingAddress         Json?
   shippingType            String?
+  /// Event-only customer note: cash or card on location (informational; not a payment gate).
+  eventPaymentPreference  String?
+  /// Optional seller note when order is cancelled.
+  cancellationNote        String?
   /// Future: 6-char A–Z0–9 display id for UI and print (generated when implemented).
   shortCode               String?           @unique
   organization            Organization      @relation(fields: [organizationId], references: [id])
@@ -291,13 +293,6 @@ enum PricingType {
   BUNDLE
 }
 
-enum PaymentStatus {
-  PENDING
-  PAID
-  CASH
-  FAILED
-}
-
 enum OrderSessionStatus {
   ACTIVE
   ABANDONED
@@ -310,7 +305,6 @@ enum OrderSessionStatus {
 enum SessionCheckoutStage {
   BUILDING
   CUSTOMER_DETAILS
-  PAYMENT_PENDING
   COMPLETED
   ABANDONED
 }
@@ -320,11 +314,16 @@ enum SessionImageStatus {
   FAILED
 }
 
-/// Customer order after session commit (event = cash pending, storefront = pay online).
-enum OrderCommitStatus {
-  PENDING_CASH
-  PENDING_PAYMENT
+/// Seller-managed order workflow (manual payment outside platform).
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  INVOICE_SENT
   PAID
+  IN_PRODUCTION
+  SHIPPED
+  COMPLETED
+  CANCELLED
 }
 
 enum ShapeType {

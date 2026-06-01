@@ -79,7 +79,7 @@ export type PostSessionImagesResponse = {
 /** POST /api/orders — legacy order commit (Phase 5F). */
 export type PostOrderCommitResponse = {
   orderId: string;
-  status: "PENDING_CASH" | "PENDING_PAYMENT";
+  status: string;
 };
 
 /** POST /api/session/checkout/validate — session checks only, no order row. */
@@ -89,16 +89,7 @@ export type PostSessionCheckoutValidateResponse = {
   quantity: number;
 };
 
-/** POST /api/session/checkout/customer — persist customer for session-first Stripe. */
-export type PostSessionCheckoutCustomerResponse = { ok: true };
-
-/** POST /api/stripe/session-checkout — redirect URL to Stripe Checkout. */
-export type PostStripeSessionCheckoutResponse = {
-  url: string;
-  stripeSessionId: string;
-};
-
-/** POST /api/orders/finalize — create order after customer + payment method. */
+/** POST /api/orders/finalize — create order after customer submits details. */
 export type PostOrderFinalizeResponse = {
   orderId: string;
   status: string;
@@ -107,18 +98,10 @@ export type PostOrderFinalizeResponse = {
 /** sessionStorage: JSON array of { imageId, copies } between review and customer (PER_ITEM). */
 export const CHECKOUT_IMAGE_COPIES_STORAGE_KEY = "pm_checkoutImageCopies";
 
-/** GET /api/session/current?orderSessionId= — resolve session-first order (no order id in success URL). */
-export type GetSessionCurrentResponse = {
-  orderId: string | null;
-  orderStatus: "PAID" | "PENDING_PAYMENT" | "PENDING_CASH" | null;
-  contextType: "EVENT" | "STOREFRONT" | null;
-  contextId: string | null;
-};
-
-/** GET /api/orders/:id — session-scoped order status (e.g. payment polling) + customer prefill + summary. */
+/** GET /api/orders/:id — customer or seller order summary. */
 export type GetOrderStatusResponse = {
   orderId: string;
-  status: "PENDING_CASH" | "PENDING_PAYMENT" | "PAID";
+  status: string;
   contextType?: "EVENT" | "STOREFRONT";
   contextId?: string;
   customerName?: string | null;

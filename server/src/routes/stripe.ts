@@ -1,215 +1,17 @@
 /**
- * Stripe Checkout (storefront) + webhook (payment confirmation).
+ * Stripe SaaS subscription billing + webhook (no customer order payments).
  */
 import type { Request, Response } from "express";
 import { Router } from "express";
 import Stripe from "stripe";
 import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/prisma";
-import {
-  expandOrderImagesForPrintSheet,
-  generatePrintSheet,
-} from "../lib/generatePrintSheet";
-import { ORDER_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
-import { renderOrderImages } from "../lib/renderOrderImages";
 import { getAppPublicUrl, getStripeOrNull } from "../lib/stripe";
-import { expireStripeCheckoutSessionIfOpen } from "../lib/stripeCheckoutSessionLifecycle";
-import { sessionConfig } from "../config/session";
-import { isStorefrontCustomerComplete } from "../lib/orderCustomerValidation";
-import {
-  enrichOrderCustomerEmailFromStripe,
-  sendBuyerOrderConfirmationIfNeeded,
-} from "../lib/orderBuyerConfirmationEmail";
 import { authenticate } from "../middleware/auth";
-import { handleStripeSessionCheckout } from "./stripeSessionCheckout";
-import {
-  processSessionFirstCheckoutSessionCompleted,
-  runSessionWebhookPostPaymentOrderProcessing,
-} from "../lib/stripeSessionWebhookFinalize";
 import { syncOrganizationFromStripeSubscription } from "../lib/organizationUsage";
 import { getStripeSubscriptionPeriod } from "../lib/stripeSubscriptionPeriod";
 
 export const stripeRouter = Router();
-
-/** Matches `getSafeOrderReturnTo` in `src/lib/orderReturnTo.ts` — safe `returnTo` for Stripe redirect URLs. */
-function safeReturnToQuery(order: {
-  contextType: string;
-  contextId: string;
-}): string {
-  const id = order.contextId?.trim() ?? "";
-  if (!id) return "";
-  const path =
-    order.contextType === "EVENT"
-      ? `/event/${id}`
-      : order.contextType === "STOREFRONT"
-        ? `/store/${id}`
-        : "";
-  if (!/^\/(event|store)\/[a-zA-Z0-9_-]+$/.test(path)) return "";
-  return `&returnTo=${encodeURIComponent(path)}`;
-}
-
-stripeRouter.post("/checkout-session", async (req: Request, res: Response) => {
-  const s = getStripeOrNull();
-  if (!s) {
-    res.status(503).json({ error: "Payment system not configured" });
-    return;
-  }
-
-  const orderIdRaw = (req.body as { orderId?: unknown })?.orderId;
-  if (typeof orderIdRaw !== "string" || orderIdRaw.length === 0) {
-    res.status(400).json({ error: "orderId required" });
-    return;
-  }
-  const orderId = String(orderIdRaw);
-
-  /** Payment is authorized by `orderId` + order row checks below — no session cookie required
-   *  (user may open `/order/payment?orderId=…` without checkout cookies). If a session
-   *  cookie exists and is already bound to a different order, reject to avoid cross-order mistakes. */
-  const cookieSessionId = req.cookies?.[sessionConfig.cookieName] as string | undefined;
-  if (cookieSessionId) {
-    const orderSession = await prisma.orderSession.findUnique({
-      where: { id: String(cookieSessionId) },
-    });
-    if (
-      orderSession?.orderId != null &&
-      orderSession.orderId !== orderId
-    ) {
-      res.status(403).json({ error: "Invalid order for this session" });
-      return;
-    }
-  }
-
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: { _count: { select: { orderImages: true } } },
-  });
-
-  if (!order) {
-    res.status(404).json({ error: "Order not found" });
-    return;
-  }
-  if (order.contextType !== "STOREFRONT") {
-    res.status(400).json({ error: "Online payment is only for storefront orders" });
-    return;
-  }
-  if (order.status === "PAID") {
-    res.status(400).json({ error: "Order is already paid" });
-    return;
-  }
-  if (order.status !== "PENDING_PAYMENT") {
-    res.status(400).json({ error: "Order is not awaiting payment" });
-    return;
-  }
-
-  if (!order.customerName?.trim()) {
-    res.status(400).json({
-      error:
-        "Add your details on the customer step before paying.",
-    });
-    return;
-  }
-  if (!isStorefrontCustomerComplete(order)) {
-    res.status(400).json({
-      error:
-        "Complete email, phone, shipping method, and (for delivery) address or (for BoxNow) locker id before paying.",
-    });
-    return;
-  }
-
-  const n = order._count.orderImages;
-  const total = Number(order.totalPrice);
-  const unitAmount = Math.round(total * 100);
-  if (!Number.isFinite(unitAmount) || unitAmount < 1) {
-    res.status(400).json({ error: "Invalid order total" });
-    return;
-  }
-
-  const appUrl = getAppPublicUrl();
-  const currency = order.currency.trim().toLowerCase();
-
-  try {
-    // One Checkout Session per order: reuse open session instead of creating duplicates on double-clicks.
-    if (order.stripeCheckoutSessionId) {
-      try {
-        const existing = await s.checkout.sessions.retrieve(
-          order.stripeCheckoutSessionId,
-        );
-        if (existing.status === "open" && existing.url) {
-          console.info("[stripe.checkout-session] reuse existing session", {
-            orderId: order.id,
-            stripeSessionId: existing.id,
-          });
-          res.json({ url: existing.url });
-          return;
-        }
-        if (existing.status === "complete") {
-          res.status(409).json({
-            error:
-              "This checkout was already completed. If payment succeeded, your order will update shortly.",
-          });
-          return;
-        }
-        // expired — create a new session and replace stripeCheckoutSessionId below
-      } catch (retrieveErr) {
-        console.warn(
-          "[stripe.checkout-session] could not retrieve stored session; creating new",
-          { orderId: order.id, err: retrieveErr },
-        );
-      }
-    }
-
-    const returnToQ = safeReturnToQuery(order);
-
-    if (order.stripeCheckoutSessionId) {
-      console.info("[stripe.checkout] stale session expired", {
-        orderId: order.id,
-        stripeSessionId: order.stripeCheckoutSessionId,
-      });
-      await expireStripeCheckoutSessionIfOpen(s, order.stripeCheckoutSessionId);
-    }
-
-    const session = await s.checkout.sessions.create({
-      mode: "payment",
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency,
-            product_data: {
-              name: `Photo magnets (${n} item${n === 1 ? "" : "s"})`,
-            },
-            unit_amount: unitAmount,
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        orderId: order.id,
-      },
-      success_url: `${appUrl}/order/success?orderId=${encodeURIComponent(order.id)}${returnToQ}`,
-      cancel_url: `${appUrl}/order/payment?orderId=${encodeURIComponent(order.id)}${returnToQ}`,
-    });
-
-    if (!session.url) {
-      res.status(500).json({ error: "Could not start checkout" });
-      return;
-    }
-
-    await prisma.order.update({
-      where: { id: order.id },
-      data: { stripeCheckoutSessionId: session.id },
-    });
-
-    res.json({ url: session.url });
-  } catch (e) {
-    console.error("[stripe.checkout-session]", e);
-    res.status(500).json({ error: "Could not start checkout" });
-  }
-});
-
-stripeRouter.post("/session-checkout", async (req: Request, res: Response) => {
-  await handleStripeSessionCheckout(req, res);
-});
 
 stripeRouter.post("/create-subscription", authenticate, async (req: Request, res: Response) => {
   const stripe = getStripeOrNull();
@@ -432,210 +234,60 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
 
-        if (session.mode === "subscription") {
-          const orgId = session.metadata?.orgId
-            ? String(session.metadata.orgId)
-            : "";
-          if (!orgId) {
-            res.status(200).json({ received: true });
-            return;
-          }
-
-          const cust = session.customer;
-          const customerId =
-            typeof cust === "string" ? cust : cust && "id" in cust ? cust.id : null;
-          const subField = session.subscription;
-          const subscriptionId =
-            typeof subField === "string"
-              ? subField
-              : subField && typeof subField === "object" && "id" in subField
-                ? (subField as Stripe.Subscription).id
-                : null;
-
-          if (!customerId || !subscriptionId) {
-            console.warn(
-              "[stripe.webhook] subscription session missing customer or subscription",
-              session.id,
-            );
-            res.status(200).json({ received: true });
-            return;
-          }
-
-          try {
-            await prisma.organization.update({
-              where: { id: orgId },
-              data: {
-                stripeCustomerId: customerId,
-                stripeSubscriptionId: subscriptionId,
-              },
-            });
-            console.log("[stripe.webhook] session.completed stored Stripe ids", {
-              orgId,
-            });
-          } catch (err) {
-            console.error("[stripe.webhook] session.completed failed", err);
-          }
-
-          res.status(200).json({ received: true });
-          return;
-        }
-
-        const orderId =
-          session.metadata?.orderId != null
-            ? String(session.metadata.orderId)
-            : "";
-        const orderSessionId =
-          session.metadata?.sessionId != null
-            ? String(session.metadata.sessionId).trim()
-            : "";
-
-        if (orderId) {
-        const order = await prisma.order.findUnique({
-          where: { id: orderId },
-        });
-        if (!order) {
-          console.error("[stripe.webhook] order not found", orderId);
-          res.status(200).json({ received: true });
-          return;
-        }
-        if (order.status === "PAID") {
-          res.status(200).json({ received: true });
-          return;
-        }
-        if (order.status !== "PENDING_PAYMENT") {
+        if (session.mode !== "subscription") {
           console.warn(
-            "[stripe.webhook] unexpected order status",
-            order.status,
-            orderId,
-          );
-          res.status(200).json({ received: true });
-          return;
-        }
-
-        await prisma.order.update({
-          where: { id: orderId },
-          data: {
-            status: "PAID",
-            paymentStatus: "PAID",
-            stripeCheckoutSessionId: session.id,
-          },
-        });
-
-        const orderImages = await prisma.orderImage.findMany({
-          where: { orderId },
-          orderBy: ORDER_IMAGE_LIST_ORDER_BY,
-        });
-        try {
-          await renderOrderImages(
-            orderId,
-            orderImages.map((img) => ({
-              id: img.id,
-              originalUrl: img.originalUrl,
-              cropX: img.cropX,
-              cropY: img.cropY,
-              cropWidth: img.cropWidth,
-              cropHeight: img.cropHeight,
-            })),
-          );
-        } catch (renderErr) {
-          console.error("[stripe.webhook] renderOrderImages failed", renderErr);
-        }
-
-        try {
-          const orderImagesForPdf = await prisma.orderImage.findMany({
-            where: { orderId },
-            orderBy: ORDER_IMAGE_LIST_ORDER_BY,
-          });
-          const grouped: Record<
-            string,
-            (typeof orderImagesForPdf)[number][]
-          > = {};
-          for (const img of orderImagesForPdf) {
-            const key = img.shapeId;
-            if (!grouped[key]) grouped[key] = [];
-            grouped[key].push(img);
-          }
-          const pdfUrls: string[] = [];
-          for (const shapeId of Object.keys(grouped)) {
-            const images = grouped[shapeId];
-            if (!images?.length) continue;
-            const pdfUrl = await generatePrintSheet(
-              orderId,
-              expandOrderImagesForPrintSheet(
-                images.map((img) => ({
-                  id: img.id,
-                  renderedUrl: img.renderedUrl,
-                  copies: img.copies,
-                })),
-              ),
-              shapeId,
-            );
-            pdfUrls.push(pdfUrl);
-          }
-          if (pdfUrls.length > 0) {
-            console.info("[stripe.webhook] print sheets", { orderId, pdfUrls });
-          }
-        } catch (pdfErr) {
-          console.error("[stripe.webhook] generatePrintSheet failed", pdfErr);
-        }
-
-        console.info("[stripe.webhook] order paid", {
-          orderId,
-          stripeSessionId: session.id,
-        });
-        try {
-          await enrichOrderCustomerEmailFromStripe(
-            orderId,
-            session.customer_details?.email ?? session.customer_email,
-          );
-          await sendBuyerOrderConfirmationIfNeeded(orderId);
-        } catch (emailErr) {
-          console.error("[email] buyer confirmation failed after Stripe payment", emailErr);
-        }
-        res.status(200).json({ received: true });
-        return;
-        } else if (orderSessionId) {
-        const r = await processSessionFirstCheckoutSessionCompleted(
-          stripe,
-          session,
-        );
-        if (r.ok) {
-          if (!r.alreadyPaid) {
-            await runSessionWebhookPostPaymentOrderProcessing(r.orderId);
-          }
-          try {
-            await enrichOrderCustomerEmailFromStripe(
-              r.orderId,
-              session.customer_details?.email ?? session.customer_email,
-            );
-            await sendBuyerOrderConfirmationIfNeeded(r.orderId);
-          } catch (emailErr) {
-            console.error(
-              "[email] buyer confirmation failed after session-first Stripe payment",
-              emailErr,
-            );
-          }
-          console.info("[stripe.webhook] session-first checkout", {
-            orderId: r.orderId,
-            alreadyPaid: r.alreadyPaid,
-            stripeSessionId: session.id,
-          });
-        } else {
-          console.warn("[stripe.webhook] session-first finalize skipped", {
-            reason: r.reason,
-            stripeSessionId: session.id,
-          });
-        }
-        res.status(200).json({ received: true });
-        return;
-        } else {
-          console.error(
-            "[stripe.webhook] payment session missing orderId and sessionId in metadata",
+            "[stripe.webhook] ignoring non-subscription checkout.session.completed",
             session.id,
           );
           res.status(200).json({ received: true });
           return;
         }
+
+        const orgId = session.metadata?.orgId
+          ? String(session.metadata.orgId)
+          : "";
+        if (!orgId) {
+          res.status(200).json({ received: true });
+          return;
+        }
+
+        const cust = session.customer;
+        const customerId =
+          typeof cust === "string" ? cust : cust && "id" in cust ? cust.id : null;
+        const subField = session.subscription;
+        const subscriptionId =
+          typeof subField === "string"
+            ? subField
+            : subField && typeof subField === "object" && "id" in subField
+              ? (subField as Stripe.Subscription).id
+              : null;
+
+        if (!customerId || !subscriptionId) {
+          console.warn(
+            "[stripe.webhook] subscription session missing customer or subscription",
+            session.id,
+          );
+          res.status(200).json({ received: true });
+          return;
+        }
+
+        try {
+          await prisma.organization.update({
+            where: { id: orgId },
+            data: {
+              stripeCustomerId: customerId,
+              stripeSubscriptionId: subscriptionId,
+            },
+          });
+          console.log("[stripe.webhook] session.completed stored Stripe ids", {
+            orgId,
+          });
+        } catch (err) {
+          console.error("[stripe.webhook] session.completed failed", err);
+        }
+
+        res.status(200).json({ received: true });
+        return;
       }
       case "customer.subscription.created":
       case "customer.subscription.updated": {

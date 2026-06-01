@@ -11,17 +11,15 @@ import {
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 
-const PAID_ORDER_STATUS = "PAID";
-const PAID_PAYMENT_STATUS = "PAID";
+const PAID_ORDER_STATUSES = new Set([
+  "PAID",
+  "IN_PRODUCTION",
+  "SHIPPED",
+  "COMPLETED",
+]);
 
-function isEventOrderFullyPaid(row: {
-  status: string;
-  paymentStatus: string;
-}): boolean {
-  return (
-    row.status === PAID_ORDER_STATUS &&
-    row.paymentStatus === PAID_PAYMENT_STATUS
-  );
+function isEventOrderFullyPaid(row: { status: string }): boolean {
+  return PAID_ORDER_STATUSES.has(row.status);
 }
 
 export type CleanupExpiredEventMediaOptions = {
@@ -47,7 +45,7 @@ export type CleanupExpiredEventMediaResult = {
 /**
  * Deletes order-image blobs for **ended events** past
  * `endDate + EVENT_MEDIA_RETENTION_HOURS_AFTER_END` (see mediaRetention config).
- * Only `Order` rows with `contextType === EVENT`, `status` and `paymentStatus` both `PAID`.
+ * Only `Order` rows with `contextType === EVENT` and settled payment status.
  * Never deletes `Order` / `OrderImage` rows — sets `OrderImage.mediaDeletedAt` only after
  * all deletable URLs for that row were processed (same rules as `cleanupOrderMedia`).
  * Does not touch session images, storefront-only orders, or events still inside the retention window.
@@ -85,7 +83,6 @@ export async function cleanupExpiredEventMedia(
           select: {
             id: true,
             status: true,
-            paymentStatus: true,
           },
         });
 

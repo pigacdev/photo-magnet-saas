@@ -304,7 +304,7 @@ function OrderCropPageInner() {
         <OrderStepHeader
           title="Adjust your photo for printing"
           subtitle="Move and zoom so the magnet looks right — this is how it will print."
-          step={{ current: 3, total: 6, label: `Crop (${index + 1} of ${total})` }}
+          step={{ current: 3, total: 5, label: `Crop (${index + 1} of ${total})` }}
         />
         <p className="-mt-4 text-center text-sm font-medium text-[#6B7280]">
           Image {index + 1} of {total}

@@ -18,8 +18,15 @@ import { EVENT_MEDIA_RETENTION_HOURS_AFTER_END } from "../config/mediaRetention"
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 
-function isPaidOrder(o: { status: string; paymentStatus: string }): boolean {
-  return o.status === "PAID" && o.paymentStatus === "PAID";
+const SETTLED_ORDER_STATUSES = new Set([
+  "PAID",
+  "IN_PRODUCTION",
+  "SHIPPED",
+  "COMPLETED",
+]);
+
+function isPaidOrder(o: { status: string }): boolean {
+  return SETTLED_ORDER_STATUSES.has(o.status);
 }
 
 /** ASCII-ish slug for ZIP paths / Content-Disposition. */
@@ -336,7 +343,6 @@ export async function streamEndedEventMediaZip(
       totalPrice: true,
       currency: true,
       status: true,
-      paymentStatus: true,
       printedAt: true,
       shippedAt: true,
       orderImages: {
@@ -436,7 +442,7 @@ export async function streamEndedEventMediaZip(
         csvEscape(order.customerPhone ?? ""),
         csvEscape(order.totalPrice.toString()),
         csvEscape(order.currency ?? "EUR"),
-        csvEscape(order.paymentStatus),
+        csvEscape(order.status),
         csvEscape(order.printedAt?.toISOString() ?? ""),
         csvEscape(order.shippedAt?.toISOString() ?? ""),
         String(uniqueImages),

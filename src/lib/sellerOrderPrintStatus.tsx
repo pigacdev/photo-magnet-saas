@@ -1,9 +1,6 @@
-/**
- * Seller print actions: order must reflect settled payment (`status` + `paymentStatus`).
- */
-export function isReadyToPrint(order: {
-  status: string;
-  paymentStatus: string;
-}): boolean {
-  return order.status === "PAID" && order.paymentStatus === "PAID";
+import { isPrintEligibleStatus } from "@/lib/orderDisplayStatus";
+
+/** Seller print actions: order must be paid or in production. */
+export function isReadyToPrint(order: { status: string }): boolean {
+  return isPrintEligibleStatus(order.status);
 }

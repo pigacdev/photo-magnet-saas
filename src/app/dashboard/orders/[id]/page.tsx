@@ -11,22 +11,24 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { CustomerEditModal } from "@/components/dashboard/CustomerEditModal";
-import {
-  FulfillmentClarityRow,
-  PaymentClarityRow,
-} from "@/lib/orderDetailClarity";
+import { CancelOrderModal } from "@/components/dashboard/CancelOrderModal";
+import { OrderStatusRow } from "@/lib/orderDetailClarity";
 import {
   normalizeLegacyShippingType,
   shippingTypeLabel,
 } from "@/lib/shippingTypes";
-import type { OrderDisplayStatus } from "@/lib/orderDisplayStatus";
+import {
+  nextStatusOptions,
+  orderStatusLabel,
+  type OrderWorkflowStatus,
+} from "@/lib/orderDisplayStatus";
 import { isReadyToPrint } from "@/lib/sellerOrderPrintStatus";
 
 type SellerOrderDetail = {
   orderId: string;
   status: string;
-  paymentStatus: string;
-  displayStatus: OrderDisplayStatus;
+  cancellationNote?: string | null;
+  eventPaymentPreference?: string | null;
   contextType: "EVENT" | "STOREFRONT";
   contextId: string;
   totalPrice: string;
@@ -60,7 +62,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<
-    "printPreview" | "printSelected" | "markPrinted" | "markPaid" | "ship" | null
+    "printPreview" | "printSelected" | "markPrinted" | "status" | null
   >(null);
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
   /** Stays true until staggered PDF opens finish — avoids double POST / duplicate tabs. */
@@ -70,6 +72,7 @@ export default function OrderDetailPage() {
     null,
   );
   const [customerEditOpen, setCustomerEditOpen] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
   /** After a successful "Print order", ask before marking — reinforces preview → confirm flow. */
   const [printOutcomePrompt, setPrintOutcomePrompt] = useState(false);
 
@@ -172,21 +175,44 @@ export default function OrderDetailPage() {
     setActionBusy(null);
   }
 
-  async function markOrderPaid() {
+  async function advanceOrderStatus(
+    nextStatus: OrderWorkflowStatus,
+    cancellationNote?: string | null,
+  ) {
     if (!id) return;
-    setActionBusy("markPaid");
+    setActionBusy("status");
     setError(null);
     try {
-      await api<{ ok: boolean }>(
-        `/api/orders/${encodeURIComponent(id)}/mark-paid`,
-        { method: "PATCH" },
-      );
+      await api<{
+        ok: boolean;
+        status: string;
+        cancellationNote?: string | null;
+      }>(`/api/orders/${encodeURIComponent(id)}/status`, {
+        method: "PATCH",
+        body: {
+          status: nextStatus,
+          ...(nextStatus === "CANCELLED" ? { cancellationNote } : {}),
+        },
+      });
+      setCancelModalOpen(false);
       refreshOrder();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not mark order paid");
+      setError(e instanceof Error ? e.message : "Could not update status");
     } finally {
       setActionBusy(null);
     }
+  }
+
+  function handleStatusAction(next: OrderWorkflowStatus) {
+    if (next === "CANCELLED") {
+      setCancelModalOpen(true);
+      return;
+    }
+    void advanceOrderStatus(next);
+  }
+
+  function handleConfirmCancel(note: string | null) {
+    void advanceOrderStatus("CANCELLED", note);
   }
 
   async function printSelectedImages() {
@@ -305,24 +331,6 @@ export default function OrderDetailPage() {
     }
   }
 
-  async function markShipped() {
-    if (!id) return;
-    setActionBusy("ship");
-    try {
-      const data = await api<{ shippedAt: string }>(
-        `/api/orders/${encodeURIComponent(id)}/ship`,
-        { method: "PATCH" },
-      );
-      setOrder((o) =>
-        o ? { ...o, shippedAt: data.shippedAt } : null,
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not update");
-    } finally {
-      setActionBusy(null);
-    }
-  }
-
   function formatMoney(amount: string, currency: string) {
     const n = Number(amount);
     if (Number.isNaN(n)) return amount;
@@ -346,30 +354,25 @@ export default function OrderDetailPage() {
       printableImages.length > 0 &&
       !allMediaRemoved,
   );
-  /** EVENT orders until seller confirms offline payment — show disabled Print + hint. */
-  const eventAwaitingPaidConfirmation = Boolean(
+  const awaitingPayment = Boolean(
     order &&
-      order.contextType === "EVENT" &&
-      order.paymentStatus !== "PAID" &&
+      (order.status === "NEW" ||
+        order.status === "CONFIRMED" ||
+        order.status === "INVOICE_SENT") &&
       order.images.length > 0 &&
       !allMediaRemoved,
   );
-  const showPrintOrderSlot =
-    canPrintNow || eventAwaitingPaidConfirmation;
+  const showPrintOrderSlot = canPrintNow || awaitingPayment;
 
-  const showOfflineMarkPaid = Boolean(
-    order &&
-      order.contextType === "EVENT" &&
-      order.status === "PENDING_CASH" &&
-      order.paymentStatus === "CASH",
-  );
+  const statusActions = order
+    ? nextStatusOptions(order.status).filter(
+        (next) => next !== "SHIPPED" || Boolean(order.printedAt),
+      )
+    : [];
 
   const hasOrderPrinted = Boolean(order?.printedAt);
   const showPrintOrder = showPrintOrderSlot;
   const showMarkPrinted = Boolean(canPrintNow && !hasOrderPrinted);
-  const showMarkShipped = Boolean(
-    order && order.printedAt && !order.shippedAt,
-  );
   const hasCustomerInfo = Boolean(
     order &&
       (order.customerName ||
@@ -435,49 +438,32 @@ export default function OrderDetailPage() {
               </p>
             </div>
             <div className="mt-6 rounded-lg border border-gray-200 bg-[#FAFAFA] p-4 sm:p-5">
-              <div className="grid gap-6 sm:grid-cols-2 sm:gap-8">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
-                    Payment
-                  </p>
-                  <div className="mt-3">
-                    <PaymentClarityRow
-                      status={order.status}
-                      contextType={order.contextType}
-                    />
-                  </div>
-                  {showOfflineMarkPaid && (
-                    <div className="mt-4 flex flex-col gap-2 rounded-lg border border-amber-100 bg-amber-50/90 p-4">
-                      <p className="text-sm text-amber-950">
-                        Confirm payment before printing.
-                      </p>
-                      <button
-                        type="button"
-                        disabled={actionBusy !== null}
-                        onClick={() => void markOrderPaid()}
-                        className="min-h-[44px] rounded-lg border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-950 transition-colors hover:bg-amber-50 disabled:opacity-50"
-                      >
-                        {actionBusy === "markPaid"
-                          ? "Updating…"
-                          : "Mark as paid"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
-                    Fulfillment
-                  </p>
-                  <div className="mt-3">
-                    <FulfillmentClarityRow
-                      shippedAt={order.shippedAt}
-                      printedAt={order.printedAt}
-                      status={order.status}
-                      paymentStatus={order.paymentStatus}
-                    />
-                  </div>
-                </div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+                Order status
+              </p>
+              <div className="mt-3">
+                <OrderStatusRow
+                  status={order.status}
+                  cancellationNote={order.cancellationNote}
+                />
               </div>
+              {statusActions.length > 0 && (
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  {statusActions.map((next) => (
+                    <button
+                      key={next}
+                      type="button"
+                      disabled={actionBusy !== null}
+                      onClick={() => handleStatusAction(next)}
+                      className="min-h-[44px] rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#111111] transition-colors hover:bg-gray-50 disabled:opacity-50 sm:min-w-[160px]"
+                    >
+                      {actionBusy === "status"
+                        ? "Updating…"
+                        : `Mark as ${orderStatusLabel(next)}`}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <dl className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -497,10 +483,7 @@ export default function OrderDetailPage() {
               </div>
             </dl>
 
-            {(showPrintOrder ||
-              showMarkPrinted ||
-              hasOrderPrinted ||
-              showMarkShipped) && (
+            {(showPrintOrder || showMarkPrinted || hasOrderPrinted) && (
               <div className="mt-6 flex flex-col gap-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   {showPrintOrder && (
@@ -532,20 +515,10 @@ export default function OrderDetailPage() {
                       Printed ✓
                     </p>
                   )}
-                  {showMarkShipped && (
-                    <button
-                      type="button"
-                      disabled={actionBusy !== null}
-                      onClick={() => void markShipped()}
-                      className="min-h-[48px] rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50 sm:min-w-[180px]"
-                    >
-                      {actionBusy === "ship" ? "Updating…" : "Mark as shipped"}
-                    </button>
-                  )}
                 </div>
-                {eventAwaitingPaidConfirmation && !canPrintNow && (
+                {awaitingPayment && !canPrintNow && (
                   <p className="text-xs font-medium text-amber-800">
-                    Order must be marked as paid before printing.
+                    Advance order status to Paid before printing.
                   </p>
                 )}
                 {showPrintOrder &&
@@ -876,6 +849,15 @@ export default function OrderDetailPage() {
           onSaved={refreshOrder}
         />
       )}
+
+      <CancelOrderModal
+        open={cancelModalOpen}
+        saving={actionBusy === "status"}
+        onClose={() => {
+          if (actionBusy !== "status") setCancelModalOpen(false);
+        }}
+        onConfirm={handleConfirmCancel}
+      />
 
     </div>
   );

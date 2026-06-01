@@ -23,19 +23,18 @@ function noSessionRedirect(request: NextRequest): NextResponse {
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  const isPaymentRoute = pathname.startsWith("/order/payment");
   const isSuccessRoute = pathname.startsWith("/order/success");
-  /** After commit, session is converted — confirmation must still load without session API. */
   const isConfirmationRoute =
     pathname === "/order/confirmation" ||
     pathname.startsWith("/order/confirmation/");
 
-  if (isPaymentRoute || isSuccessRoute || isConfirmationRoute) {
-    if (isPaymentRoute) {
+  if (isSuccessRoute || isConfirmationRoute) {
+    if (isConfirmationRoute) {
       const orderId = request.nextUrl.searchParams.get("orderId")?.trim();
-      if (!orderId) {
-        return NextResponse.redirect(new URL("/", request.url));
-      }
+      const url = orderId
+        ? `/order/success?orderId=${encodeURIComponent(orderId)}`
+        : "/order/success";
+      return NextResponse.redirect(new URL(url, request.url));
     }
     return NextResponse.next();
   }

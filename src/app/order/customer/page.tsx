@@ -19,8 +19,6 @@ import {
   type GetSessionImagesResponse,
   type GetSessionResponse,
   type PostOrderFinalizeResponse,
-  type PostSessionCheckoutCustomerResponse,
-  type PostStripeSessionCheckoutResponse,
 } from "@/lib/orderSessionTypes";
 import {
   normalizeLegacyShippingType,
@@ -69,8 +67,8 @@ type SessionCheckoutSummary = {
   perItemSummary: { totalMagnets: number; lineTotal: number } | null;
 };
 
-/** Values accepted by POST /api/orders/finalize (event); matches server resolveOrderStatusForFinalization. */
-type EventPaymentMethod = "cash" | "card_on_location" | "stripe";
+/** Event-only optional note for seller (cash / card on location). */
+type EventPaymentPreference = "cash" | "card_on_location";
 
 function CustomerPageInner() {
   const router = useRouter();
@@ -94,9 +92,8 @@ function CustomerPageInner() {
   const [fullAddress, setFullAddress] = useState("");
   const [addressNotes, setAddressNotes] = useState("");
   const [lockerId, setLockerId] = useState("");
-  /** Event session checkout: how the customer will pay (passed to finalize as paymentMethod). */
-  const [eventPaymentMethod, setEventPaymentMethod] =
-    useState<EventPaymentMethod>("cash");
+  const [eventPaymentPreference, setEventPaymentPreference] =
+    useState<EventPaymentPreference>("cash");
   /** Query for “Back to review” — no orderId (session-based checkout). */
   const [liveQueryForReviewBack, setLiveQueryForReviewBack] = useState("");
 
@@ -218,7 +215,7 @@ function CustomerPageInner() {
     [orderCtx, sessionCtx],
   );
 
-  const isPaidEdit = orderCtx?.status === "PAID";
+  const isSubmittedOrderEdit = Boolean(orderId && orderCtx);
 
   const onSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -265,7 +262,7 @@ function CustomerPageInner() {
             `/api/orders/${encodeURIComponent(orderId)}/customer`,
             { method: "PATCH", body },
           );
-          if (orderCtx.status === "PAID") {
+          if (orderCtx.status !== "CANCELLED") {
             router.push(
               `/order/success?orderId=${encodeURIComponent(orderId)}`,
             );
@@ -273,17 +270,9 @@ function CustomerPageInner() {
           }
           const q =
             typeof window !== "undefined" ? window.location.search : "";
-          if (orderCtx.contextType === "EVENT") {
-            const p = new URLSearchParams(q.replace(/^\?/, ""));
-            p.set("orderId", orderId);
-            router.push(
-              `/order/confirmation?${p.toString()}`,
-            );
-            return;
-          }
           const p = new URLSearchParams(q.replace(/^\?/, ""));
           p.set("orderId", orderId);
-          router.push(`/order/payment?${p.toString()}`);
+          router.push(`/order/success?${p.toString()}`);
         } catch (err) {
           setError(err instanceof Error ? err.message : "Could not save");
         } finally {
@@ -319,36 +308,12 @@ function CustomerPageInner() {
           }
         }
 
-        const isStripeSessionFlow = !isEvent || eventPaymentMethod === "stripe";
-        if (isStripeSessionFlow) {
-          await api<PostSessionCheckoutCustomerResponse>(
-            "/api/session/checkout/customer",
-            { method: "POST", body: customerOnly },
-          );
-          const scBody: Record<string, unknown> = { paymentMethod: "stripe" };
-          const copyRows = readCheckoutImageCopies();
-          if (copyRows.length > 0) {
-            scBody.imageCopies = copyRows;
-          }
-          const stripeRes = await api<PostStripeSessionCheckoutResponse>(
-            "/api/stripe/session-checkout",
-            { method: "POST", body: scBody },
-          );
-          if (!stripeRes?.url) {
-            setError("Could not start payment. Try again.");
-            return;
-          }
-          if (typeof window !== "undefined") {
-            window.location.assign(stripeRes.url);
-          }
-          return;
-        }
-
-        const paymentMethod = isEvent ? eventPaymentMethod : "stripe";
         const body: Record<string, unknown> = {
           ...customerOnly,
-          paymentMethod,
         };
+        if (isEvent) {
+          body.eventPaymentPreference = eventPaymentPreference;
+        }
         const copyRows = readCheckoutImageCopies();
         if (copyRows.length > 0) {
           body.imageCopies = copyRows;
@@ -369,11 +334,7 @@ function CustomerPageInner() {
         const q = typeof window !== "undefined" ? window.location.search : "";
         const p = new URLSearchParams(q.replace(/^\?/, ""));
         p.set("orderId", result.orderId);
-        if (isEvent) {
-          router.push(`/order/confirmation?${p.toString()}`);
-        } else {
-          router.push(`/order/payment?${p.toString()}`);
-        }
+        router.push(`/order/success?${p.toString()}`);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not place order");
       } finally {
@@ -385,8 +346,8 @@ function CustomerPageInner() {
       orderCtx,
       sessionCtx,
       isEvent,
-      isPaidEdit,
-      eventPaymentMethod,
+      isSubmittedOrderEdit,
+      eventPaymentPreference,
       name,
       email,
       phone,
@@ -467,20 +428,20 @@ function CustomerPageInner() {
       <div className="flex flex-col gap-6">
         <OrderStepHeader
           title={
-            isPaidEdit
+            isSubmittedOrderEdit
               ? fromSuccess
                 ? "Update your details"
                 : "Your details"
               : "Your details"
           }
           subtitle={
-            isPaidEdit
-              ? "Fix typos in name, phone, address, or locker id. Your order and payment stay the same."
+            isSubmittedOrderEdit
+              ? "Fix typos in name, phone, address, or locker id."
               : isEvent
                 ? "We use this for your order at the event."
                 : "Choose how you receive your order. Delivery needs an address; BoxNow needs a locker id."
           }
-          step={{ current: 5, total: 6, label: "Details" }}
+          step={{ current: 5, total: 5, label: "Details" }}
         />
 
       <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
@@ -567,21 +528,22 @@ function CustomerPageInner() {
         {isEvent && sessionCtx && (
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-[#111111]">
-              Payment method <span className="text-red-600">*</span>
+              Payment preference <span className="text-[#6B7280]">(optional)</span>
             </span>
             <select
-              name="eventPaymentMethod"
-              required
-              value={eventPaymentMethod}
+              name="eventPaymentPreference"
+              value={eventPaymentPreference}
               onChange={(e) =>
-                setEventPaymentMethod(e.target.value as EventPaymentMethod)
+                setEventPaymentPreference(e.target.value as EventPaymentPreference)
               }
               className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
             >
               <option value="cash">Cash at event</option>
               <option value="card_on_location">Card on location</option>
-              <option value="stripe">Pay online (card)</option>
             </select>
+            <span className="text-xs text-[#6B7280]">
+              Payment is arranged directly with the seller at the event.
+            </span>
           </label>
         )}
 
@@ -669,11 +631,9 @@ function CustomerPageInner() {
         >
           {saving
             ? "Saving…"
-            : isPaidEdit
+            : isSubmittedOrderEdit
               ? "Save changes"
-              : isEvent
-                ? "Continue"
-                : "Continue to payment"}
+              : "Submit order"}
         </button>
       </form>
 

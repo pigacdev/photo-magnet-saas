@@ -1,4 +1,4 @@
-import type { OrderCommitStatus, OrderSessionStatus } from "../../../src/generated/prisma/client";
+import type { OrderStatus, OrderSessionStatus } from "../../../src/generated/prisma/client";
 import {
   ABANDONED_SESSION_MEDIA_RETENTION_HOURS,
   EVENT_MEDIA_RETENTION_HOURS_AFTER_END,
@@ -74,7 +74,7 @@ export function isSessionExpiredForMediaCleanup(
 /** Fields a Phase 2 job should select for order-scoped retention checks. */
 export type OrderForMediaRetention = {
   createdAt: Date;
-  status: OrderCommitStatus;
+  status: OrderStatus;
 };
 
 /**

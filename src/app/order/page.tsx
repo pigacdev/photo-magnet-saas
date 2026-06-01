@@ -226,7 +226,7 @@ export default function OrderPage() {
         <OrderStepHeader
           title="Shape & price"
           subtitle="Tap a shape, then confirm pricing."
-          step={{ current: 1, total: 6, label: "Shape & price" }}
+          step={{ current: 1, total: 5, label: "Shape & price" }}
         />
 
       {patchError && (

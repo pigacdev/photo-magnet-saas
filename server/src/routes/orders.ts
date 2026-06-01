@@ -18,10 +18,16 @@ import {
   checkOrgOrderLimit,
   type PrepareCommitError,
   prepareOrderSessionCommit,
-  resolveOrderStatusForFinalization,
   runOrderCommitTransaction,
   toOrderCustomerInsertFromValidated,
 } from "../lib/orderSessionCheckoutCommit";
+import {
+  canTransitionOrderStatus,
+  isPrintEligibleStatus,
+  isValidOrderStatus,
+  parseCancellationNote,
+  parseEventPaymentPreference,
+} from "../lib/orderStatus";
 import { validateOrderSessionContext } from "../lib/sessionContextValidation";
 import {
   expandOrderImagesForPrintSheet,
@@ -63,51 +69,31 @@ function sendOrderPrepareError(res: Response, err: PrepareCommitError) {
     .json("code" in err && err.code ? { error: err.error, code: err.code } : { error: err.error });
 }
 
-/** Payment + status must both reflect settled payment before seller print flow. */
-function isReadyToPrintForSeller(order: {
-  status: string;
-  paymentStatus: string;
-}): boolean {
-  return order.status === "PAID" && order.paymentStatus === "PAID";
+/** Seller print flow requires payment confirmed in workflow. */
+function isReadyToPrintForSeller(order: { status: string }): boolean {
+  return isPrintEligibleStatus(order.status as import("../../../src/generated/prisma/client").OrderStatus);
 }
 
-/** Computed for seller list/detail — not stored in DB. */
-function getDisplayStatus(order: {
-  status: string;
-  paymentStatus: string;
-  printedAt: Date | null;
-  shippedAt: Date | null;
-}):
-  | "SHIPPED"
-  | "PRINTED"
-  | "READY_TO_PRINT"
-  | "AWAITING_PAYMENT"
-  | "UNKNOWN" {
-  if (order.shippedAt) return "SHIPPED";
-  if (order.printedAt) return "PRINTED";
-  const financiallyReady =
-    order.status === "PAID" && order.paymentStatus === "PAID";
-  if (financiallyReady) return "READY_TO_PRINT";
-  if (order.status === "PENDING_PAYMENT") return "AWAITING_PAYMENT";
-  if (order.status === "PENDING_CASH") return "AWAITING_PAYMENT";
-  return "UNKNOWN";
-}
-
-/** List UI filter — matches seller orders table (shipped → print progress). */
+/** List UI filter — matches seller orders table. */
 function deriveSellerListStatusKey(o: {
   shippedAt: Date | null;
   status: string;
-  paymentStatus: string;
   orderImages: { printed: boolean; mediaDeletedAt: Date | null }[];
-}): "awaiting_payment" | "ready" | "partial" | "printed" | "shipped" {
-  if (o.shippedAt) return "shipped";
-  const paidReady = o.status === "PAID" && o.paymentStatus === "PAID";
+}): "new" | "ready" | "partial" | "printed" | "shipped" | "cancelled" | "completed" {
+  const status = o.status;
+  if (status === "CANCELLED") return "cancelled";
+  if (status === "COMPLETED") return "completed";
+  if (status === "SHIPPED" || o.shippedAt) return "shipped";
   const printable = filterPrintableOrderImages(o.orderImages);
   const total = printable.length;
   const printed = printable.filter((img) => img.printed).length;
 
-  if (!paidReady) {
-    return "awaiting_payment";
+  if (status === "NEW" || status === "CONFIRMED" || status === "INVOICE_SENT") {
+    return "new";
+  }
+
+  if (!isPrintEligibleStatus(status as import("../../../src/generated/prisma/client").OrderStatus)) {
+    return "new";
   }
 
   if (total === 0) return "printed";
@@ -117,14 +103,16 @@ function deriveSellerListStatusKey(o: {
 }
 
 const LIST_STATUS_SORT_PRIORITY: Record<
-  "awaiting_payment" | "ready" | "partial" | "printed" | "shipped",
+  "new" | "ready" | "partial" | "printed" | "shipped" | "cancelled" | "completed",
   number
 > = {
-  awaiting_payment: 0,
+  new: 0,
   ready: 1,
   partial: 2,
   printed: 3,
   shipped: 4,
+  completed: 5,
+  cancelled: 6,
 };
 
 function parsePositiveInt(value: unknown, fallback: number): number {
@@ -150,15 +138,24 @@ ordersRouter.get(
     const statusRaw =
       typeof req.query.status === "string" ? req.query.status.trim().toLowerCase() : "";
     const allowedStatus = new Set([
-      "awaiting_payment",
+      "new",
       "ready",
       "partial",
       "printed",
       "shipped",
+      "cancelled",
+      "completed",
     ]);
     /** Single or comma-separated (e.g. `printed,shipped`); OR match if any listed key matches. */
-    let statusFilters: ("awaiting_payment" | "ready" | "partial" | "printed" | "shipped")[] =
-      [];
+    let statusFilters: (
+      | "new"
+      | "ready"
+      | "partial"
+      | "printed"
+      | "shipped"
+      | "cancelled"
+      | "completed"
+    )[] = [];
     if (statusRaw.length > 0) {
       const parts = statusRaw
         .split(",")
@@ -173,7 +170,14 @@ ordersRouter.get(
         if (!seen.has(p)) {
           seen.add(p);
           statusFilters.push(
-            p as "awaiting_payment" | "ready" | "partial" | "printed" | "shipped",
+            p as
+              | "new"
+              | "ready"
+              | "partial"
+              | "printed"
+              | "shipped"
+              | "cancelled"
+              | "completed",
           );
         }
       }
@@ -286,7 +290,6 @@ ordersRouter.get(
         customerEmail: true,
         customerPhone: true,
         status: true,
-        paymentStatus: true,
         printedAt: true,
         shippedAt: true,
         contextType: true,
@@ -337,7 +340,6 @@ ordersRouter.get(
           customerEmail: o.customerEmail,
           customerPhone: o.customerPhone,
           status: o.status,
-          displayStatus: getDisplayStatus(o),
           contextType: o.contextType,
           totalPrice: o.totalPrice.toString(),
           currency: o.currency,
@@ -641,9 +643,16 @@ ordersRouter.post(
         where: { orderId, printed: false, mediaDeletedAt: null },
       });
       if (unprinted === 0) {
+        const orderBefore = await tx.order.findUnique({
+          where: { id: orderId },
+          select: { status: true },
+        });
         await tx.order.update({
           where: { id: orderId },
-          data: { printedAt: now },
+          data: {
+            printedAt: now,
+            ...(orderBefore?.status === "PAID" ? { status: "IN_PRODUCTION" } : {}),
+          },
         });
       }
     });
@@ -673,7 +682,6 @@ ordersRouter.patch(
       select: {
         id: true,
         status: true,
-        paymentStatus: true,
         orderImages: {
           select: { id: true, printed: true, mediaDeletedAt: true },
         },
@@ -760,7 +768,10 @@ ordersRouter.patch(
       if (unprinted === 0) {
         await tx.order.update({
           where: { id: orderId },
-          data: { printedAt: now },
+          data: {
+            printedAt: now,
+            ...(existing.status === "PAID" ? { status: "IN_PRODUCTION" } : {}),
+          },
         });
       }
     });
@@ -783,10 +794,10 @@ ordersRouter.patch(
 );
 
 /**
- * PATCH /api/orders/:id/mark-paid — seller confirms offline payment at EVENT (cash / card on location).
+ * PATCH /api/orders/:id/status — seller advances order workflow.
  */
 ordersRouter.patch(
-  "/:id/mark-paid",
+  "/:id/status",
   authenticate,
   requireRole("ADMIN", "STAFF"),
   async (req: Request, res: Response) => {
@@ -797,65 +808,79 @@ ordersRouter.patch(
     }
     const owner = req.user!.userId;
 
+    const body = req.body as { status?: unknown; cancellationNote?: unknown };
+    const nextStatusRaw =
+      typeof body.status === "string" ? body.status.trim().toUpperCase() : "";
+    if (!isValidOrderStatus(nextStatusRaw)) {
+      res.status(400).json({ error: "Invalid status" });
+      return;
+    }
+
+    let cancellationNote: string | null = null;
+    if (nextStatusRaw === "CANCELLED") {
+      try {
+        cancellationNote = parseCancellationNote(body.cancellationNote);
+      } catch (e) {
+        res.status(400).json({
+          error: e instanceof Error ? e.message : "Invalid cancellation note",
+        });
+        return;
+      }
+    } else if (body.cancellationNote !== undefined && body.cancellationNote !== null) {
+      res.status(400).json({
+        error: "cancellationNote is only allowed when cancelling an order",
+      });
+      return;
+    }
+
     const existing = await prisma.order.findFirst({
       where: { id: orderId, organizationId: owner },
-      select: {
-        id: true,
-        contextType: true,
-        status: true,
-        paymentStatus: true,
-      },
+      select: { id: true, status: true, printedAt: true },
     });
     if (!existing) {
       res.status(404).json({ error: "Order not found" });
       return;
     }
 
-    if (existing.contextType !== "EVENT") {
+    if (existing.status === nextStatusRaw) {
+      res.json({ ok: true, status: existing.status });
+      return;
+    }
+
+    if (!canTransitionOrderStatus(existing.status, nextStatusRaw)) {
       res.status(400).json({
-        error: "Only event orders can be marked paid this way",
+        error: `Cannot change status from ${existing.status} to ${nextStatusRaw}`,
       });
       return;
     }
 
-    if (existing.status === "PAID" && existing.paymentStatus === "PAID") {
-      res.json({
-        ok: true,
-        status: existing.status,
-        paymentStatus: existing.paymentStatus,
-      });
-      return;
-    }
-
-    if (existing.status !== "PENDING_CASH" || existing.paymentStatus !== "CASH") {
-      res.status(400).json({
-        error:
-          "Only offline event orders awaiting payment confirmation can be marked paid",
-      });
+    if (nextStatusRaw === "SHIPPED" && !existing.printedAt) {
+      res.status(400).json({ error: "Mark as printed before shipping" });
       return;
     }
 
     const updated = await prisma.order.update({
       where: { id: orderId },
       data: {
-        status: "PAID",
-        paymentStatus: "PAID",
+        status: nextStatusRaw,
+        ...(nextStatusRaw === "SHIPPED" ? { shippedAt: new Date() } : {}),
+        ...(nextStatusRaw === "CANCELLED" ? { cancellationNote } : {}),
       },
-      select: {
-        status: true,
-        paymentStatus: true,
-      },
+      select: { status: true, shippedAt: true, cancellationNote: true },
     });
 
     res.json({
       ok: true,
       status: updated.status,
-      paymentStatus: updated.paymentStatus,
+      shippedAt: updated.shippedAt?.toISOString() ?? null,
+      cancellationNote: updated.cancellationNote,
     });
   },
 );
 
-/** PATCH /api/orders/:id/ship — seller: mark order shipped (requires printed first). */
+/**
+ * @deprecated Use PATCH /api/orders/:id/status with { status: "SHIPPED" }.
+ */
 ordersRouter.patch(
   "/:id/ship",
   authenticate,
@@ -869,7 +894,7 @@ ordersRouter.patch(
     const owner = req.user!.userId;
     const existing = await prisma.order.findFirst({
       where: { id: orderId, organizationId: owner },
-      select: { id: true, printedAt: true },
+      select: { id: true, printedAt: true, status: true },
     });
     if (!existing) {
       res.status(404).json({ error: "Order not found" });
@@ -879,13 +904,22 @@ ordersRouter.patch(
       res.status(400).json({ error: "Mark as printed before shipping" });
       return;
     }
+    if (
+      existing.status !== "IN_PRODUCTION" &&
+      existing.status !== "SHIPPED" &&
+      existing.status !== "COMPLETED"
+    ) {
+      res.status(400).json({ error: "Order must be in production before shipping" });
+      return;
+    }
     const updated = await prisma.order.update({
       where: { id: orderId },
-      data: { shippedAt: new Date() },
-      select: { shippedAt: true },
+      data: { shippedAt: new Date(), status: "SHIPPED" },
+      select: { shippedAt: true, status: true },
     });
     res.json({
       shippedAt: updated.shippedAt!.toISOString(),
+      status: updated.status,
     });
   },
 );
@@ -1029,21 +1063,10 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
   }
 
   const body = req.body as Record<string, unknown>;
-  const paymentMethod =
-    typeof body.paymentMethod === "string" ? body.paymentMethod.trim() : "";
-  if (!paymentMethod) {
-    res.status(400).json({ error: "paymentMethod is required" });
-    return;
-  }
-
-  const orderStatus = resolveOrderStatusForFinalization(
-    sessionRow.contextType,
-    paymentMethod,
-  );
-  if (!orderStatus) {
-    res.status(400).json({ error: "Invalid payment method for this checkout context" });
-    return;
-  }
+  const eventPaymentPreference =
+    sessionRow.contextType === "EVENT"
+      ? parseEventPaymentPreference(body.paymentMethod ?? body.eventPaymentPreference)
+      : null;
 
   const customerBody = {
     customerName: body.customerName,
@@ -1061,7 +1084,7 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
   }
 
   const now = new Date();
-  const prep = await prepareOrderSessionCommit(sessionId, req.body, now, orderStatus);
+  const prep = await prepareOrderSessionCommit(sessionId, req.body, now, "NEW");
   if (prep.ok === "idempotent") {
     console.info("[order.finalize] idempotent", {
       sessionId: String(sessionId),
@@ -1098,7 +1121,7 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
   const sessionRowId = prepared.sessionRowId;
   const stageUpdated = await prisma.orderSession.updateMany({
     where: { id: sessionRowId, status: "ACTIVE", orderId: null },
-    data: { checkoutStage: "PAYMENT_PENDING", lastActiveAt: now },
+    data: { checkoutStage: "COMPLETED", lastActiveAt: now },
   });
   if (stageUpdated.count === 0) {
     const raced = await prisma.orderSession.findUnique({
@@ -1120,7 +1143,7 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
   try {
     const result = await runOrderCommitTransaction(
       prepared,
-      toOrderCustomerInsertFromValidated(validated.data),
+      toOrderCustomerInsertFromValidated(validated.data, eventPaymentPreference),
     );
     if (result.kind === "IDEMPOTENT") {
       console.info("[order.finalize] idempotent", {
@@ -1140,12 +1163,29 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
       } catch (renderErr) {
         console.error("[order.finalize] ensureOrderImagesRendered failed", renderErr);
       }
-      if (result.status === "PENDING_CASH") {
-        try {
-          await sendBuyerOrderConfirmationIfNeeded(result.orderId);
-        } catch (err) {
-          console.error("[email] buyer confirmation failed after finalize", err);
+      try {
+        await sendBuyerOrderConfirmationIfNeeded(result.orderId);
+      } catch (err) {
+        console.error("[email] buyer confirmation failed after finalize", err);
+      }
+      try {
+        const orderFull = await prisma.order.findUnique({
+          where: { id: result.orderId },
+          include: { orderImages: true },
+        });
+        if (orderFull) {
+          const { contextName, sendOrderEmails, notificationEmail } =
+            await loadOrderNotificationContext(orderFull);
+          if (sendOrderEmails && notificationEmail) {
+            await sendNewOrderEmail({
+              to: notificationEmail,
+              subject: buildOrderEmailSubject(orderFull, contextName),
+              html: buildOrderEmailHtml(orderFull, contextName),
+            });
+          }
         }
+      } catch (err) {
+        console.error("[email] seller notification failed after finalize", err);
       }
     }
     res.json({ orderId: result.orderId, status: result.status });
@@ -1295,8 +1335,8 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
       res.json({
         orderId: orderRow.id,
         status: orderRow.status,
-        paymentStatus: orderRow.paymentStatus,
-        displayStatus: getDisplayStatus(orderRow),
+        cancellationNote: orderRow.cancellationNote,
+        eventPaymentPreference: orderRow.eventPaymentPreference,
         contextType: orderRow.contextType,
         contextId: orderRow.contextId,
         totalPrice: orderRow.totalPrice.toString(),

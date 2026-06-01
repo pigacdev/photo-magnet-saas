@@ -3,11 +3,9 @@
  * Used by POST /api/orders (legacy) and POST /api/orders/finalize.
  */
 import { randomUUID } from "node:crypto";
-import type { OrderCommitStatus } from "../../../src/generated/prisma/client";
+import type { OrderStatus } from "../../../src/generated/prisma/client";
 import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "./prisma";
-import { getStripeOrNull } from "./stripe";
-import { expireOrderSessionOpenStripeCheckout } from "./stripeCheckoutSessionLifecycle";
 import { SESSION_IMAGE_LIST_ORDER_BY } from "./magnetImageOrderBy";
 import {
   copySessionImageToOrder,
@@ -68,6 +66,7 @@ export type OrderCustomerInsert = {
   customerPhone: string | null;
   shippingType: string | null;
   shippingAddress: Prisma.InputJsonValue | typeof Prisma.JsonNull | null;
+  eventPaymentPreference: string | null;
 } | null;
 
 export type PrepareCommitError =
@@ -83,8 +82,7 @@ export type PreparedOrderCommit = {
   now: Date;
   organizationId: string;
   currency: string;
-  /** Set when finalizing; legacy default is derived from `contextType` in prepare. */
-  orderStatus: OrderCommitStatus;
+  orderStatus: OrderStatus;
   sessionImages: Awaited<ReturnType<typeof prisma.sessionImage.findMany>>;
   copiesBySessionImageId: Map<string, number>;
   commitTotalPrice: Prisma.Decimal | string | number;
@@ -100,10 +98,10 @@ export async function prepareOrderSessionCommit(
   sessionId: string,
   body: unknown,
   now: Date,
-  /** When omitted, uses EVENT → PENDING_CASH, STOREFRONT → PENDING_PAYMENT (legacy commit). */
-  orderStatus: OrderCommitStatus | undefined,
+  /** When omitted, defaults to NEW. */
+  orderStatus: OrderStatus | undefined,
 ): Promise<
-  | { ok: "idempotent"; orderId: string; status: OrderCommitStatus }
+  | { ok: "idempotent"; orderId: string; status: OrderStatus }
   | { ok: true; prepared: PreparedOrderCommit }
   | { ok: false; err: PrepareCommitError }
 > {
@@ -266,10 +264,6 @@ export async function prepareOrderSessionCommit(
       ? orderImageStorageKindFromSessionUrl(sessionImages[0].originalUrl)
       : "local";
 
-  const resolvedOrderStatus: OrderCommitStatus =
-    orderStatus ??
-    (session.contextType === "EVENT" ? "PENDING_CASH" : "PENDING_PAYMENT");
-
   return {
     ok: true,
     prepared: {
@@ -278,7 +272,7 @@ export async function prepareOrderSessionCommit(
       now,
       organizationId,
       currency,
-      orderStatus: resolvedOrderStatus,
+      orderStatus: orderStatus ?? "NEW",
       sessionImages,
       copiesBySessionImageId,
       commitTotalPrice,
@@ -312,18 +306,12 @@ export async function checkOrgOrderLimit(organizationId: string): Promise<Prepar
 }
 
 export type CommitResult =
-  | { kind: "IDEMPOTENT"; orderId: string; status: OrderCommitStatus; imageCount: number }
-  | { kind: "CREATED"; orderId: string; status: OrderCommitStatus; imageCount: number };
-
-/** When set, order is created already PAID with Stripe ids (session-first webhook). */
-export type CommitOrderPaidStripeIds = {
-  stripeCheckoutSessionId: string;
-  stripePaymentIntentId: string | null;
-  stripeChargeId: string | null;
-};
+  | { kind: "IDEMPOTENT"; orderId: string; status: OrderStatus; imageCount: number }
+  | { kind: "CREATED"; orderId: string; status: OrderStatus; imageCount: number };
 
 export function toOrderCustomerInsertFromValidated(
   data: ValidatedCustomerPayload,
+  eventPaymentPreference: string | null = null,
 ): OrderCustomerInsert {
   return {
     customerName: data.customerName,
@@ -334,6 +322,7 @@ export function toOrderCustomerInsertFromValidated(
       data.shippingAddress === null
         ? null
         : (data.shippingAddress as Prisma.InputJsonValue),
+    eventPaymentPreference,
   };
 }
 
@@ -343,7 +332,6 @@ export function toOrderCustomerInsertFromValidated(
 export async function runOrderCommitTransaction(
   prepared: PreparedOrderCommit,
   customer: OrderCustomerInsert,
-  paidStripe: CommitOrderPaidStripeIds | null = null,
 ): Promise<CommitResult> {
   const {
     sessionRowId,
@@ -356,14 +344,8 @@ export async function runOrderCommitTransaction(
     commitTotalPrice,
     commitOrderQuantity,
   } = prepared;
-  const effectiveOrderStatus: OrderCommitStatus = paidStripe ? "PAID" : orderStatus;
 
-  /**
-   * DB work only: Stripe (expire) must not run inside this callback — it runs after
-   * `$transaction` resolves so `OrderSession` / `Order` row locks are released first.
-   */
-  const { commit: result, checkoutSessionIdToExpire } = await prisma.$transaction(
-    async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(
       `SELECT id FROM "OrderSession" WHERE id = $1 FOR UPDATE`,
       sessionRowId,
@@ -382,13 +364,10 @@ export async function runOrderCommitTransaction(
         (await tx.order.findUnique({ where: { id: String(locked.orderId) } }));
       if (orderRow) {
         return {
-          commit: {
-            kind: "IDEMPOTENT" as const,
-            orderId: locked.orderId,
-            status: orderRow.status,
-            imageCount: 0,
-          },
-          checkoutSessionIdToExpire: null,
+          kind: "IDEMPOTENT" as const,
+          orderId: locked.orderId,
+          status: orderRow.status,
+          imageCount: 0,
         };
       }
       throw new Error("ORDER_REFERENCE_MISSING");
@@ -410,13 +389,10 @@ export async function runOrderCommitTransaction(
         (await tx.order.findUnique({ where: { id: String(beforeCreate.orderId) } }));
       if (orderRow) {
         return {
-          commit: {
-            kind: "IDEMPOTENT" as const,
-            orderId: beforeCreate.orderId,
-            status: orderRow.status,
-            imageCount: 0,
-          },
-          checkoutSessionIdToExpire: null,
+          kind: "IDEMPOTENT" as const,
+          orderId: beforeCreate.orderId,
+          status: orderRow.status,
+          imageCount: 0,
         };
       }
       throw new Error("ORDER_REFERENCE_MISSING");
@@ -426,20 +402,13 @@ export async function runOrderCommitTransaction(
     }
 
     const orderId = randomUUID();
-    const paymentStatus: Prisma.OrderCreateInput["paymentStatus"] =
-      paidStripe != null
-        ? "PAID"
-        : effectiveOrderStatus === "PENDING_CASH"
-          ? "CASH"
-          : "PENDING";
 
     const orderCreate: Prisma.OrderCreateInput = {
       id: orderId,
       organization: { connect: { id: String(organizationId) } },
       contextType: locked.contextType,
       contextId: String(locked.contextId),
-      status: effectiveOrderStatus,
-      paymentStatus,
+      status: orderStatus,
       totalPrice: commitTotalPrice,
       currency,
       pricingType: locked.pricingType!,
@@ -455,13 +424,7 @@ export async function runOrderCommitTransaction(
           : customer.shippingAddress === null
             ? Prisma.JsonNull
             : (customer.shippingAddress as Prisma.InputJsonValue),
-      ...(paidStripe
-        ? {
-            stripeCheckoutSessionId: paidStripe.stripeCheckoutSessionId,
-            stripePaymentIntentId: paidStripe.stripePaymentIntentId,
-            stripeChargeId: paidStripe.stripeChargeId,
-          }
-        : {}),
+      eventPaymentPreference: customer?.eventPaymentPreference ?? null,
     };
     await tx.order.create({ data: orderCreate });
 
@@ -501,9 +464,7 @@ export async function runOrderCommitTransaction(
         status: "CONVERTED",
         checkoutStage: "COMPLETED",
         lastActiveAt: now,
-        /** Prevent reuse: no further Stripe checkout from this row; same atomic tx as order. */
         stripeCheckoutSessionId: null,
-        /** Cookie/session row is not valid for a new cart after conversion. */
         expiresAt: now,
         orderId,
       },
@@ -515,43 +476,12 @@ export async function runOrderCommitTransaction(
     });
 
     return {
-      commit: {
-        kind: "CREATED" as const,
-        orderId,
-        status: effectiveOrderStatus,
-        imageCount: sessionImages.length,
-      },
-      /** Snapshot before clearing on `OrderSession`; used only after the transaction commits. */
-      checkoutSessionIdToExpire: beforeCreate.stripeCheckoutSessionId,
+      kind: "CREATED" as const,
+      orderId,
+      status: orderStatus,
+      imageCount: sessionImages.length,
     };
-  },
-  );
-
-  if (result.kind === "CREATED" && checkoutSessionIdToExpire) {
-    await expireOrderSessionOpenStripeCheckout(
-      getStripeOrNull(),
-      sessionRowId,
-      checkoutSessionIdToExpire,
-    );
-  }
+  });
 
   return result;
-}
-
-/** Map finalize payment method + context to order row status. */
-export function resolveOrderStatusForFinalization(
-  contextType: "EVENT" | "STOREFRONT",
-  paymentMethod: string,
-): OrderCommitStatus | null {
-  const pm = String(paymentMethod).trim().toLowerCase();
-  if (contextType === "STOREFRONT") {
-    if (pm === "stripe") return "PENDING_PAYMENT";
-    return null;
-  }
-  if (contextType === "EVENT") {
-    if (pm === "cash" || pm === "card_on_location" || pm === "card on location")
-      return "PENDING_CASH";
-    if (pm === "stripe") return "PENDING_PAYMENT";
-  }
-  return null;
 }

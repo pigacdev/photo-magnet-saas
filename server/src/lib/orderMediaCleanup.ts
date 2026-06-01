@@ -42,22 +42,17 @@ export type CleanupOrderMediaResult = {
 };
 
 /**
- * Fully settled orders only: `status` and `paymentStatus` both the string `PAID`.
- * `paymentStatus` is not filtered in SQL here: the column is stored as plain text while
- * Prisma would otherwise compare against the native Postgres `PaymentStatus` enum and error
- * (`character varying = "PaymentStatus"`). We filter in code with string equality instead.
+ * Fully settled orders: status PAID or later in workflow.
  */
-const PAID_ELIGIBLE_STATUS = "PAID";
-const PAID_ELIGIBLE_PAYMENT_STATUS = "PAID";
+const PAID_ELIGIBLE_STATUSES = new Set([
+  "PAID",
+  "IN_PRODUCTION",
+  "SHIPPED",
+  "COMPLETED",
+]);
 
-function isFullyPaidEligibleOrder(row: {
-  status: string;
-  paymentStatus: string;
-}): boolean {
-  return (
-    row.status === PAID_ELIGIBLE_STATUS &&
-    row.paymentStatus === PAID_ELIGIBLE_PAYMENT_STATUS
-  );
+function isFullyPaidEligibleOrder(row: { status: string }): boolean {
+  return PAID_ELIGIBLE_STATUSES.has(row.status);
 }
 
 function isS3HeadNotFound(e: unknown): boolean {
@@ -240,7 +235,7 @@ export async function pruneEmptyOrderMediaDirectories(): Promise<{
 
 /**
  * Deletes order-media blobs for orders past {@link ORDER_MEDIA_RETENTION_DAYS}.
- * Only `Order` rows with `status === PAID` and `paymentStatus === PAID` (excludes CASH-only, pending, unpaid).
+ * Only `Order` rows with settled payment status (PAID or later in workflow).
  * Never deletes `Order`, `OrderImage` rows — sets `OrderImage.mediaDeletedAt` when all URLs were gone or removed.
  */
 export async function cleanupOrderMedia(
@@ -261,7 +256,6 @@ export async function cleanupOrderMedia(
       id: true,
       createdAt: true,
       status: true,
-      paymentStatus: true,
     },
   });
 

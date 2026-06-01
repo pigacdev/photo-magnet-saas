@@ -7,22 +7,24 @@ const MS_PER_HOUR = 60 * 60 * 1000;
 type OrderRow = {
   id: string;
   status: string;
-  paymentStatus: string;
+  eventPaymentPreference: string | null;
   totalPrice: { toString: () => string };
   currency: string;
   createdAt: Date;
   customerPhone: string | null;
   customerName: string | null;
-  stripeCheckoutSessionId: string | null;
-  stripePaymentIntentId: string | null;
   orderImages: { shapeId: string; copies: number }[];
 };
 
-function isOrderFinanciallyPaid(o: {
-  status: string;
-  paymentStatus: string;
-}): boolean {
-  return o.status === "PAID" && o.paymentStatus === "PAID";
+const SETTLED_STATUSES = new Set([
+  "PAID",
+  "IN_PRODUCTION",
+  "SHIPPED",
+  "COMPLETED",
+]);
+
+function isOrderSettled(o: { status: string }): boolean {
+  return SETTLED_STATUSES.has(o.status);
 }
 
 function customerIdentityKey(o: OrderRow): string {
@@ -180,14 +182,12 @@ export async function getEventAnalyticsForSeller(
     select: {
       id: true,
       status: true,
-      paymentStatus: true,
+      eventPaymentPreference: true,
       totalPrice: true,
       currency: true,
       createdAt: true,
       customerPhone: true,
       customerName: true,
-      stripeCheckoutSessionId: true,
-      stripePaymentIntentId: true,
       orderImages: { select: { shapeId: true, copies: true } },
     },
   });
@@ -223,15 +223,15 @@ export async function getEventAnalyticsForSeller(
       orderIds: new Set(),
       revenue: 0,
     },
-    stripe_online: {
-      key: "stripe_online",
-      label: "Stripe / online paid",
+    paid: {
+      key: "paid",
+      label: "Paid",
       orderIds: new Set(),
       revenue: 0,
     },
-    cash_pos: {
-      key: "cash_pos",
-      label: "Cash / POS paid",
+    in_production: {
+      key: "in_production",
+      label: "In production / shipped",
       orderIds: new Set(),
       revenue: 0,
     },
@@ -273,7 +273,7 @@ export async function getEventAnalyticsForSeller(
     const dayEntry = byDay.get(dayKey);
     if (dayEntry) dayEntry.orders += 1;
 
-    const paid = isOrderFinanciallyPaid(o);
+    const paid = isOrderSettled(o);
     if (paid) {
       paidOrders += 1;
       const amount = decimalToNumber(o.totalPrice);
@@ -282,10 +282,8 @@ export async function getEventAnalyticsForSeller(
 
       if (dayEntry) dayEntry.revenue += amount;
 
-      const hasStripeRef = Boolean(
-        o.stripePaymentIntentId?.trim() || o.stripeCheckoutSessionId?.trim(),
-      );
-      const payKey = hasStripeRef ? "stripe_online" : "cash_pos";
+      const payKey =
+        o.status === "PAID" ? "paid" : "in_production";
       paymentBuckets[payKey].orderIds.add(o.id);
       paymentBuckets[payKey].revenue += amount;
 

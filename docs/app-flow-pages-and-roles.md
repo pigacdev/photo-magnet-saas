@@ -34,9 +34,8 @@ Rules:
   - Upload
   - Crop
   - Review
-  - Order summary
-  - Payment
-- Order Confirmation
+  - Customer details
+  - Order confirmation
 
 ---
 
@@ -64,15 +63,10 @@ Rules:
   - Adjust images to match magnet shape
 - **Review**
   - Check, edit, or remove images
-- **Order Summary**
-  - Show final price and order details before payment
-- **Payment**
-    - Event:
-        - Stripe or cash
-    - Storefront:
-        - Stripe only
+- **Order Summary / Details**
+  - Show final price and collect customer details before submit
 - **Order Confirmation**
-  - Show order ID + success message
+  - Show order ID + success message (payment arranged with seller)
 
 ---
 
@@ -123,8 +117,8 @@ Rules:
   - event OR storefront
 
 - UI adapts automatically:
-  - Event → allows cash
-  - Storefront → Stripe only
+  - Event → optional cash/card preference note
+  - Storefront → shipping options
 
 ---
 
@@ -134,7 +128,7 @@ Rules:
 
 1. Open link (QR or URL)
 2. Configure order (shape + quantity + upload + crop photos)
-3. Pay → receive order ID
+3. Submit order → receive order ID
 
 ---
 
