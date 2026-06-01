@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { formatOrderReference } from "@/lib/orderReference";
 import {
   ORDER_STATUS_BADGE_CLASS,
   orderStatusLabel,
@@ -130,10 +131,6 @@ function isoToDateInputValue(iso: string | null): string {
   const mo = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${mo}-${day}`;
-}
-
-function orderCodeLabel(o: SellerOrderListItem): string {
-  return o.shortCode ?? o.id.slice(0, 8);
 }
 
 const SELLER_LIST_STATUS_OPTIONS = [
@@ -767,7 +764,7 @@ function OrdersListContent() {
                         }}
                       >
                         <td className="px-4 py-3 font-medium text-[#111111]">
-                          {orderCodeLabel(o)}
+                          {formatOrderReference(o)}
                         </td>
                         <td className="max-w-[220px] px-4 py-3">
                           <OrderCustomerCell o={o} />
@@ -806,7 +803,7 @@ function OrdersListContent() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <span className="font-medium text-[#111111]">
-                          {orderCodeLabel(o)}
+                          {formatOrderReference(o)}
                         </span>
                         <OrderStatusCell status={o.status} />
                       </div>
