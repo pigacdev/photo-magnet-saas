@@ -4,8 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { OrganizationUsage, User } from "@/lib/auth";
 import { SidebarPlanBadge } from "./SidebarPlanBadge";
-import { DASHBOARD_NAV_ITEMS, isDashboardNavActive } from "./dashboardNav";
+import {
+  DASHBOARD_NAV_ITEMS,
+  DASHBOARD_STOREFRONT_NAV_BASE,
+  isDashboardNavActive,
+  storefrontNavHref,
+} from "./dashboardNav";
 import { DashboardNavIcon } from "./dashboardNavIcons";
+import { useSellerStorefront } from "@/hooks/useSellerStorefront";
 
 function LogoMark() {
   return (
@@ -42,6 +48,7 @@ export function DashboardSidebar({
   className = "",
 }: DashboardSidebarProps) {
   const pathname = usePathname();
+  const { storefront } = useSellerStorefront();
 
   return (
     <aside
@@ -63,11 +70,15 @@ export function DashboardSidebar({
       <div className="p-3">
         <nav className="flex flex-col gap-0.5">
           {DASHBOARD_NAV_ITEMS.map((item) => {
-            const isActive = isDashboardNavActive(pathname, item.href);
+            const href =
+              item.href === DASHBOARD_STOREFRONT_NAV_BASE
+                ? storefrontNavHref(storefront?.id ?? null)
+                : item.href;
+            const isActive = isDashboardNavActive(pathname, href);
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={href}
                 onClick={onNavigate}
                 className={`relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isActive

@@ -14,6 +14,8 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import { PlanUsageAlertBanner } from "@/components/dashboard/PlanUsageAlertBanner";
+import { storefrontNavHref } from "@/components/dashboard/dashboardNav";
+import { useSellerStorefront } from "@/hooks/useSellerStorefront";
 
 type Last7DayPoint = {
   date: string;
@@ -240,6 +242,7 @@ function DashboardTrendsChart({
 }
 
 export default function DashboardPage() {
+  const { storefront } = useSellerStorefront();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [trendMode, setTrendMode] = useState<"days" | "months">("days");
@@ -357,7 +360,7 @@ export default function DashboardPage() {
           </p>
         </Link>
         <Link
-          href="/dashboard/storefronts"
+          href={storefrontNavHref(storefront?.id ?? null)}
           className="rounded-lg border border-gray-200 p-6 transition-colors hover:border-gray-300 hover:bg-[#F9FAFB]"
         >
           <h2 className="text-base font-medium text-[#111111]">Storefront</h2>

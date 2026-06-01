@@ -39,6 +39,14 @@ storefrontsRouter.post("/", async (req, res) => {
     return;
   }
 
+  const existingCount = await prisma.storefront.count({
+    where: { userId, deletedAt: null },
+  });
+  if (existingCount >= 1) {
+    res.status(409).json({ error: "Organization already has a storefront" });
+    return;
+  }
+
   let maxMagnets: number | null | undefined;
   if (maxMagnetsPerOrder !== undefined) {
     const parsed = parseMaxMagnetsPerOrderInput(maxMagnetsPerOrder);

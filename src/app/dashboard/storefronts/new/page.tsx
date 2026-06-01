@@ -1,14 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { useSellerStorefront } from "@/hooks/useSellerStorefront";
 
 export default function NewStorefrontPage() {
   const router = useRouter();
+  const { storefront, loading: resolvingStorefront } = useSellerStorefront();
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!resolvingStorefront && storefront) {
+      router.replace(`/dashboard/storefronts/${storefront.id}`);
+    }
+  }, [resolvingStorefront, storefront, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,10 +35,19 @@ export default function NewStorefrontPage() {
       });
       router.push(`/dashboard/storefronts/${created.storefront.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create storefront");
+      const message = err instanceof Error ? err.message : "Failed to create storefront";
+      if (message.toLowerCase().includes("already has a storefront")) {
+        setError("You already have a storefront.");
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
+  }
+
+  if (resolvingStorefront || storefront) {
+    return <p className="text-sm text-[#6B7280]">Loading…</p>;
   }
 
   return (

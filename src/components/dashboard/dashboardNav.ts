@@ -12,9 +12,30 @@ export const DASHBOARD_NAV_ITEMS: ReadonlyArray<{
   { href: "/dashboard/calendar", label: "Calendar", icon: "calendar" },
 ];
 
+export const DASHBOARD_STOREFRONT_NAV_BASE = "/dashboard/storefronts";
+
+export function storefrontNavHref(storefrontId: string | null): string {
+  return storefrontId
+    ? `${DASHBOARD_STOREFRONT_NAV_BASE}/${storefrontId}`
+    : DASHBOARD_STOREFRONT_NAV_BASE;
+}
+
+export function isStorefrontNavHref(href: string): boolean {
+  return (
+    href === DASHBOARD_STOREFRONT_NAV_BASE ||
+    href.startsWith(`${DASHBOARD_STOREFRONT_NAV_BASE}/`)
+  );
+}
+
 export function isDashboardNavActive(pathname: string, href: string): boolean {
   if (href === "/dashboard") {
     return pathname === "/dashboard";
+  }
+  if (isStorefrontNavHref(href)) {
+    return (
+      pathname === DASHBOARD_STOREFRONT_NAV_BASE ||
+      pathname.startsWith(`${DASHBOARD_STOREFRONT_NAV_BASE}/`)
+    );
   }
   return pathname.startsWith(href);
 }
