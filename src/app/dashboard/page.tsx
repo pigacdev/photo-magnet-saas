@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "@/lib/api";
+import { PlanUsageAlertBanner } from "@/components/dashboard/PlanUsageAlertBanner";
 
 type Last7DayPoint = {
   date: string;
@@ -260,6 +261,7 @@ export default function DashboardPage() {
   return (
     <div className="dashboard-page">
       <div>
+        <PlanUsageAlertBanner />
         <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
           Dashboard
         </h1>

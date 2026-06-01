@@ -2,6 +2,12 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { canAcceptOrders } from "../lib/event";
 import { canStorefrontAcceptOrders } from "../lib/storefront";
+import {
+  BUYER_EVENT_ORDER_LIMIT_MESSAGE,
+  BUYER_STORE_ORDER_LIMIT_MESSAGE,
+  canOrganizationAcceptOrders,
+  ORDER_LIMIT_REACHED,
+} from "../lib/saas";
 
 export const publicRouter = Router();
 
@@ -28,11 +34,32 @@ publicRouter.get("/entry/:contextType/:contextId", async (req, res) => {
     ]);
 
     const orderCheck = canAcceptOrders(event, pricingCount, shapeCount);
+    if (!orderCheck.ok) {
+      res.json({
+        name: event.name,
+        canOrder: false,
+        unavailableReason: orderCheck.reason,
+        unavailableCode: null,
+      });
+      return;
+    }
+
+    const orgLimit = await canOrganizationAcceptOrders(event.userId);
+    if (!orgLimit.ok) {
+      res.json({
+        name: event.name,
+        canOrder: false,
+        unavailableReason: BUYER_EVENT_ORDER_LIMIT_MESSAGE,
+        unavailableCode: ORDER_LIMIT_REACHED,
+      });
+      return;
+    }
 
     res.json({
       name: event.name,
-      canOrder: orderCheck.ok,
-      unavailableReason: orderCheck.ok ? null : orderCheck.reason,
+      canOrder: true,
+      unavailableReason: null,
+      unavailableCode: null,
     });
     return;
   }
@@ -60,11 +87,32 @@ publicRouter.get("/entry/:contextType/:contextId", async (req, res) => {
       pricingCount,
       shapeCount,
     );
+    if (!orderCheck.ok) {
+      res.json({
+        name: storefront.name,
+        canOrder: false,
+        unavailableReason: orderCheck.reason,
+        unavailableCode: null,
+      });
+      return;
+    }
+
+    const orgLimit = await canOrganizationAcceptOrders(storefront.userId);
+    if (!orgLimit.ok) {
+      res.json({
+        name: storefront.name,
+        canOrder: false,
+        unavailableReason: BUYER_STORE_ORDER_LIMIT_MESSAGE,
+        unavailableCode: ORDER_LIMIT_REACHED,
+      });
+      return;
+    }
 
     res.json({
       name: storefront.name,
-      canOrder: orderCheck.ok,
-      unavailableReason: orderCheck.ok ? null : orderCheck.reason,
+      canOrder: true,
+      unavailableReason: null,
+      unavailableCode: null,
     });
     return;
   }

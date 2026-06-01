@@ -2,15 +2,12 @@
 
 import Link from "next/link";
 import type { OrganizationUsage, User } from "@/lib/auth";
+import {
+  getPlanUsageLevel,
+  usageBarFillClass,
+  usagePercentage,
+} from "@/lib/planUsage";
 import { userInitials } from "./UserProfileSummary";
-
-function usagePercentage(usage: OrganizationUsage): number {
-  if (usage.plan !== "FREE" || usage.orderLimit <= 0) return 0;
-  return Math.min(
-    100,
-    Math.round((usage.ordersThisMonth / usage.orderLimit) * 100),
-  );
-}
 
 export type SidebarPlanBadgeProps = {
   user: User;
@@ -19,11 +16,18 @@ export type SidebarPlanBadgeProps = {
 
 export function SidebarPlanBadge({ user, usage }: SidebarPlanBadgeProps) {
   const displayName = user.name?.trim() || user.email;
+  const usageLevel = usage ? getPlanUsageLevel(usage) : "normal";
 
   return (
     <Link
       href="/dashboard/billing"
-      className="block rounded-lg border border-gray-200 bg-[#F9FAFB] p-3 transition-colors hover:bg-gray-100"
+      className={`block rounded-lg border p-3 transition-colors hover:bg-gray-100 ${
+        usageLevel === "reached"
+          ? "border-red-200 bg-red-50/50 hover:bg-red-50"
+          : usageLevel === "warning"
+            ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50"
+            : "border-gray-200 bg-[#F9FAFB]"
+      }`}
     >
       <div className="flex flex-col items-center text-center">
         <div
@@ -62,7 +66,7 @@ export function SidebarPlanBadge({ user, usage }: SidebarPlanBadgeProps) {
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-gray-200">
                   <div
-                    className="h-1.5 rounded-full bg-[#2563EB] transition-all"
+                    className={`h-1.5 rounded-full transition-all ${usageBarFillClass(usageLevel)}`}
                     style={{ width: `${usagePercentage(usage)}%` }}
                   />
                 </div>

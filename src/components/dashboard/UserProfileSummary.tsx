@@ -3,6 +3,11 @@
 import { useState } from "react";
 import type { OrganizationUsage, User } from "@/lib/auth";
 import { invalidateAuthCache, getMe } from "@/lib/auth";
+import {
+  getPlanUsageLevel,
+  usageBarFillClassCompact,
+  usagePercentage,
+} from "@/lib/planUsage";
 
 function formatPeriodDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -10,14 +15,6 @@ function formatPeriodDate(iso: string): string {
     day: "numeric",
     year: "numeric",
   });
-}
-
-function usagePercentage(usage: OrganizationUsage): number {
-  if (usage.plan !== "FREE" || usage.orderLimit <= 0) return 0;
-  return Math.min(
-    100,
-    Math.round((usage.ordersThisMonth / usage.orderLimit) * 100),
-  );
 }
 
 function userInitials(user: User): string {
@@ -51,6 +48,7 @@ export function UserProfileSummary({
   const [actionError, setActionError] = useState("");
 
   const percentage = usage ? usagePercentage(usage) : 0;
+  const usageLevel = usage ? getPlanUsageLevel(usage) : "normal";
   const isCompact = variant === "compact";
 
   async function refreshAfterAction() {
@@ -173,16 +171,16 @@ export function UserProfileSummary({
               </div>
               <div className="h-1.5 w-full rounded-full bg-gray-200">
                 <div
-                  className="h-1.5 rounded-full bg-[#111111] transition-all"
+                  className={`h-1.5 rounded-full transition-all ${usageBarFillClassCompact(usageLevel)}`}
                   style={{ width: `${percentage}%` }}
                 />
               </div>
-              {percentage >= 80 && percentage < 100 && (
+              {usageLevel === "warning" && (
                 <p className={`text-orange-600 ${isCompact ? "text-xs" : "text-sm"}`}>
                   You&apos;re close to your monthly limit.
                 </p>
               )}
-              {percentage >= 100 && (
+              {usageLevel === "reached" && (
                 <p className={`text-red-600 ${isCompact ? "text-xs" : "text-sm"}`}>
                   Monthly limit reached.
                 </p>

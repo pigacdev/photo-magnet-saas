@@ -336,6 +336,18 @@ function CustomerPageInner() {
         p.set("orderId", result.orderId);
         router.push(`/order/success?${p.toString()}`);
       } catch (err) {
+        const code =
+          err && typeof err === "object" && "code" in err
+            ? (err as { code?: string }).code
+            : undefined;
+        if (
+          code === "ORDER_LIMIT_REACHED" ||
+          (err instanceof Error && err.message.includes("ORDER_LIMIT_REACHED"))
+        ) {
+          const q = typeof window !== "undefined" ? window.location.search : "";
+          router.push(`/order/unavailable${q}`);
+          return;
+        }
         setError(err instanceof Error ? err.message : "Could not place order");
       } finally {
         setSaving(false);

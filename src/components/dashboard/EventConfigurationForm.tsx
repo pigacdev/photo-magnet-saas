@@ -19,6 +19,8 @@ import {
   type PricingRule,
 } from "@/components/PricingEditor";
 import { ShareLinkCard } from "@/components/dashboard/ShareLinkCard";
+import { getCachedOrganizationUsage } from "@/lib/auth";
+import { getPlanUsageLevel } from "@/lib/planUsage";
 
 type AllowedShape = {
   id: string;
@@ -244,6 +246,9 @@ export function EventConfigurationForm({
 
   const ordersReady =
     event.configurationComplete === true && event.isOpen === true;
+  const usage = getCachedOrganizationUsage();
+  const monthlyLimitReached =
+    usage != null && getPlanUsageLevel(usage) === "reached";
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="space-y-8">
@@ -424,6 +429,7 @@ export function EventConfigurationForm({
           entityName={event.name}
           entityId={event.id}
           ordersEnabled={ordersReady}
+          monthlyLimitReached={monthlyLimitReached}
         />
       </div>
 

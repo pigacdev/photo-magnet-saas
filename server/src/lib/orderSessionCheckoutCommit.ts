@@ -12,7 +12,12 @@ import {
   orderImageStorageKindFromSessionUrl,
 } from "./orderImageStorage";
 import { getPerItemEffectiveMaxMagnetsPerOrder } from "./maxMagnetsPerOrder";
-import { assertCanCreateOrder, ORDER_LIMIT_REACHED } from "./saas";
+import {
+  assertCanCreateOrder,
+  BUYER_STORE_ORDER_LIMIT_MESSAGE,
+  ORDER_LIMIT_REACHED,
+  SELLER_ORDER_LIMIT_MESSAGE,
+} from "./saas";
 import type { ValidatedCustomerPayload } from "./orderCustomerValidation";
 
 type ImageCopyPayload = { imageId: string; copies: number };
@@ -285,7 +290,10 @@ export async function prepareOrderSessionCommit(
 /**
  * Enforce org limits (call before transaction).
  */
-export async function checkOrgOrderLimit(organizationId: string): Promise<PrepareCommitError | null> {
+export async function checkOrgOrderLimit(
+  organizationId: string,
+  audience: "buyer" | "seller" = "seller",
+): Promise<PrepareCommitError | null> {
   try {
     await assertCanCreateOrder(String(organizationId));
   } catch (err) {
@@ -294,7 +302,10 @@ export async function checkOrgOrderLimit(organizationId: string): Promise<Prepar
         status: 403,
         code: "ORDER_LIMIT_REACHED",
         error: "ORDER_LIMIT_REACHED",
-        message: "Free plan limit reached. Upgrade to continue.",
+        message:
+          audience === "buyer"
+            ? BUYER_STORE_ORDER_LIMIT_MESSAGE
+            : SELLER_ORDER_LIMIT_MESSAGE,
       };
     }
     if (err instanceof Error && err.message === "Organization not found") {

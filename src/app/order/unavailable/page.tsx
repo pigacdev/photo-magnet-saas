@@ -80,21 +80,34 @@ function OrderUnavailableInner() {
     contextKey != null ? nameByContextKey[contextKey] : undefined;
 
   const personalizedLine = useMemo(() => {
-    if (!displayName) return null;
     if (context?.kind === "event") {
-      return `This event (${displayName}) is temporarily unavailable`;
+      return "Ordering is not available for this event";
     }
-    return `This store (${displayName}) is temporarily unavailable`;
-  }, [displayName, context?.kind]);
+    if (context?.kind === "storefront") {
+      return "Ordering is not available for this store";
+    }
+    return null;
+  }, [context?.kind]);
+
+  const subtitle = useMemo(() => {
+    if (context?.kind === "event") {
+      return displayName
+        ? `${displayName} is not accepting orders right now. Please contact the organizer.`
+        : "This event is not accepting orders right now. Please contact the organizer.";
+    }
+    return displayName
+      ? `${displayName} is not accepting orders right now. Please contact the store.`
+      : "This store is not accepting orders right now. Please contact the store.";
+  }, [context?.kind, displayName]);
 
   return (
     <OrderShell contentWidth="medium" className="justify-center pb-10">
       <div className="w-full space-y-4 text-center">
         <OrderStepHeader
           title={
-            personalizedLine ?? "Store temporarily unavailable"
+            personalizedLine ?? "Ordering is not available"
           }
-          subtitle="This store has reached its monthly order limit. Please try again later."
+          subtitle={subtitle}
         />
 
         <Link

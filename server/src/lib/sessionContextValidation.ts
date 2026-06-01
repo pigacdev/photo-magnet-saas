@@ -2,6 +2,11 @@ import type { Event, Storefront } from "../../../src/generated/prisma/client";
 import { prisma } from "./prisma";
 import { canAcceptOrders } from "./event";
 import { canStorefrontAcceptOrders } from "./storefront";
+import {
+  BUYER_EVENT_ORDER_LIMIT_MESSAGE,
+  BUYER_STORE_ORDER_LIMIT_MESSAGE,
+  canOrganizationAcceptOrders,
+} from "./saas";
 
 /**
  * Single place for “can this context start / keep an order session?” rules:
@@ -44,6 +49,15 @@ export async function validateEventOrderContext(
     return { ok: false, notFound: false, reason: check.reason };
   }
 
+  const orgLimit = await canOrganizationAcceptOrders(event.userId);
+  if (!orgLimit.ok) {
+    return {
+      ok: false,
+      notFound: false,
+      reason: BUYER_EVENT_ORDER_LIMIT_MESSAGE,
+    };
+  }
+
   return { ok: true, event };
 }
 
@@ -70,6 +84,15 @@ export async function validateStorefrontOrderContext(
   const check = canStorefrontAcceptOrders(storefront, pricing.length, shapeCount);
   if (!check.ok) {
     return { ok: false, notFound: false, reason: check.reason };
+  }
+
+  const orgLimit = await canOrganizationAcceptOrders(storefront.userId);
+  if (!orgLimit.ok) {
+    return {
+      ok: false,
+      notFound: false,
+      reason: BUYER_STORE_ORDER_LIMIT_MESSAGE,
+    };
   }
 
   return { ok: true, storefront };

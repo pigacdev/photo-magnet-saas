@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -13,6 +14,8 @@ export type ShareLinkCardProps = {
   entityId: string;
   /** When false, shows that customer ordering is not yet available. */
   ordersEnabled?: boolean;
+  /** When true, blurs link details because the seller hit the monthly order cap. */
+  monthlyLimitReached?: boolean;
 };
 
 const QR_PX = 168;
@@ -197,6 +200,7 @@ export function ShareLinkCard({
   entityName,
   entityId,
   ordersEnabled = true,
+  monthlyLimitReached = false,
 }: ShareLinkCardProps) {
   const [copied, setCopied] = useState(false);
   const [pngLoading, setPngLoading] = useState(false);
@@ -279,56 +283,85 @@ export function ShareLinkCard({
       {!hasUrl ? (
         <p className="mt-3 text-sm text-[#6B7280]">QR unavailable</p>
       ) : (
-        <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
-          <div className="min-w-0 flex-1 space-y-2">
-            <p className="break-all text-sm font-medium text-[#111111]">
-              {trimmed}
-            </p>
-            <button
-              type="button"
-              onClick={() => void copy()}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-white/80"
-            >
-              {copied ? "Copied!" : "Copy link"}
-            </button>
-          </div>
-          <div className="flex w-full max-w-[12.5rem] shrink-0 flex-col items-stretch sm:max-w-[11rem]">
-            <div className="mx-auto rounded-lg border border-gray-200 bg-white p-2">
-              <QRCodeCanvas
-                ref={canvasRef}
-                value={trimmed}
-                size={QR_PX}
-                level={QR_LEVEL}
-                marginSize={QR_MARGIN_MODULES}
-                title={`QR code for ${label}`}
-              />
-            </div>
-            <div className="mt-3 flex w-full flex-col gap-2">
-              <button
-                type="button"
-                disabled={pngLoading}
-                onClick={() => void downloadPng()}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {pngLoading ? "Preparing…" : "Download PNG"}
-              </button>
-              <button
-                type="button"
-                disabled={pdfLoading}
-                onClick={() => {
-                  void downloadPdf();
-                }}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {pdfLoading ? "Preparing…" : "Download PDF"}
-              </button>
-              {pdfError ? (
-                <p className="text-center text-xs leading-snug text-red-600" role="alert">
-                  {pdfError}
+        <div className="relative mt-3">
+          <div
+            className={
+              monthlyLimitReached
+                ? "pointer-events-none select-none blur-sm opacity-60"
+                : undefined
+            }
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="break-all text-sm font-medium text-[#111111]">
+                  {trimmed}
                 </p>
-              ) : null}
+                <button
+                  type="button"
+                  onClick={() => void copy()}
+                  disabled={monthlyLimitReached}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {copied ? "Copied!" : "Copy link"}
+                </button>
+              </div>
+              <div className="flex w-full max-w-[12.5rem] shrink-0 flex-col items-stretch sm:max-w-[11rem]">
+                <div className="mx-auto rounded-lg border border-gray-200 bg-white p-2">
+                  <QRCodeCanvas
+                    ref={canvasRef}
+                    value={trimmed}
+                    size={QR_PX}
+                    level={QR_LEVEL}
+                    marginSize={QR_MARGIN_MODULES}
+                    title={`QR code for ${label}`}
+                  />
+                </div>
+                <div className="mt-3 flex w-full flex-col gap-2">
+                  <button
+                    type="button"
+                    disabled={pngLoading || monthlyLimitReached}
+                    onClick={() => void downloadPng()}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {pngLoading ? "Preparing…" : "Download PNG"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pdfLoading || monthlyLimitReached}
+                    onClick={() => {
+                      void downloadPdf();
+                    }}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {pdfLoading ? "Preparing…" : "Download PDF"}
+                  </button>
+                  {pdfError ? (
+                    <p className="text-center text-xs leading-snug text-red-600" role="alert">
+                      {pdfError}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </div>
+          {monthlyLimitReached ? (
+            <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-white/70 px-4 py-6 text-center">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-red-800">
+                  Monthly usage has been reached
+                </p>
+                <p className="text-xs text-[#374151]">
+                  Customer ordering is paused until you upgrade or your usage resets.
+                </p>
+                <Link
+                  href="/dashboard/billing"
+                  className="inline-block text-sm font-medium text-[#2563EB] underline"
+                >
+                  Upgrade to PRO
+                </Link>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

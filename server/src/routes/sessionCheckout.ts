@@ -4,7 +4,7 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { sessionConfig } from "../config/session";
-import { prepareOrderSessionCommit } from "../lib/orderSessionCheckoutCommit";
+import { prepareOrderSessionCommit, checkOrgOrderLimit } from "../lib/orderSessionCheckoutCommit";
 import { prisma } from "../lib/prisma";
 import { validateOrderSessionContext } from "../lib/sessionContextValidation";
 
@@ -57,6 +57,12 @@ sessionCheckoutRouter.post("/validate", async (req: Request, res: Response) => {
       return;
     }
     res.status(400).json({ error: contextOk.reason });
+    return;
+  }
+
+  const limitErr = await checkOrgOrderLimit(prepared.organizationId, "buyer");
+  if (limitErr) {
+    sendPrepareError(res, limitErr);
     return;
   }
 

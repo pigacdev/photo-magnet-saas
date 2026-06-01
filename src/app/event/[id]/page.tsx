@@ -12,7 +12,16 @@ type EventEntryMeta = {
   name: string;
   canOrder: boolean;
   unavailableReason: string | null;
+  unavailableCode?: string | null;
 };
+
+function unavailableMessage(meta: EventEntryMeta): string | null {
+  if (!meta.unavailableReason) return null;
+  if (meta.unavailableCode === "ORDER_LIMIT_REACHED") {
+    return meta.unavailableReason;
+  }
+  return `Ordering is not available: ${meta.unavailableReason}`;
+}
 
 export default function EventEntryPage() {
   const params = useParams();
@@ -78,7 +87,7 @@ export default function EventEntryPage() {
 
         {!canOrder && meta?.unavailableReason ? (
           <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-950">
-            Ordering is not available: {meta.unavailableReason}
+            {unavailableMessage(meta)}
           </p>
         ) : null}
 

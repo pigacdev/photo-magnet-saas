@@ -17,6 +17,8 @@ import {
   type PricingRule,
 } from "@/components/PricingEditor";
 import { ShareLinkCard } from "@/components/dashboard/ShareLinkCard";
+import { getCachedOrganizationUsage } from "@/lib/auth";
+import { getPlanUsageLevel } from "@/lib/planUsage";
 
 type AllowedShape = {
   id: string;
@@ -248,6 +250,9 @@ export function StorefrontConfigurationForm({
 
   const ordersReady =
     storefront.configurationComplete === true && storefront.isOpen === true;
+  const usage = getCachedOrganizationUsage();
+  const monthlyLimitReached =
+    usage != null && getPlanUsageLevel(usage) === "reached";
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="space-y-8">
@@ -408,6 +413,7 @@ export function StorefrontConfigurationForm({
         entityName={storefront.name}
         entityId={storefront.id}
         ordersEnabled={ordersReady}
+        monthlyLimitReached={monthlyLimitReached}
       />
 
       {formError ? (

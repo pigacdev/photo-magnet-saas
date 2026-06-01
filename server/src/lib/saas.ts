@@ -1,6 +1,18 @@
+import type { Plan } from "../../../src/generated/prisma/client";
 import { prisma } from "./prisma";
 
 export const ORDER_LIMIT_REACHED = "ORDER_LIMIT_REACHED";
+
+export const SELLER_ORDER_LIMIT_MESSAGE =
+  "Free plan limit reached. Upgrade to continue.";
+
+export const BUYER_STORE_ORDER_LIMIT_MESSAGE =
+  "Ordering is not available for this store. Please contact the store.";
+
+export const BUYER_EVENT_ORDER_LIMIT_MESSAGE =
+  "Ordering is not available for this event. Please contact the organizer.";
+
+export type OrganizationUsageLevel = "normal" | "warning" | "reached";
 
 /** Next monthly billing boundary from `from` (default: now + 1 calendar month). */
 export function defaultBillingPeriodEnd(from: Date = new Date()): Date {
@@ -9,11 +21,26 @@ export function defaultBillingPeriodEnd(from: Date = new Date()): Date {
   return end;
 }
 
-export async function assertCanCreateOrder(orgId: string): Promise<void> {
-  const now = new Date();
-  const newEnd = defaultBillingPeriodEnd(now);
+export function usageWarningThreshold(orderLimit: number): number {
+  if (orderLimit <= 0) return 0;
+  return Math.ceil(orderLimit * 0.7);
+}
 
-  /** Only rows still in the previous period match — at most one concurrent reset wins. */
+export function getOrganizationUsageLevel(org: {
+  plan: Plan;
+  ordersThisMonth: number;
+  orderLimit: number;
+}): OrganizationUsageLevel {
+  if (org.plan === "PRO") return "normal";
+  if (org.ordersThisMonth >= org.orderLimit) return "reached";
+  if (org.ordersThisMonth >= usageWarningThreshold(org.orderLimit)) {
+    return "warning";
+  }
+  return "normal";
+}
+
+async function refreshOrganizationPeriodIfExpired(orgId: string, now: Date): Promise<void> {
+  const newEnd = defaultBillingPeriodEnd(now);
   await prisma.organization.updateMany({
     where: {
       id: orgId,
@@ -25,6 +52,11 @@ export async function assertCanCreateOrder(orgId: string): Promise<void> {
       currentPeriodEnd: newEnd,
     },
   });
+}
+
+export async function assertCanCreateOrder(orgId: string): Promise<void> {
+  const now = new Date();
+  await refreshOrganizationPeriodIfExpired(orgId, now);
 
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
@@ -36,6 +68,23 @@ export async function assertCanCreateOrder(orgId: string): Promise<void> {
 
   if (org.ordersThisMonth >= org.orderLimit) {
     throw new Error(ORDER_LIMIT_REACHED);
+  }
+}
+
+export async function canOrganizationAcceptOrders(
+  orgId: string,
+): Promise<{ ok: true } | { ok: false }> {
+  try {
+    await assertCanCreateOrder(String(orgId));
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof Error && err.message === ORDER_LIMIT_REACHED) {
+      return { ok: false };
+    }
+    if (err instanceof Error && err.message === "Organization not found") {
+      return { ok: false };
+    }
+    throw err;
   }
 }
 
