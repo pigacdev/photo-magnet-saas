@@ -14,7 +14,14 @@ import { api } from "@/lib/api";
 import { formatOrderReference } from "@/lib/orderReference";
 import {
   ORDER_STATUS_BADGE_CLASS,
+  ORDER_STATUS_FILTER_GROUPS,
+  ORDER_STATUS_FILTER_OPTIONS,
+  isStatusFilterAtomicChecked,
+  isStatusFilterGroupChecked,
   orderStatusLabel,
+  statusFilterSelectionLabels,
+  toggleStatusFilterAtomic,
+  toggleStatusFilterGroup,
   type OrderWorkflowStatus,
 } from "@/lib/orderDisplayStatus";
 
@@ -131,42 +138,6 @@ function isoToDateInputValue(iso: string | null): string {
   const mo = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${mo}-${day}`;
-}
-
-const SELLER_LIST_STATUS_OPTIONS = [
-  { value: "new", label: "New / awaiting payment" },
-  { value: "ready", label: "Ready to print" },
-  { value: "partial", label: "Partially printed" },
-  { value: "printed", label: "Printed" },
-  { value: "shipped", label: "Shipped" },
-  { value: "completed", label: "Completed" },
-  { value: "cancelled", label: "Cancelled" },
-] as const;
-
-type SellerListStatusValue = (typeof SELLER_LIST_STATUS_OPTIONS)[number]["value"];
-
-function parseStatusSelectionsFromParam(
-  param: string | null,
-): SellerListStatusValue[] {
-  if (!param?.trim()) return [];
-  const out: SellerListStatusValue[] = [];
-  const seen = new Set<string>();
-  for (const raw of param.split(",")) {
-    const s = raw.trim().toLowerCase();
-    if (!s || seen.has(s)) continue;
-    const opt = SELLER_LIST_STATUS_OPTIONS.find((o) => o.value === s);
-    if (!opt) continue;
-    seen.add(s);
-    out.push(opt.value);
-  }
-  return out;
-}
-
-function statusParamFromSelections(selected: SellerListStatusValue[]): string {
-  const set = new Set(selected);
-  return SELLER_LIST_STATUS_OPTIONS.map((o) => o.value)
-    .filter((v) => set.has(v))
-    .join(",");
 }
 
 function OrderCustomerCell({ o }: { o: SellerOrderListItem }) {
@@ -442,9 +413,10 @@ function OrdersListContent() {
   const sortOrderCol =
     searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
-  const selectedStatuses = useMemo(
-    () => parseStatusSelectionsFromParam(searchParams.get("status")),
-    [searchParams],
+  const statusParam = searchParams.get("status");
+  const statusFilterLabels = useMemo(
+    () => statusFilterSelectionLabels(statusParam),
+    [statusParam],
   );
 
   function toggleSort(column: "createdAt" | "status") {
@@ -611,15 +583,9 @@ function OrdersListContent() {
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary marker:hidden focus-visible:ring-2 [&::-webkit-details-marker]:hidden">
               <span className="min-w-0 truncate">
                 <span className="font-medium text-muted-foreground">Showing:</span>{" "}
-                {selectedStatuses.length === 0
+                {statusFilterLabels.length === 0
                   ? "All"
-                  : selectedStatuses
-                      .map(
-                        (v) =>
-                          SELLER_LIST_STATUS_OPTIONS.find((o) => o.value === v)
-                            ?.label ?? v,
-                      )
-                      .join(", ")}
+                  : statusFilterLabels.join(", ")}
               </span>
               <span
                 className="shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
@@ -643,9 +609,49 @@ function OrdersListContent() {
                   All statuses
                 </button>
               </div>
-              <ul className="max-h-64 overflow-auto px-2 pt-2">
-                {SELLER_LIST_STATUS_OPTIONS.map((opt) => {
-                  const checked = selectedStatuses.includes(opt.value);
+              <p className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Shortcuts
+              </p>
+              <ul className="px-2 pb-2">
+                {ORDER_STATUS_FILTER_GROUPS.map((group) => {
+                  const checked = isStatusFilterGroupChecked(
+                    group.value,
+                    statusParam,
+                  );
+                  return (
+                    <li key={group.value}>
+                      <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-surface">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            const param = toggleStatusFilterGroup(
+                              group.value,
+                              statusParam,
+                            );
+                            replaceQuery((q) => {
+                              if (param) q.set("status", param);
+                              else q.delete("status");
+                              q.set("page", "1");
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                        />
+                        {group.label}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="border-t border-border px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Statuses
+              </p>
+              <ul className="max-h-64 overflow-auto px-2 pt-2 pb-2">
+                {ORDER_STATUS_FILTER_OPTIONS.map((opt) => {
+                  const checked = isStatusFilterAtomicChecked(
+                    opt.value,
+                    statusParam,
+                  );
                   return (
                     <li key={opt.value}>
                       <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-surface">
@@ -653,14 +659,11 @@ function OrdersListContent() {
                           type="checkbox"
                           checked={checked}
                           onChange={() => {
-                            const set = new Set(selectedStatuses);
-                            if (set.has(opt.value)) set.delete(opt.value);
-                            else set.add(opt.value);
-                            const next = SELLER_LIST_STATUS_OPTIONS.map(
-                              (o) => o.value,
-                            ).filter((v) => set.has(v));
+                            const param = toggleStatusFilterAtomic(
+                              opt.value,
+                              statusParam,
+                            );
                             replaceQuery((q) => {
-                              const param = statusParamFromSelections(next);
                               if (param) q.set("status", param);
                               else q.delete("status");
                               q.set("page", "1");

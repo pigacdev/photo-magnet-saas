@@ -28,6 +28,11 @@ import {
   parseCancellationNote,
   parseEventPaymentPreference,
 } from "../lib/orderStatus";
+import {
+  expandStatusFilterParams,
+  isKnownStatusFilterToken,
+  orderStatusSortPriority,
+} from "../lib/orderListStatusFilter";
 import { validateOrderSessionContext } from "../lib/sessionContextValidation";
 import {
   expandOrderImagesForPrintSheet,
@@ -74,54 +79,13 @@ function isReadyToPrintForSeller(order: { status: string }): boolean {
   return isPrintEligibleStatus(order.status as import("../../../src/generated/prisma/client").OrderStatus);
 }
 
-/** List UI filter — matches seller orders table. */
-function deriveSellerListStatusKey(o: {
-  shippedAt: Date | null;
-  status: string;
-  orderImages: { printed: boolean; mediaDeletedAt: Date | null }[];
-}): "new" | "ready" | "partial" | "printed" | "shipped" | "cancelled" | "completed" {
-  const status = o.status;
-  if (status === "CANCELLED") return "cancelled";
-  if (status === "COMPLETED") return "completed";
-  if (status === "SHIPPED" || o.shippedAt) return "shipped";
-  const printable = filterPrintableOrderImages(o.orderImages);
-  const total = printable.length;
-  const printed = printable.filter((img) => img.printed).length;
-
-  if (status === "NEW" || status === "CONFIRMED" || status === "INVOICE_SENT") {
-    return "new";
-  }
-
-  if (!isPrintEligibleStatus(status as import("../../../src/generated/prisma/client").OrderStatus)) {
-    return "new";
-  }
-
-  if (total === 0) return "printed";
-  if (printed === 0) return "ready";
-  if (printed < total) return "partial";
-  return "printed";
-}
-
-const LIST_STATUS_SORT_PRIORITY: Record<
-  "new" | "ready" | "partial" | "printed" | "shipped" | "cancelled" | "completed",
-  number
-> = {
-  new: 0,
-  ready: 1,
-  partial: 2,
-  printed: 3,
-  shipped: 4,
-  completed: 5,
-  cancelled: 6,
-};
-
 function parsePositiveInt(value: unknown, fallback: number): number {
   const n = Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(n) || n < 1) return fallback;
   return n;
 }
 
-/** GET /api/orders — seller list with search, filters, pagination (derived status filtered in memory). */
+/** GET /api/orders — seller list with search, filters, pagination (status filtered in memory). */
 ordersRouter.get(
   "/",
   authenticate,
@@ -137,25 +101,8 @@ ordersRouter.get(
       typeof req.query.search === "string" ? req.query.search.trim() : "";
     const statusRaw =
       typeof req.query.status === "string" ? req.query.status.trim().toLowerCase() : "";
-    const allowedStatus = new Set([
-      "new",
-      "ready",
-      "partial",
-      "printed",
-      "shipped",
-      "cancelled",
-      "completed",
-    ]);
-    /** Single or comma-separated (e.g. `printed,shipped`); OR match if any listed key matches. */
-    let statusFilters: (
-      | "new"
-      | "ready"
-      | "partial"
-      | "printed"
-      | "shipped"
-      | "cancelled"
-      | "completed"
-    )[] = [];
+    /** Single or comma-separated (e.g. `unpaid,paid`); OR match on workflow status. */
+    let statusFilterTokens: string[] = [];
     if (statusRaw.length > 0) {
       const parts = statusRaw
         .split(",")
@@ -163,25 +110,20 @@ ordersRouter.get(
         .filter(Boolean);
       const seen = new Set<string>();
       for (const p of parts) {
-        if (!allowedStatus.has(p)) {
+        if (!isKnownStatusFilterToken(p)) {
           res.status(400).json({ error: `Invalid status: ${p}` });
           return;
         }
         if (!seen.has(p)) {
           seen.add(p);
-          statusFilters.push(
-            p as
-              | "new"
-              | "ready"
-              | "partial"
-              | "printed"
-              | "shipped"
-              | "cancelled"
-              | "completed",
-          );
+          statusFilterTokens.push(p);
         }
       }
     }
+    const expandedStatusFilter =
+      statusFilterTokens.length > 0
+        ? expandStatusFilterParams(statusFilterTokens)
+        : null;
 
     let createdAt: { gte?: Date; lte?: Date } | undefined;
     const dateFrom =
@@ -325,14 +267,12 @@ ordersRouter.get(
         : "";
     const sortOrder = sortOrderRaw === "asc" ? "asc" : "desc";
 
-    const withDerived = filtered.map((o) => {
+    const mapped = filtered.map((o) => {
       const printable = filterPrintableOrderImages(o.orderImages);
       const totalImages = printable.length;
       const printedImages = printable.filter((img) => img.printed).length;
-      const listStatus = deriveSellerListStatusKey(o);
       return {
         row: o,
-        listStatus,
         payload: {
           id: o.id,
           shortCode: o.shortCode,
@@ -352,9 +292,9 @@ ordersRouter.get(
     });
 
     const statusFiltered =
-      statusFilters.length > 0
-        ? withDerived.filter((x) => statusFilters.includes(x.listStatus))
-        : withDerived;
+      expandedStatusFilter != null
+        ? mapped.filter((x) => expandedStatusFilter.has(x.row.status))
+        : mapped;
 
     const sortedList = [...statusFiltered].sort((x, y) => {
       if (sortBy === "createdAt") {
@@ -364,8 +304,12 @@ ordersRouter.get(
         if (cmp !== 0) return cmp;
         return x.row.id.localeCompare(y.row.id);
       }
-      const pa = LIST_STATUS_SORT_PRIORITY[x.listStatus];
-      const pb = LIST_STATUS_SORT_PRIORITY[y.listStatus];
+      const pa = orderStatusSortPriority(
+        x.row.status as import("../../../src/generated/prisma/client").OrderStatus,
+      );
+      const pb = orderStatusSortPriority(
+        y.row.status as import("../../../src/generated/prisma/client").OrderStatus,
+      );
       const cmp = sortOrder === "asc" ? pa - pb : pb - pa;
       if (cmp !== 0) return cmp;
       return y.row.createdAt.getTime() - x.row.createdAt.getTime();

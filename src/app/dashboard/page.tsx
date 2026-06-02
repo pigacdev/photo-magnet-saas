@@ -430,7 +430,7 @@ export default function DashboardPage() {
             label="Unpaid orders"
             value={statsLoading ? "…" : String(stats?.unpaidOrders ?? "—")}
             subtitle="Awaiting payment"
-            href="/dashboard/orders?status=new"
+            href="/dashboard/orders?status=unpaid"
           />
         </div>
 
