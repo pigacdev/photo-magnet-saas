@@ -24,6 +24,10 @@ import {
   toggleStatusFilterGroup,
   type OrderWorkflowStatus,
 } from "@/lib/orderDisplayStatus";
+import {
+  orderContextHref,
+  orderContextKindLabel,
+} from "@/lib/orderContextDisplay";
 
 export type SellerOrderListItem = {
   id: string;
@@ -33,6 +37,8 @@ export type SellerOrderListItem = {
   customerPhone: string | null;
   status: string;
   contextType: "EVENT" | "STOREFRONT";
+  contextId: string;
+  contextName: string | null;
   totalPrice: string;
   currency: string;
   createdAt: string;
@@ -165,6 +171,25 @@ function OrderStatusCell({ status }: { status: string }) {
       className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${badgeClass}`}
     >
       {orderStatusLabel(status)}
+    </span>
+  );
+}
+
+function OrderContextCell({ o }: { o: SellerOrderListItem }) {
+  if (o.contextName) {
+    return (
+      <Link
+        href={orderContextHref(o.contextType, o.contextId)}
+        onClick={(e) => e.stopPropagation()}
+        className="font-medium text-primary hover:underline"
+      >
+        {o.contextName}
+      </Link>
+    );
+  }
+  return (
+    <span className="text-muted-foreground">
+      {orderContextKindLabel(o.contextType)}
     </span>
   );
 }
@@ -735,6 +760,7 @@ function OrdersListContent() {
                             : null}
                         </button>
                       </th>
+                      <th className="px-4 py-3 font-medium">Source</th>
                       <th className="px-4 py-3 font-medium">
                         <button
                           type="button"
@@ -775,6 +801,9 @@ function OrdersListContent() {
                         <td className="px-4 py-3">
                           <OrderStatusCell status={o.status} />
                         </td>
+                        <td className="max-w-[180px] px-4 py-3">
+                          <OrderContextCell o={o} />
+                        </td>
                         <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                           {formatDate(o.createdAt)}
                         </td>
@@ -800,9 +829,17 @@ function OrdersListContent() {
               <ul className="flex flex-col gap-3 md:hidden">
                 {orders.map((o) => (
                   <li key={o.id}>
-                    <Link
-                      href={`/dashboard/orders/${o.id}`}
-                      className="block rounded-lg border border-border p-4 transition-colors active:bg-surface"
+                    <div
+                      role="link"
+                      tabIndex={0}
+                      className="block cursor-pointer rounded-lg border border-border p-4 transition-colors active:bg-surface"
+                      onClick={() => router.push(`/dashboard/orders/${o.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(`/dashboard/orders/${o.id}`);
+                        }
+                      }}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <span className="font-medium text-foreground">
@@ -827,8 +864,10 @@ function OrdersListContent() {
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">Type</p>
-                          <p className="text-foreground">{o.contextType}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {orderContextKindLabel(o.contextType)}
+                          </p>
+                          <OrderContextCell o={o} />
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Total</p>
@@ -837,7 +876,7 @@ function OrdersListContent() {
                           </p>
                         </div>
                       </div>
-                    </Link>
+                    </div>
                   </li>
                 ))}
               </ul>

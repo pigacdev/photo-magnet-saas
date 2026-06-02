@@ -27,6 +27,10 @@ import {
   type OrderWorkflowStatus,
 } from "@/lib/orderDisplayStatus";
 import { isReadyToPrint } from "@/lib/sellerOrderPrintStatus";
+import {
+  orderContextHref,
+  orderContextKindLabel,
+} from "@/lib/orderContextDisplay";
 
 type SellerOrderDetail = {
   orderId: string;
@@ -35,6 +39,7 @@ type SellerOrderDetail = {
   eventPaymentPreference?: string | null;
   contextType: "EVENT" | "STOREFRONT";
   contextId: string;
+  contextName: string | null;
   totalPrice: string;
   currency: string;
   createdAt: string;
@@ -473,9 +478,20 @@ export default function OrderDetailPage() {
             <dl className="mt-6 grid gap-4 sm:grid-cols-2">
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Type
+                  {orderContextKindLabel(order.contextType)}
                 </dt>
-                <dd className="mt-1 text-foreground">{order.contextType}</dd>
+                <dd className="mt-1 text-foreground">
+                  {order.contextName ? (
+                    <Link
+                      href={orderContextHref(order.contextType, order.contextId)}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {order.contextName}
+                    </Link>
+                  ) : (
+                    orderContextKindLabel(order.contextType)
+                  )}
+                </dd>
               </div>
               <div className="sm:col-span-2">
                 <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

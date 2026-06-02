@@ -46,6 +46,11 @@ import {
 } from "../lib/email";
 import { loadOrderNotificationContext } from "../lib/orderNotificationContext";
 import {
+  getOrderContextNameFromMap,
+  resolveOrderContextName,
+  resolveOrderContextNames,
+} from "../lib/orderContextDisplay";
+import {
   sendBuyerOrderConfirmationIfNeeded,
 } from "../lib/orderBuyerConfirmationEmail";
 import {
@@ -235,6 +240,7 @@ ordersRouter.get(
         printedAt: true,
         shippedAt: true,
         contextType: true,
+        contextId: true,
         totalPrice: true,
         currency: true,
         createdAt: true,
@@ -281,6 +287,7 @@ ordersRouter.get(
           customerPhone: o.customerPhone,
           status: o.status,
           contextType: o.contextType,
+          contextId: o.contextId,
           totalPrice: o.totalPrice.toString(),
           currency: o.currency,
           createdAt: o.createdAt.toISOString(),
@@ -321,9 +328,21 @@ ordersRouter.get(
     // Clamp requested page when filters/sort shrink results (e.g. page=5 but only 1 page left).
     const safePage = Math.min(page, totalPages);
     const skip = (safePage - 1) * pageSize;
-    const pageItems = sortedList
-      .slice(skip, skip + pageSize)
-      .map((x) => x.payload);
+    const pageSlice = sortedList.slice(skip, skip + pageSize);
+    const contextNames = await resolveOrderContextNames(
+      pageSlice.map((x) => ({
+        contextType: x.row.contextType,
+        contextId: x.row.contextId,
+      })),
+    );
+    const pageItems = pageSlice.map((x) => ({
+      ...x.payload,
+      contextName: getOrderContextNameFromMap(
+        contextNames,
+        x.row.contextType,
+        x.row.contextId,
+      ),
+    }));
 
     res.json({
       items: pageItems,
@@ -1276,6 +1295,10 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
           heightMm: sh?.heightMm ?? 0,
         };
       });
+      const contextName = await resolveOrderContextName(
+        orderRow.contextType,
+        orderRow.contextId,
+      );
       res.json({
         orderId: orderRow.id,
         status: orderRow.status,
@@ -1283,6 +1306,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
         eventPaymentPreference: orderRow.eventPaymentPreference,
         contextType: orderRow.contextType,
         contextId: orderRow.contextId,
+        contextName,
         totalPrice: orderRow.totalPrice.toString(),
         currency: orderRow.currency,
         imageCount: orderRow.orderImages.length,
