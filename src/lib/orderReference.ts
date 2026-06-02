@@ -7,3 +7,8 @@ export function formatOrderReference(order: {
   if (code) return code;
   return order.id.slice(0, 8);
 }
+
+/** Normalize pasted order reference (trim, strip leading #). */
+export function normalizeOrderReference(reference: string): string {
+  return reference.trim().replace(/^#+/, "");
+}

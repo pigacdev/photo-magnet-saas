@@ -26,6 +26,16 @@ const DEFAULT_FROM = "Magnetoo <onboarding@resend.dev>";
 /** Hardcoded Resend test sender. See docs/PRODUCTION-TODOS.md before go-live. */
 export const TEST_EMAIL_FROM = DEFAULT_FROM;
 
+/** Hardcoded support inbox for testing. See docs/PRODUCTION-TODOS.md before go-live. */
+export const SUPPORT_TICKET_TO = "magnetooprints@gmail.com";
+
+/** Hardcoded support sender for testing. See docs/PRODUCTION-TODOS.md before go-live. */
+export const SUPPORT_TICKET_FROM = TEST_EMAIL_FROM;
+
+export function isResendConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY?.trim());
+}
+
 function defaultFromAddress(): string {
   return process.env.RESEND_FROM_EMAIL?.trim() || DEFAULT_FROM;
 }
@@ -291,6 +301,70 @@ export async function sendNewOrderEmail(data: {
 }): Promise<void> {
   await sendEmail({
     to: data.to,
+    subject: data.subject,
+    html: data.html,
+  });
+}
+
+export function buildSupportTicketSubject(
+  contextSummary: string,
+  sellerName: string | null,
+): string {
+  const who = sellerName?.trim() || "Seller";
+  return `Support ticket — ${contextSummary} (${who})`;
+}
+
+export function buildSupportTicketHtml(data: {
+  sellerName: string | null;
+  sellerEmail: string;
+  contextSummary: string;
+  message: string;
+  submittedAt: Date;
+}): string {
+  const name = data.sellerName?.trim()
+    ? escapeHtml(data.sellerName.trim())
+    : "—";
+  const email = escapeHtml(data.sellerEmail);
+  const context = escapeHtml(data.contextSummary);
+  const body = escapeHtml(data.message).replace(/\n/g, "<br/>");
+  const when = escapeHtml(data.submittedAt.toISOString());
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:24px;background:#f9fafb;">
+  <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
+
+    <h2 style="margin:0 0 4px;font-size:20px;font-weight:600;">New support ticket</h2>
+    <p style="color:#666;margin:0;font-size:14px;">Submitted via Magnetoo dashboard</p>
+
+    <div style="border:1px solid #eee;border-radius:8px;padding:16px;margin-top:16px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.04);">
+
+      <p style="margin:8px 0;"><strong>Seller:</strong> ${name}</p>
+      <p style="margin:8px 0;"><strong>Email:</strong> ${email}</p>
+      <p style="margin:8px 0;"><strong>Context:</strong> ${context}</p>
+      <p style="margin:8px 0;"><strong>Submitted:</strong> ${when}</p>
+
+      <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
+
+      <p style="margin:8px 0 0;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#6B7280;">Message</p>
+      <p style="margin:8px 0 0;font-size:15px;white-space:pre-wrap;">${body}</p>
+
+    </div>
+
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendSupportTicketEmail(data: {
+  replyTo: string;
+  subject: string;
+  html: string;
+}): Promise<void> {
+  await sendEmail({
+    to: SUPPORT_TICKET_TO,
+    from: SUPPORT_TICKET_FROM,
+    replyTo: data.replyTo,
     subject: data.subject,
     html: data.html,
   });

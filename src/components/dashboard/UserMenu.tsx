@@ -112,6 +112,19 @@ export function UserMenu({ user, usage, onUsageRefresh }: UserMenuProps) {
             >
               Billing &amp; plan
             </Link>
+            <Link
+              href="/dashboard/support"
+              role="menuitem"
+              onClick={close}
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+            >
+              Contact support
+              {usage?.plan !== "PRO" && (
+                <span className="inline-flex rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 ring-1 ring-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-900">
+                  PRO
+                </span>
+              )}
+            </Link>
           </nav>
 
           <div className="my-2 border-t border-border" />

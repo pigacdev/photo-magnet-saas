@@ -122,6 +122,7 @@ function BillingContent() {
           <li>✔ Unlimited events</li>
           <li>✔ 1 storefront</li>
           <li>✔ Priority workflow</li>
+          <li>✔ Contact support</li>
         </ul>
 
         {upgradeError && (

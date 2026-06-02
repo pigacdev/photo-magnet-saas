@@ -12,6 +12,11 @@ export const BUYER_STORE_ORDER_LIMIT_MESSAGE =
 export const BUYER_EVENT_ORDER_LIMIT_MESSAGE =
   "Ordering is not available for this event. Please contact the organizer.";
 
+export const PRO_FEATURE_REQUIRED = "PRO_FEATURE_REQUIRED";
+
+export const PRO_FEATURE_REQUIRED_MESSAGE =
+  "Contact support is available on the PRO plan.";
+
 export type OrganizationUsageLevel = "normal" | "warning" | "reached";
 
 /** Next monthly billing boundary from `from` (default: now + 1 calendar month). */
@@ -69,6 +74,15 @@ export async function assertCanCreateOrder(orgId: string): Promise<void> {
   if (org.ordersThisMonth >= org.orderLimit) {
     throw new Error(ORDER_LIMIT_REACHED);
   }
+}
+
+export async function assertProPlan(orgId: string): Promise<void> {
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+  });
+
+  if (!org) throw new Error("Organization not found");
+  if (org.plan !== "PRO") throw new Error(PRO_FEATURE_REQUIRED);
 }
 
 export async function canOrganizationAcceptOrders(
