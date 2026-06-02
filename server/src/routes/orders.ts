@@ -1301,6 +1301,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
       );
       res.json({
         orderId: orderRow.id,
+        shortCode: orderRow.shortCode,
         status: orderRow.status,
         cancellationNote: orderRow.cancellationNote,
         eventPaymentPreference: orderRow.eventPaymentPreference,

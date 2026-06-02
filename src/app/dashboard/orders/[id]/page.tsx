@@ -31,9 +31,11 @@ import {
   orderContextHref,
   orderContextKindLabel,
 } from "@/lib/orderContextDisplay";
+import { formatOrderReference } from "@/lib/orderReference";
 
 type SellerOrderDetail = {
   orderId: string;
+  shortCode: string | null;
   status: string;
   cancellationNote?: string | null;
   eventPaymentPreference?: string | null;
@@ -84,6 +86,26 @@ export default function OrderDetailPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   /** After a successful "Print order", ask before marking — reinforces preview → confirm flow. */
   const [printOutcomePrompt, setPrintOutcomePrompt] = useState(false);
+  const [referenceCopied, setReferenceCopied] = useState(false);
+
+  const orderReference = useMemo(
+    () =>
+      order
+        ? formatOrderReference({ id: order.orderId, shortCode: order.shortCode })
+        : "",
+    [order],
+  );
+
+  const copyOrderReference = useCallback(async () => {
+    if (!orderReference) return;
+    try {
+      await navigator.clipboard.writeText(orderReference);
+      setReferenceCopied(true);
+      window.setTimeout(() => setReferenceCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }, [orderReference]);
 
   function loadOrder() {
     if (!id) return;
@@ -426,11 +448,19 @@ export default function OrderDetailPage() {
           >
           <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
           <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
-            <h1 className="text-lg font-semibold text-foreground sm:text-xl">
-              Order
-            </h1>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <h1 className="text-lg font-semibold text-foreground sm:text-xl">
+                Order ({orderReference})
+              </h1>
+              <button
+                type="button"
+                onClick={() => void copyOrderReference()}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-background/80"
+              >
+                {referenceCopied ? "Copied!" : "Copy reference"}
+              </button>
+            </div>
             <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-              <p className="break-all">{order.orderId}</p>
               <p>Created: {formatDate(order.createdAt)}</p>
               <p>
                 {allMediaRemoved ? (
