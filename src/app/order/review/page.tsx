@@ -35,6 +35,11 @@ import {
   persistCopyCountsNow,
   writeCheckoutImageCopies,
 } from "@/lib/checkoutImageCopiesStorage";
+import {
+  isBundleMagnetAllocationComplete,
+  sumImageCopies,
+  usesImageCopies,
+} from "@/lib/orderMagnetCounts";
 
 function formatMoney(amount: number | null, currency = "EUR"): string {
   if (amount == null || Number.isNaN(amount)) return "—";
@@ -139,20 +144,20 @@ export default function OrderReviewPage() {
     };
   }, [router]);
 
-  /** Restore from sessionStorage before defaulting; clear when not per-item. */
+  /** Restore from sessionStorage before defaulting; clear when copies not used. */
   useEffect(() => {
     if (!session) return;
-    const isPerItem = session.pricingType === "per_item";
-    if (!isPerItem) {
+    const pricingType = session.pricingType;
+    if (!usesImageCopies(pricingType)) {
       setCopiesByImageId({});
       clearCheckoutImageCopies();
       return;
     }
     const ids = images.map((i) => i.id);
-    setCopiesByImageId(buildCopiesRecordFromImageIds(ids, true));
+    setCopiesByImageId(buildCopiesRecordFromImageIds(ids, pricingType));
   }, [images, session]);
 
-  /** Keep sessionStorage in sync on every copy change (and after restore). */
+  /** Keep sessionStorage in sync on every copy change (per-item only; bundle is read-only here). */
   useEffect(() => {
     if (!session || session.pricingType !== "per_item" || images.length === 0) {
       return;
@@ -201,6 +206,7 @@ export default function OrderReviewPage() {
   const currency = pricing[0]?.currency ?? "EUR";
 
   const isPerItemPricing = session?.pricingType === "per_item";
+  const isBundlePricing = session?.pricingType === "bundle";
   const pricePerMagnet = useMemo(() => {
     const row = pricing.find((p) => p.type === "per_item");
     return row != null ? Number(row.price) : 0;
@@ -211,8 +217,12 @@ export default function OrderReviewPage() {
       return { totalMagnets: 0, liveTotalPrice: null as number | null };
     }
     if (!isPerItemPricing) {
+      const tm = sumImageCopies(
+        images.map((i) => i.id),
+        copiesByImageId,
+      );
       return {
-        totalMagnets: images.length,
+        totalMagnets: tm,
         liveTotalPrice: session.totalPrice,
       };
     }
@@ -236,7 +246,12 @@ export default function OrderReviewPage() {
     (!isPerItemPricing ||
       (liveTotalPrice != null &&
         liveTotalPrice > 0 &&
-        totalMagnets <= magnetCap));
+        totalMagnets <= magnetCap)) &&
+    (!isBundlePricing ||
+      isBundleMagnetAllocationComplete(
+        session.maxImagesAllowed,
+        totalMagnets,
+      ));
 
   const adjustCopies = useCallback(
     (imageId: string, delta: number) => {
@@ -266,8 +281,9 @@ export default function OrderReviewPage() {
   );
 
   const onCropLinkClick = useCallback(() => {
-    if (session?.pricingType === "per_item") {
-      persistCopyCountsNow(images, copiesByImageId, true);
+    const pricingType = session?.pricingType ?? null;
+    if (usesImageCopies(pricingType)) {
+      persistCopyCountsNow(images, copiesByImageId, pricingType);
     }
   }, [session?.pricingType, images, copiesByImageId]);
 
@@ -303,17 +319,17 @@ export default function OrderReviewPage() {
     setCommitting(true);
     try {
       const q = linkSearch || window.location.search;
-      const isPerItem = session?.pricingType === "per_item";
-      persistCopyCountsNow(images, copiesByImageId, Boolean(isPerItem));
-      const perItem =
-        isPerItem
+      const pricingType = session?.pricingType ?? null;
+      persistCopyCountsNow(images, copiesByImageId, pricingType);
+      const copyPayload =
+        usesImageCopies(pricingType)
           ? {
               imageCopies: buildCopyRowsFromState(images, copiesByImageId),
             }
           : {};
       await api<PostSessionCheckoutValidateResponse>("/api/session/checkout/validate", {
         method: "POST",
-        body: perItem,
+        body: copyPayload,
       });
       const customerParams = new URLSearchParams(q.replace(/^\?/, ""));
       customerParams.delete("orderId");
@@ -395,9 +411,9 @@ export default function OrderReviewPage() {
         </div>
       ) : (
         <p className="text-center text-sm font-medium text-foreground">
-          {images.length === 0
+          {totalMagnets === 0
             ? `0 magnets · ${formatMoney(session?.totalPrice ?? null, currency)}`
-            : `${images.length} magnet${images.length === 1 ? "" : "s"} · ${formatMoney(session?.totalPrice ?? null, currency)}`}
+            : `${totalMagnets} magnet${totalMagnets === 1 ? "" : "s"} · ${formatMoney(session?.totalPrice ?? null, currency)}`}
         </p>
       )}
       <button
@@ -441,6 +457,7 @@ export default function OrderReviewPage() {
               onCropLinkClick={onCropLinkClick}
               isLowResolution={getIsLowResolution(img, selectedShape)}
               isPerItemPricing={Boolean(isPerItemPricing && session)}
+              showCopyCount={Boolean(isBundlePricing && session)}
               copies={copiesByImageId[img.id] ?? 1}
               magnetCap={magnetCap}
               totalMagnets={totalMagnets}

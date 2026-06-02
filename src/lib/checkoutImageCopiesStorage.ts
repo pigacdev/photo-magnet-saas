@@ -1,9 +1,13 @@
 import { CHECKOUT_IMAGE_COPIES_STORAGE_KEY } from "@/lib/orderSessionTypes";
+import {
+  type PricingTypeForCopies,
+  usesImageCopies,
+} from "@/lib/orderMagnetCounts";
 
 export type CheckoutImageCopyRow = { imageId: string; copies: number };
 
 /**
- * Per-image copy counts for active checkout (per-item pricing).
+ * Per-image copy counts for active checkout (per-item and bundle pricing).
  * Survives review ↔ crop ↔ customer navigation within the same browser tab.
  */
 export function readCheckoutImageCopies(): CheckoutImageCopyRow[] {
@@ -53,13 +57,13 @@ export function clearCheckoutImageCopies(): void {
 
 /**
  * For each current image id, use stored copy count if valid, else 1.
- * Call for per_item sessions on review mount / when image list changes.
+ * Call on upload/review mount when pricing uses per-image copies.
  */
 export function buildCopiesRecordFromImageIds(
   imageIds: string[],
-  isPerItem: boolean,
+  pricingType: PricingTypeForCopies,
 ): Record<string, number> {
-  if (!isPerItem) return {};
+  if (!usesImageCopies(pricingType)) return {};
   const stored = readCheckoutImageCopies();
   const byId = new Map(stored.map((r) => [r.imageId, r.copies]));
   const next: Record<string, number> = {};
@@ -86,9 +90,9 @@ export function buildCopyRowsFromState(
 export function persistCopyCountsNow(
   images: { id: string }[],
   copiesByImageId: Record<string, number>,
-  isPerItem: boolean,
+  pricingType: PricingTypeForCopies,
 ): void {
-  if (!isPerItem) {
+  if (!usesImageCopies(pricingType)) {
     clearCheckoutImageCopies();
     return;
   }

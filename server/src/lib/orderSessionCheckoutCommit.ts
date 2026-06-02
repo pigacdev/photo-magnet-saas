@@ -262,6 +262,67 @@ export async function prepareOrderSessionCommit(
     const unit = Number(perItemRow.price);
     commitTotalPrice = roundMoney2(unit * sumCopies);
     commitOrderQuantity = sumCopies;
+  } else if (session.pricingType === "BUNDLE") {
+    const parsed = parseImageCopiesPayload(body);
+    if (!parsed) {
+      return {
+        ok: false,
+        err: {
+          status: 400,
+          error:
+            "imageCopies is required: an array of { imageId, copies } for each uploaded image",
+        },
+      };
+    }
+    const idSet = new Set(sessionImages.map((i) => i.id));
+    if (parsed.length !== sessionImages.length) {
+      return {
+        ok: false,
+        err: { status: 400, error: "imageCopies must list each uploaded image exactly once" },
+      };
+    }
+    const seen = new Set<string>();
+    let sumCopies = 0;
+    for (const row of parsed) {
+      if (!idSet.has(row.imageId) || seen.has(row.imageId)) {
+        return { ok: false, err: { status: 400, error: "Invalid imageCopies entries" } };
+      }
+      seen.add(row.imageId);
+      copiesBySessionImageId.set(row.imageId, row.copies);
+      sumCopies += row.copies;
+    }
+    if (seen.size !== sessionImages.length) {
+      return {
+        ok: false,
+        err: { status: 400, error: "imageCopies must list each uploaded image exactly once" },
+      };
+    }
+    if (!session.bundleId) {
+      return { ok: false, err: { status: 400, error: "Bundle not selected" } };
+    }
+    const bundleRow = await prisma.pricing.findFirst({
+      where: {
+        id: String(session.bundleId),
+        contextType: session.contextType,
+        contextId: String(session.contextId),
+        type: "BUNDLE",
+        deletedAt: null,
+      },
+    });
+    if (!bundleRow || bundleRow.quantity == null || bundleRow.quantity < 1) {
+      return { ok: false, err: { status: 500, error: "Bundle pricing is not configured" } };
+    }
+    const tierQuantity = bundleRow.quantity;
+    if (sumCopies !== tierQuantity) {
+      return {
+        ok: false,
+        err: {
+          status: 400,
+          error: `Total magnets (${sumCopies}) must match bundle size (${tierQuantity})`,
+        },
+      };
+    }
+    commitOrderQuantity = sumCopies;
   }
 
   const orderImageStorageKind =
@@ -447,8 +508,7 @@ export async function runOrderCommitTransaction(
         orderId,
         imageId: orderImageId,
       });
-      const lineCopies =
-        locked.pricingType === "PER_ITEM" ? (copiesBySessionImageId.get(img.id) ?? 1) : 1;
+      const lineCopies = copiesBySessionImageId.get(img.id) ?? 1;
       orderImageRows.push({
         id: orderImageId,
         orderId,

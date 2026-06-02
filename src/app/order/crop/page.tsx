@@ -19,6 +19,11 @@ import { OrderShell } from "@/components/order/OrderShell";
 import { OrderStepHeader } from "@/components/order/OrderStepHeader";
 import { orderBtnPrimary, orderLoadingScreen } from "@/components/order/orderUi";
 import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
+import { readCheckoutImageCopies } from "@/lib/checkoutImageCopiesStorage";
+import {
+  isBundleMagnetAllocationComplete,
+  sumImageCopies,
+} from "@/lib/orderMagnetCounts";
 import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
 import type {
   CatalogShape,
@@ -108,6 +113,26 @@ function OrderCropPageInner() {
         if (imagesRes.images.length === 0) {
           router.replace(photosHref);
           return;
+        }
+
+        if (sessionRes.session.pricingType === "bundle") {
+          const sortedForCheck = sortMagnetImagesByPosition(imagesRes.images);
+          const stored = readCheckoutImageCopies();
+          const byId = new Map(stored.map((r) => [r.imageId, r.copies]));
+          const copiesRecord: Record<string, number> = {};
+          for (const img of sortedForCheck) {
+            const c = byId.get(img.id);
+            copiesRecord[img.id] = typeof c === "number" && c >= 1 ? c : 1;
+          }
+          const total = sumImageCopies(
+            sortedForCheck.map((i) => i.id),
+            copiesRecord,
+          );
+          const required = sessionRes.session.maxImagesAllowed;
+          if (!isBundleMagnetAllocationComplete(required, total)) {
+            router.replace(photosHref);
+            return;
+          }
         }
 
         const sorted = sortMagnetImagesByPosition(imagesRes.images);

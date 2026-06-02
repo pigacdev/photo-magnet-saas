@@ -13,6 +13,8 @@ export type MagnetReviewCardProps = {
   onCropLinkClick?: () => void;
   isLowResolution: boolean;
   isPerItemPricing: boolean;
+  /** Read-only copy count for bundle pricing (no +/- controls). */
+  showCopyCount?: boolean;
   copies: number;
   magnetCap: number;
   totalMagnets: number;
@@ -38,6 +40,7 @@ export function MagnetReviewCard({
   onCropLinkClick,
   isLowResolution,
   isPerItemPricing,
+  showCopyCount = false,
   copies,
   magnetCap,
   totalMagnets,
@@ -95,6 +98,12 @@ export function MagnetReviewCard({
             +
           </button>
         </div>
+      )}
+
+      {showCopyCount && !isPerItemPricing && copies > 1 && (
+        <p className="mt-3 text-center text-sm font-medium tabular-nums text-muted-foreground">
+          ×{copies} copies
+        </p>
       )}
 
       <div className="mt-4 flex gap-2">

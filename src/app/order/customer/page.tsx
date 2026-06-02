@@ -226,7 +226,7 @@ function CustomerPageInner() {
           imageCount: sorted.length,
           selectedShape,
           perItemSummary: isPer ? { totalMagnets, lineTotal } : null,
-          bundleQuantity: isPer ? null : sessionRes.session.quantity,
+          bundleQuantity: isPer ? null : totalMagnets,
         });
       } catch (e) {
         if (!cancelled) {
