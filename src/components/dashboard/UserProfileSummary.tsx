@@ -194,7 +194,7 @@ export function UserProfileSummary({
             </p>
           )}
 
-          {usage.plan === "PRO" && !usage.cancelAtPeriodEnd && (
+          {!isCompact && usage.plan === "PRO" && !usage.cancelAtPeriodEnd && (
             <div className={isCompact ? "pt-1" : "pt-2"}>
               {!confirmCancel ? (
                 <button
@@ -244,7 +244,7 @@ export function UserProfileSummary({
             </div>
           )}
 
-          {usage.plan === "PRO" && usage.cancelAtPeriodEnd && (
+          {!isCompact && usage.plan === "PRO" && usage.cancelAtPeriodEnd && (
             <div className={isCompact ? "pt-1" : "pt-2"}>
               <p className={`text-orange-600 ${isCompact ? "text-xs" : "text-sm"}`}>
                 Subscription will not renew.
