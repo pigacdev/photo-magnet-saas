@@ -1,5 +1,6 @@
 import type { AllowedShape } from "../../../src/generated/prisma/client";
 import { EVENT_MEDIA_RETENTION_HOURS_AFTER_END } from "../config/mediaRetention";
+import { isOrderSettled } from "./orderSettlement";
 import { prisma } from "./prisma";
 
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -15,17 +16,6 @@ type OrderRow = {
   customerName: string | null;
   orderImages: { shapeId: string; copies: number }[];
 };
-
-const SETTLED_STATUSES = new Set([
-  "PAID",
-  "IN_PRODUCTION",
-  "SHIPPED",
-  "COMPLETED",
-]);
-
-function isOrderSettled(o: { status: string }): boolean {
-  return SETTLED_STATUSES.has(o.status);
-}
 
 function customerIdentityKey(o: OrderRow): string {
   const p = o.customerPhone?.trim();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   CartesianGrid,
@@ -35,8 +35,12 @@ type DashboardStats = {
   revenueThisMonth: number;
   ordersLastMonth: number;
   revenueLastMonth: number;
-  pendingPrints: number;
-  waitingToShip: number;
+  averageOrderValueThisMonth: number;
+  averageOrderValueLastMonth: number;
+  magnetsSoldThisMonth: number;
+  magnetsSoldLastMonth: number;
+  newOrders: number;
+  unpaidOrders: number;
   last7Days: Last7DayPoint[];
   byMonth: ByMonthPoint[];
 };
@@ -97,6 +101,79 @@ function DeltaVsLastMonthRevenue({
         : `↓ ${formatMoney(d)}`}{" "}
       vs last month
     </p>
+  );
+}
+
+function DeltaVsLastMonthCount({
+  thisMonth,
+  lastMonth,
+}: {
+  thisMonth: number;
+  lastMonth: number;
+}) {
+  const d = thisMonth - lastMonth;
+  if (d === 0) {
+    return (
+      <p className="mt-1 text-xs tabular-nums text-gray-500">
+        0 vs last month
+      </p>
+    );
+  }
+  const up = d > 0;
+  return (
+    <p
+      className={`mt-1 text-xs font-medium tabular-nums ${
+        up ? "text-green-600" : "text-orange-600"
+      }`}
+    >
+      {up ? `↑ +${d}` : `↓ ${d}`} vs last month
+    </p>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  subtitle,
+  delta,
+  href,
+}: {
+  label: string;
+  value: string;
+  subtitle?: string;
+  delta?: ReactNode;
+  href?: string;
+}) {
+  const inner = (
+    <>
+      <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-[#111111]">
+        {value}
+      </p>
+      {delta}
+      {subtitle ? (
+        <p className="mt-1 text-xs text-[#9CA3AF]">{subtitle}</p>
+      ) : null}
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:border-gray-300 hover:bg-[#F9FAFB]"
+      >
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      {inner}
+    </div>
   );
 }
 
@@ -272,56 +349,85 @@ export default function DashboardPage() {
           Manage your events and orders.
         </p>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
-              Orders this month
-            </p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums text-[#111111]">
-              {statsLoading ? "…" : stats?.ordersThisMonth ?? "—"}
-            </p>
-            {stats != null && !statsLoading && (
-              <DeltaVsLastMonthOrders
-                thisMonth={stats.ordersThisMonth}
-                lastMonth={stats.ordersLastMonth}
-              />
-            )}
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
-              Revenue this month
-            </p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums text-[#111111]">
-              {statsLoading
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <KpiCard
+            label="Orders this month"
+            value={statsLoading ? "…" : String(stats?.ordersThisMonth ?? "—")}
+            delta={
+              stats != null && !statsLoading ? (
+                <DeltaVsLastMonthOrders
+                  thisMonth={stats.ordersThisMonth}
+                  lastMonth={stats.ordersLastMonth}
+                />
+              ) : undefined
+            }
+          />
+          <KpiCard
+            label="Revenue this month"
+            value={
+              statsLoading
                 ? "…"
                 : stats != null
                   ? formatKpiMoney(stats.revenueThisMonth)
-                  : "—"}
-            </p>
-            {stats != null && !statsLoading && (
-              <DeltaVsLastMonthRevenue
-                thisMonth={stats.revenueThisMonth}
-                lastMonth={stats.revenueLastMonth}
-                formatMoney={formatKpiMoney}
-              />
-            )}
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
-              Pending prints
-            </p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums text-[#111111]">
-              {statsLoading ? "…" : stats?.pendingPrints ?? "—"}
-            </p>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
-              Waiting to ship
-            </p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums text-[#111111]">
-              {statsLoading ? "…" : stats?.waitingToShip ?? "—"}
-            </p>
-          </div>
+                  : "—"
+            }
+            delta={
+              stats != null && !statsLoading ? (
+                <DeltaVsLastMonthRevenue
+                  thisMonth={stats.revenueThisMonth}
+                  lastMonth={stats.revenueLastMonth}
+                  formatMoney={formatKpiMoney}
+                />
+              ) : undefined
+            }
+          />
+          <KpiCard
+            label="Average order value"
+            value={
+              statsLoading
+                ? "…"
+                : stats != null
+                  ? formatKpiMoney(stats.averageOrderValueThisMonth)
+                  : "—"
+            }
+            subtitle="Paid orders this month"
+            delta={
+              stats != null && !statsLoading ? (
+                <DeltaVsLastMonthRevenue
+                  thisMonth={stats.averageOrderValueThisMonth}
+                  lastMonth={stats.averageOrderValueLastMonth}
+                  formatMoney={formatKpiMoney}
+                />
+              ) : undefined
+            }
+          />
+          <KpiCard
+            label="Magnets sold"
+            value={
+              statsLoading ? "…" : String(stats?.magnetsSoldThisMonth ?? "—")
+            }
+            subtitle="This month"
+            delta={
+              stats != null && !statsLoading ? (
+                <DeltaVsLastMonthCount
+                  thisMonth={stats.magnetsSoldThisMonth}
+                  lastMonth={stats.magnetsSoldLastMonth}
+                />
+              ) : undefined
+            }
+          />
+          <KpiCard
+            label="New orders"
+            value={statsLoading ? "…" : String(stats?.newOrders ?? "—")}
+            subtitle="Needs first review"
+            href="/dashboard/orders?status=new"
+          />
+          <KpiCard
+            label="Unpaid orders"
+            value={statsLoading ? "…" : String(stats?.unpaidOrders ?? "—")}
+            subtitle="Awaiting payment"
+            href="/dashboard/orders?status=new"
+          />
         </div>
 
         {!statsLoading &&

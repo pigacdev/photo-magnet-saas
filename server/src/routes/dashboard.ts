@@ -3,6 +3,7 @@
  */
 import type { Request, Response } from "express";
 import { Router } from "express";
+import { aggregateSettledMonthMetrics } from "../lib/orderSettlement";
 import { prisma } from "../lib/prisma";
 
 export const dashboardRouter = Router();
@@ -135,41 +136,53 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
     createdAt: { gte: prevMonthStart, lte: prevMonthEnd },
   };
 
+  const orderMonthSelect = {
+    status: true,
+    totalPrice: true,
+    orderImages: { select: { copies: true } },
+  } as const;
+
   const [
     ordersThisMonth,
     revenueThisMonthAgg,
-    pendingPrints,
-    waitingToShip,
     ordersLastMonth,
     revenueLastMonthAgg,
+    newOrders,
+    unpaidOrders,
+    ordersThisMonthForMetrics,
+    ordersLastMonthForMetrics,
   ] = await prisma.$transaction([
     prisma.order.count({ where: createdThisMonthWhere }),
     prisma.order.aggregate({
       where: createdThisMonthWhere,
       _sum: { totalPrice: true },
     }),
-    prisma.order.count({
-      where: {
-        organizationId: orgId,
-        shippedAt: null,
-        orderImages: {
-          some: { printed: false, mediaDeletedAt: null },
-        },
-      },
-    }),
-    prisma.order.count({
-      where: {
-        organizationId: orgId,
-        printedAt: { not: null },
-        shippedAt: null,
-      },
-    }),
     prisma.order.count({ where: createdLastMonthWhere }),
     prisma.order.aggregate({
       where: createdLastMonthWhere,
       _sum: { totalPrice: true },
     }),
+    prisma.order.count({
+      where: { organizationId: orgId, status: "NEW" },
+    }),
+    prisma.order.count({
+      where: {
+        organizationId: orgId,
+        status: { in: ["NEW", "CONFIRMED", "INVOICE_SENT"] },
+      },
+    }),
+    prisma.order.findMany({
+      where: createdThisMonthWhere,
+      select: orderMonthSelect,
+    }),
+    prisma.order.findMany({
+      where: createdLastMonthWhere,
+      select: orderMonthSelect,
+    }),
   ]);
+
+  const settledThisMonth = aggregateSettledMonthMetrics(ordersThisMonthForMetrics);
+  const settledLastMonth = aggregateSettledMonthMetrics(ordersLastMonthForMetrics);
 
   const sumM = revenueThisMonthAgg._sum.totalPrice;
   const revenueThisMonth =
@@ -234,8 +247,12 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
     revenueThisMonth,
     ordersLastMonth,
     revenueLastMonth,
-    pendingPrints,
-    waitingToShip,
+    averageOrderValueThisMonth: settledThisMonth.averageOrderValue,
+    averageOrderValueLastMonth: settledLastMonth.averageOrderValue,
+    magnetsSoldThisMonth: settledThisMonth.magnetsSold,
+    magnetsSoldLastMonth: settledLastMonth.magnetsSold,
+    newOrders,
+    unpaidOrders,
     last7Days,
     byMonth,
   });
