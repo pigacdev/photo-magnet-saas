@@ -58,25 +58,25 @@ export function CancelOrderModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="cancel-order-title"
-        className="relative w-full max-w-md overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+        className="relative w-full max-w-md overflow-hidden rounded-xl border border-border bg-background shadow-xl"
       >
         <form onSubmit={(e) => void handleSubmit(e)}>
-          <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
+          <div className="border-b border-border px-4 py-3 sm:px-5">
             <h2
               id="cancel-order-title"
-              className="text-base font-semibold text-[#111111] sm:text-lg"
+              className="text-base font-semibold text-foreground sm:text-lg"
             >
               Cancel order
             </h2>
-            <p className="mt-1 text-sm text-[#6B7280]">
+            <p className="mt-1 text-sm text-muted-foreground">
               You can add an optional note for your records. Leave blank to
               cancel without a note.
             </p>
           </div>
           <div className="px-4 py-4 sm:px-5">
             <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-[#111111]">
-                Note <span className="font-normal text-[#6B7280]">(optional)</span>
+              <span className="text-sm font-medium text-foreground">
+                Note <span className="font-normal text-muted-foreground">(optional)</span>
               </span>
               <textarea
                 value={note}
@@ -84,19 +84,19 @@ export function CancelOrderModal({
                 rows={4}
                 placeholder="Reason or context for cancellation…"
                 disabled={saving}
-                className="resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2 disabled:opacity-60"
+                className="resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2 disabled:opacity-60"
               />
-              <span className="text-xs text-[#9CA3AF] tabular-nums">
+              <span className="text-xs text-muted-foreground tabular-nums">
                 {note.length}/{MAX_NOTE_LENGTH}
               </span>
             </label>
           </div>
-          <div className="flex flex-col-reverse gap-2 border-t border-gray-100 px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
+          <div className="flex flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
             <button
               type="button"
               disabled={saving}
               onClick={onClose}
-              className="min-h-[44px] rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-[#111111] hover:bg-gray-50 disabled:opacity-50"
+              className="min-h-[44px] rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-surface disabled:opacity-50"
             >
               Keep order
             </button>

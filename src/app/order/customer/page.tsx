@@ -40,7 +40,7 @@ import {
 } from "@/lib/shippingTypes";
 
 const orderInputClass =
-  "rounded-xl border border-gray-200 bg-white px-4 py-3 text-[#111111] outline-none ring-[#2563EB] focus:ring-2";
+  "rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none ring-primary focus:ring-2";
 
 function formatOrderTotal(amount: string, currency: string): string {
   const n = Number(amount);
@@ -426,7 +426,7 @@ function CustomerPageInner() {
   if (loading) {
     return (
       <div className={orderLoadingScreen}>
-        <p className="text-sm text-[#6B7280]">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
   }
@@ -438,7 +438,7 @@ function CustomerPageInner() {
           <p className="text-sm text-red-700">{error}</p>
           <Link
             href={reviewBackHref}
-            className="text-sm font-medium text-[#2563EB] underline"
+            className="text-sm font-medium text-primary underline"
           >
             Back to review
           </Link>
@@ -454,7 +454,7 @@ function CustomerPageInner() {
           <p className="text-sm text-red-700">{error}</p>
           <Link
             href={reviewBackHref}
-            className="text-sm font-medium text-[#2563EB] underline"
+            className="text-sm font-medium text-primary underline"
           >
             Back to review
           </Link>
@@ -489,7 +489,7 @@ function CustomerPageInner() {
         <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-6">
           {!isEvent && (
             <section>
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Preferred delivery type
               </h2>
               <div className="mt-3 grid grid-cols-2 gap-3">
@@ -507,11 +507,11 @@ function CustomerPageInner() {
                       onClick={() => setShippingType(value)}
                       className={`min-h-[56px] rounded-2xl border-2 px-4 py-3 text-left transition-colors ${
                         selected
-                          ? "border-[#2563EB] bg-white shadow-sm"
-                          : "border-gray-200 bg-white active:bg-[#F9FAFB]"
+                          ? "border-primary bg-background shadow-sm"
+                          : "border-border bg-background active:bg-surface"
                       }`}
                     >
-                      <span className="block text-sm font-medium text-[#111111]">
+                      <span className="block text-sm font-medium text-foreground">
                         {label}
                       </span>
                     </button>
@@ -522,13 +522,13 @@ function CustomerPageInner() {
           )}
 
           <section className={orderCard}>
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {isEvent ? "Your details" : "Shipping details"}
             </h2>
             <div className="mt-4 flex flex-col gap-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium text-[#111111]">
+                  <span className="text-sm font-medium text-foreground">
                     First name <span className="text-red-600">*</span>
                   </span>
                   <input
@@ -542,7 +542,7 @@ function CustomerPageInner() {
                   />
                 </label>
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-medium text-[#111111]">
+                  <span className="text-sm font-medium text-foreground">
                     Last name <span className="text-red-600">*</span>
                   </span>
                   <input
@@ -558,7 +558,7 @@ function CustomerPageInner() {
               </div>
 
               <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-[#111111]">
+                <span className="text-sm font-medium text-foreground">
                   Email <span className="text-red-600">*</span>
                 </span>
                 <input
@@ -570,13 +570,13 @@ function CustomerPageInner() {
                   onChange={(e) => setEmail(e.target.value)}
                   className={orderInputClass}
                 />
-                <span className="text-xs text-[#6B7280]">
+                <span className="text-xs text-muted-foreground">
                   We will send your order confirmation to this address.
                 </span>
               </label>
 
               <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-[#111111]">
+                <span className="text-sm font-medium text-foreground">
                   Phone <span className="text-red-600">*</span>
                 </span>
                 <input
@@ -594,7 +594,7 @@ function CustomerPageInner() {
                 <>
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="flex flex-col gap-1.5 md:col-span-2">
-                      <span className="text-sm font-medium text-[#111111]">
+                      <span className="text-sm font-medium text-foreground">
                         Street <span className="text-red-600">*</span>
                       </span>
                       <input
@@ -608,7 +608,7 @@ function CustomerPageInner() {
                       />
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-sm font-medium text-[#111111]">
+                      <span className="text-sm font-medium text-foreground">
                         House number <span className="text-red-600">*</span>
                       </span>
                       <input
@@ -622,7 +622,7 @@ function CustomerPageInner() {
                       />
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-sm font-medium text-[#111111]">
+                      <span className="text-sm font-medium text-foreground">
                         City <span className="text-red-600">*</span>
                       </span>
                       <input
@@ -636,7 +636,7 @@ function CustomerPageInner() {
                       />
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-sm font-medium text-[#111111]">
+                      <span className="text-sm font-medium text-foreground">
                         Post code <span className="text-red-600">*</span>
                       </span>
                       <input
@@ -650,7 +650,7 @@ function CustomerPageInner() {
                       />
                     </label>
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-sm font-medium text-[#111111]">
+                      <span className="text-sm font-medium text-foreground">
                         Country <span className="text-red-600">*</span>
                       </span>
                       <input
@@ -671,27 +671,27 @@ function CustomerPageInner() {
           </section>
 
           <section className={orderCard}>
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Order summary
             </h2>
             <dl className="mt-3 space-y-2 text-sm">
               {summaryShape && (
                 <div className="flex justify-between gap-4">
-                  <dt className="text-[#6B7280]">Product</dt>
-                  <dd className="text-right font-medium text-[#111111]">
+                  <dt className="text-muted-foreground">Product</dt>
+                  <dd className="text-right font-medium text-foreground">
                     {orderProductLineLabel(summaryShape, summaryShape.quantity)}
                   </dd>
                 </div>
               )}
-              <div className="flex justify-between gap-4 border-t border-gray-100 pt-2">
-                <dt className="text-[#6B7280]">Total</dt>
-                <dd className="text-base font-semibold tabular-nums text-[#111111]">
+              <div className="flex justify-between gap-4 border-t border-border pt-2">
+                <dt className="text-muted-foreground">Total</dt>
+                <dd className="text-base font-semibold tabular-nums text-foreground">
                   {totalLabel}
                 </dd>
               </div>
             </dl>
             {!isEvent && (
-              <p className="mt-3 text-xs leading-relaxed text-[#6B7280]">
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                 Shipping cost and taxes will be calculated based on your details
                 and sent to your email with the invoice.
               </p>
@@ -719,7 +719,7 @@ function CustomerPageInner() {
 
         <Link
           href={reviewBackHref}
-          className="text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
+          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Back to review
         </Link>
@@ -733,7 +733,7 @@ export default function OrderCustomerPage() {
     <Suspense
       fallback={
         <div className={orderLoadingScreen}>
-          <p className="text-sm text-[#6B7280]">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       }
     >

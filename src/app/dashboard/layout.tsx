@@ -39,7 +39,7 @@ export default function DashboardLayout({
   if (checking) {
     return (
       <div className="flex min-h-full flex-1 items-center justify-center bg-surface p-6">
-        <p className="text-sm text-[#6B7280]">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
   }

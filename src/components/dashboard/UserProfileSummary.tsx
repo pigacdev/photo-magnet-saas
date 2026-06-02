@@ -116,7 +116,7 @@ export function UserProfileSummary({
       {showIdentity && (
         <div className={`flex items-center gap-3 ${isCompact ? "px-3 pb-3" : ""}`}>
           <div
-            className={`flex shrink-0 items-center justify-center rounded-full bg-[#F3F4F6] font-medium text-[#374151] ${
+            className={`flex shrink-0 items-center justify-center rounded-full bg-surface font-medium text-muted-foreground ${
               isCompact ? "size-9 text-xs" : "size-11 text-sm"
             }`}
             aria-hidden
@@ -125,14 +125,14 @@ export function UserProfileSummary({
           </div>
           <div className="min-w-0 flex-1">
             <p
-              className={`truncate font-medium text-[#111111] ${
+              className={`truncate font-medium text-foreground ${
                 isCompact ? "text-sm" : "text-base"
               }`}
             >
               {user.name || user.email}
             </p>
             {user.name && (
-              <p className={`truncate text-[#6B7280] ${isCompact ? "text-xs" : "text-sm"}`}>
+              <p className={`truncate text-muted-foreground ${isCompact ? "text-xs" : "text-sm"}`}>
                 {user.email}
               </p>
             )}
@@ -146,13 +146,13 @@ export function UserProfileSummary({
             <span
               className={`inline-flex rounded-full px-2 py-0.5 font-medium ${
                 usage.plan === "PRO"
-                  ? "bg-[#EFF6FF] text-[#1D4ED8]"
-                  : "bg-[#F3F4F6] text-[#374151]"
+                  ? "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+                  : "bg-surface text-muted-foreground"
               } ${isCompact ? "text-xs" : "text-sm"}`}
             >
               {usage.plan}
             </span>
-            <span className={`text-[#6B7280] ${isCompact ? "text-xs" : "text-sm"}`}>
+            <span className={`text-muted-foreground ${isCompact ? "text-xs" : "text-sm"}`}>
               {user.role === "ADMIN" ? "Admin" : "Staff"}
             </span>
           </div>
@@ -163,13 +163,13 @@ export function UserProfileSummary({
             </p>
           ) : (
             <div className="space-y-2">
-              <div className={`flex justify-between text-[#374151] ${isCompact ? "text-xs" : "text-sm"}`}>
+              <div className={`flex justify-between text-muted-foreground ${isCompact ? "text-xs" : "text-sm"}`}>
                 <span>Monthly usage</span>
                 <span className="tabular-nums">
                   {usage.ordersThisMonth} / {usage.orderLimit}
                 </span>
               </div>
-              <div className="h-1.5 w-full rounded-full bg-gray-200">
+              <div className="h-1.5 w-full rounded-full bg-border">
                 <div
                   className={`h-1.5 rounded-full transition-all ${usageBarFillClassCompact(usageLevel)}`}
                   style={{ width: `${percentage}%` }}
@@ -189,7 +189,7 @@ export function UserProfileSummary({
           )}
 
           {periodLabel() && (
-            <p className={`text-[#6B7280] ${isCompact ? "text-xs" : "text-sm"}`}>
+            <p className={`text-muted-foreground ${isCompact ? "text-xs" : "text-sm"}`}>
               {periodLabel()}
             </p>
           )}
@@ -207,8 +207,8 @@ export function UserProfileSummary({
                   Cancel subscription
                 </button>
               ) : (
-                <div className={`space-y-2 rounded-md border border-gray-200 bg-[#F9FAFB] p-3 ${isCompact ? "text-xs" : "text-sm"}`}>
-                  <p className="text-[#374151]">
+                <div className={`space-y-2 rounded-md border border-border bg-surface p-3 ${isCompact ? "text-xs" : "text-sm"}`}>
+                  <p className="text-muted-foreground">
                     You&apos;ll keep PRO until{" "}
                     {usage.currentPeriodEnd
                       ? formatPeriodDate(usage.currentPeriodEnd)
@@ -223,7 +223,7 @@ export function UserProfileSummary({
                       type="button"
                       disabled={actionLoading}
                       onClick={() => void handleCancel()}
-                      className="rounded-md bg-[#111111] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                      className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
                     >
                       {actionLoading ? "Canceling…" : "Confirm cancel"}
                     </button>
@@ -234,7 +234,7 @@ export function UserProfileSummary({
                         setConfirmCancel(false);
                         setActionError("");
                       }}
-                      className="rounded-md px-3 py-1.5 text-xs font-medium text-[#6B7280] hover:text-[#111111]"
+                      className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
                     >
                       Keep subscription
                     </button>
@@ -258,7 +258,7 @@ export function UserProfileSummary({
                 type="button"
                 disabled={actionLoading}
                 onClick={() => void handleReactivate()}
-                className={`mt-1 font-medium text-[#2563EB] hover:underline disabled:opacity-60 ${
+                className={`mt-1 font-medium text-primary hover:underline disabled:opacity-60 ${
                   isCompact ? "text-xs" : "text-sm"
                 }`}
               >

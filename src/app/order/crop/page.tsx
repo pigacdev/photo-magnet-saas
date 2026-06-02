@@ -277,7 +277,7 @@ function OrderCropPageInner() {
   if (loading) {
     return (
       <div className={orderLoadingScreen}>
-        <p className="text-sm text-[#6B7280]">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
   }
@@ -286,10 +286,10 @@ function OrderCropPageInner() {
     return (
       <OrderShell className="pb-10">
         <div className="flex flex-col gap-6">
-          <p className="text-sm text-[#6B7280]">Nothing to crop.</p>
+          <p className="text-sm text-muted-foreground">Nothing to crop.</p>
           <Link
             href={orderBackHref}
-            className="text-center text-sm text-[#2563EB] underline-offset-4 hover:underline"
+            className="text-center text-sm text-primary underline-offset-4 hover:underline"
           >
             Back to photos
           </Link>
@@ -306,7 +306,7 @@ function OrderCropPageInner() {
           subtitle="Move and zoom so the magnet looks right — this is how it will print."
           step={{ current: 3, total: 5, label: `Crop (${index + 1} of ${total})` }}
         />
-        <p className="-mt-4 text-center text-sm font-medium text-[#6B7280]">
+        <p className="-mt-4 text-center text-sm font-medium text-muted-foreground">
           Image {index + 1} of {total}
         </p>
 
@@ -318,7 +318,7 @@ function OrderCropPageInner() {
 
       <div className="flex flex-col items-center gap-2">
         <p
-          className="w-full max-w-md text-center text-xs font-medium uppercase tracking-wide text-[#6B7280]"
+          className="w-full max-w-md text-center text-xs font-medium uppercase tracking-wide text-muted-foreground"
           aria-live="polite"
         >
           Live preview
@@ -347,7 +347,7 @@ function OrderCropPageInner() {
               type="button"
               disabled={saving}
               onClick={goBack}
-              className="flex-1 rounded-2xl border-2 border-gray-300 bg-white py-3 text-base font-semibold text-[#111111] transition-colors hover:bg-gray-50 disabled:opacity-50"
+              className="flex-1 rounded-2xl border-2 border-border bg-background py-3 text-base font-semibold text-foreground transition-colors hover:bg-surface disabled:opacity-50"
             >
               Back
             </button>
@@ -358,7 +358,7 @@ function OrderCropPageInner() {
       {isEditMode && (
         <Link
           href={reviewBackHref}
-          className="text-center text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
+          className="text-center text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Back to review
         </Link>
@@ -366,7 +366,7 @@ function OrderCropPageInner() {
 
       <Link
         href={orderBackHref}
-        className="text-center text-sm text-[#2563EB] underline-offset-4 hover:underline"
+        className="text-center text-sm text-primary underline-offset-4 hover:underline"
       >
         Back to photos
       </Link>
@@ -380,7 +380,7 @@ export default function OrderCropPage() {
     <Suspense
       fallback={
         <div className={orderLoadingScreen}>
-          <p className="text-sm text-[#6B7280]">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       }
     >

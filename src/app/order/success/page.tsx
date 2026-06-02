@@ -40,7 +40,7 @@ function OrderSuccessInner() {
       <OrderShell contentWidth="medium" className="pb-10">
         <div className="flex flex-1 flex-col justify-center">
           <div className={`${orderCard} p-6 text-center md:p-8`}>
-            <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               Order submitted
             </h1>
             <p className={`${orderAlertError} mt-6 text-left`}>
@@ -56,21 +56,21 @@ function OrderSuccessInner() {
     <OrderShell contentWidth="medium" className="pb-10">
       <div className="flex flex-1 flex-col justify-center">
         <div className={`${orderCard} flex flex-col items-center gap-6 p-6 text-center md:p-8`}>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Order successfully submitted
           </h1>
 
           <SuccessCheckmark />
 
-          <p className="max-w-md text-base leading-relaxed text-[#6B7280]">
+          <p className="max-w-md text-base leading-relaxed text-muted-foreground">
             Thank you. The seller will contact you about payment and delivery.
           </p>
 
           <div className="flex w-full flex-col items-center gap-2 pt-2">
-            <p className="text-sm text-[#6B7280]">
+            <p className="text-sm text-muted-foreground">
               Keep this order reference for your records
             </p>
-            <p className="w-full break-all text-center text-xl font-bold tracking-wide text-[#111111] md:text-2xl">
+            <p className="w-full break-all text-center text-xl font-bold tracking-wide text-foreground md:text-2xl">
               {orderReference}
             </p>
           </div>
@@ -85,7 +85,7 @@ export default function OrderSuccessPage() {
     <Suspense
       fallback={
         <div className={orderLoadingScreen}>
-          <p className="text-sm text-[#6B7280]">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       }
     >

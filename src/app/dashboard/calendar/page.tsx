@@ -17,12 +17,12 @@ export default function CalendarPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
         Calendar
       </h1>
 
       {loading ? (
-        <p className="text-sm text-[#6B7280]">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <EventCalendar events={events} />
       )}

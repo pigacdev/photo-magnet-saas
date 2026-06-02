@@ -209,7 +209,7 @@ export default function OrderPage() {
   if (loading) {
     return (
       <div className={orderLoadingScreen}>
-        <p className="text-sm text-[#6B7280]">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
   }
@@ -236,12 +236,12 @@ export default function OrderPage() {
       )}
 
       {shapes.length === 0 ? (
-        <p className="text-sm text-[#6B7280]">
+        <p className="text-sm text-muted-foreground">
           No shapes are available for this event or store.
         </p>
       ) : (
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Shape
           </h2>
           <div className="mt-3 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -257,11 +257,11 @@ export default function OrderPage() {
                   }}
                   className={`min-w-[112px] shrink-0 rounded-2xl border-2 px-4 py-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     selected
-                      ? "border-[#2563EB] bg-white shadow-sm"
-                      : "border-gray-200 bg-white active:bg-[#F9FAFB]"
+                      ? "border-primary bg-background shadow-sm"
+                      : "border-border bg-background active:bg-surface"
                   }`}
                 >
-                  <span className="block text-sm font-medium leading-snug text-[#111111]">
+                  <span className="block text-sm font-medium leading-snug text-foreground">
                     {shapeLabel(s)}
                   </span>
                 </button>
@@ -273,7 +273,7 @@ export default function OrderPage() {
 
       {!primaryPerItem && bundleMode && bundles.length > 0 && (
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Bundle
           </h2>
           <div className="mt-3 flex flex-col gap-3">
@@ -294,17 +294,17 @@ export default function OrderPage() {
                   }}
                   className={`flex w-full items-center justify-between rounded-2xl border-2 px-4 py-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     selected
-                      ? "border-[#2563EB] bg-white shadow-sm"
-                      : "border-gray-200 bg-white active:bg-[#F9FAFB]"
+                      ? "border-primary bg-background shadow-sm"
+                      : "border-border bg-background active:bg-surface"
                   }`}
                 >
-                  <span className="text-base font-medium text-[#111111]">
+                  <span className="text-base font-medium text-foreground">
                     {b.quantity} for {formatMoney(Number(b.price), b.currency)}
                   </span>
                   {selected ? (
-                    <span className="text-sm font-medium text-[#2563EB]">Selected</span>
+                    <span className="text-sm font-medium text-primary">Selected</span>
                   ) : (
-                    <span className="text-sm text-[#6B7280]">Choose</span>
+                    <span className="text-sm text-muted-foreground">Choose</span>
                   )}
                 </button>
               );
@@ -313,18 +313,18 @@ export default function OrderPage() {
         </section>
       )}
 
-      <section className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+      <section className="rounded-xl border border-border bg-background px-4 py-4 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Total
             </p>
-            <p className="text-2xl font-bold tabular-nums text-[#111111]">
+            <p className="text-2xl font-bold tabular-nums text-foreground">
               {formatMoney(session.totalPrice, currency)}
             </p>
           </div>
           {saving && (
-            <span className="text-xs text-[#6B7280]">Saving…</span>
+            <span className="text-xs text-muted-foreground">Saving…</span>
           )}
         </div>
       </section>
@@ -340,7 +340,7 @@ export default function OrderPage() {
 
       <Link
         href={entryHref}
-        className="text-center text-sm text-[#2563EB] underline-offset-4 hover:underline"
+        className="text-center text-sm text-primary underline-offset-4 hover:underline"
       >
         {entryHref === "/" ? "Home" : "Back to entry"}
       </Link>

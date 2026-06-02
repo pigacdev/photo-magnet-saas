@@ -388,13 +388,13 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
     const maxMagnetsId = `maxMagnetsPerOrder-${contextType}-${contextId}`;
     const modeBtn =
       "rounded-lg border px-4 py-2 text-sm font-medium transition-colors";
-    const modeActive = `${modeBtn} border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]`;
-    const modeIdle = `${modeBtn} border-gray-300 bg-white text-[#111111] hover:bg-[#F9FAFB]`;
+    const modeActive = `${modeBtn} border-primary bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300`;
+    const modeIdle = `${modeBtn} border-border bg-background text-foreground hover:bg-surface`;
 
     return (
       <div className={embedded ? "space-y-4" : "mt-4 space-y-4"}>
         <div>
-          <p className="text-xs font-medium text-[#6B7280]">Pricing model</p>
+          <p className="text-xs font-medium text-muted-foreground">Pricing model</p>
           <div className="mt-2 flex flex-wrap gap-2">
           <button
             type="button"
@@ -425,7 +425,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
               <div>
                 <label
                   htmlFor={inputId}
-                  className="block text-sm font-medium text-[#111111]"
+                  className="block text-sm font-medium text-foreground"
                 >
                   Price per magnet (EUR)
                 </label>
@@ -439,7 +439,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
                     setPerItemPrice(e.target.value);
                     notifyFormChange();
                   }}
-                  className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none"
+                  className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
                   placeholder="e.g. 4.00"
                 />
               </div>
@@ -447,11 +447,11 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
               <div>
                 <label
                   htmlFor={maxMagnetsId}
-                  className="block text-sm font-medium text-[#111111]"
+                  className="block text-sm font-medium text-foreground"
                 >
                   Max magnets per order
                 </label>
-                <p className="mt-1 text-xs text-[#6B7280]">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Optional. Limits how many magnets a customer can order.
                   {systemMaxMagnets !== null && (
                     <> System cap is {systemMaxMagnets}.</>
@@ -471,7 +471,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
                     notifyFormChange();
                   }}
                   disabled={systemMaxMagnets === null}
-                  className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none disabled:opacity-50"
+                  className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:opacity-50"
                   placeholder="No limit (system cap still applies)"
                 />
               </div>
@@ -481,7 +481,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
               {bundles.map((bundle, i) => (
                 <div key={i} className="flex items-end gap-3">
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-[#111111]">
+                    <label className="block text-sm font-medium text-foreground">
                       Quantity
                     </label>
                     <input
@@ -490,12 +490,12 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
                       max={systemMaxMagnets ?? undefined}
                       value={bundle.quantity}
                       onChange={(e) => updateBundle(i, "quantity", e.target.value)}
-                      className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none"
+                      className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
                       placeholder="e.g. 3"
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-[#111111]">
+                    <label className="block text-sm font-medium text-foreground">
                       Price (EUR)
                     </label>
                     <input
@@ -504,7 +504,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
                       min="0.01"
                       value={bundle.price}
                       onChange={(e) => updateBundle(i, "price", e.target.value)}
-                      className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none"
+                      className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
                       placeholder="e.g. 10.00"
                     />
                   </div>
@@ -512,7 +512,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
                     <button
                       type="button"
                       onClick={() => removeBundle(i)}
-                      className="mb-0.5 rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
+                      className="mb-0.5 rounded-lg border border-border px-3 py-2.5 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
                     >
                       Remove
                     </button>
@@ -522,7 +522,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
               <button
                 type="button"
                 onClick={addBundle}
-                className="text-sm font-medium text-[#2563EB] hover:text-[#1d4ed8]"
+                className="text-sm font-medium text-primary hover:text-[#1d4ed8]"
               >
                 + Add bundle option
               </button>
@@ -538,7 +538,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
               type="button"
               onClick={() => void handleSave()}
               disabled={saving}
-              className="rounded-lg bg-[#2563EB] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
+              className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save pricing"}
             </button>
@@ -547,7 +547,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
                 type="button"
                 onClick={() => void handleClear()}
                 disabled={saving}
-                className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50 disabled:opacity-50"
+                className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50 disabled:opacity-50"
               >
                 Clear pricing
               </button>
@@ -563,18 +563,18 @@ export function PricingPreview({ pricing }: { pricing: PricingRule[] }) {
   const isPer = pricing[0]?.type === "PER_ITEM";
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-3">
-      <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+    <div className="rounded-lg border border-border bg-surface px-4 py-3">
+      <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Customer sees
       </p>
       {isPer ? (
-        <p className="text-sm font-medium text-[#111111]">
+        <p className="text-sm font-medium text-foreground">
           €{Number(pricing[0].price).toFixed(2)} per magnet
         </p>
       ) : (
         <ul className="space-y-1">
           {pricing.map((p) => (
-            <li key={p.id} className="text-sm font-medium text-[#111111]">
+            <li key={p.id} className="text-sm font-medium text-foreground">
               {p.quantity} for €{Number(p.price).toFixed(2)}
             </li>
           ))}

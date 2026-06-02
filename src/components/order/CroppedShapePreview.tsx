@@ -172,7 +172,7 @@ export function CroppedShapePreview({
         />
       )}
       {status === "error" && (
-        <div className="flex min-h-[200px] items-center justify-center px-4 text-center text-sm text-[#6B7280]">
+        <div className="flex min-h-[200px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
           Preview unavailable
         </div>
       )}

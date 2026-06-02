@@ -59,7 +59,7 @@ export default function StoreEntryPage() {
   if (loading) {
     return (
       <div className={orderLoadingScreen}>
-        <p className="text-sm text-[#6B7280]">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
   }
@@ -68,7 +68,7 @@ export default function StoreEntryPage() {
     return (
       <div className={orderLoadingScreen}>
         <p className="text-center text-sm text-[#DC2626]">{error}</p>
-        <Link href="/" className="mt-4 text-sm text-[#2563EB]">
+        <Link href="/" className="mt-4 text-sm text-primary">
           Home
         </Link>
       </div>
@@ -80,10 +80,10 @@ export default function StoreEntryPage() {
   return (
     <OrderShell contentWidth="medium" className="pb-10 pt-4">
       <div className="mx-auto flex w-full flex-1 flex-col">
-        <h1 className="text-center text-2xl font-semibold tracking-tight text-[#111111]">
+        <h1 className="text-center text-2xl font-semibold tracking-tight text-foreground">
           {meta?.name}
         </h1>
-        <p className="mt-2 text-center text-sm text-[#6B7280]">
+        <p className="mt-2 text-center text-sm text-muted-foreground">
           Store — photo magnets
         </p>
 

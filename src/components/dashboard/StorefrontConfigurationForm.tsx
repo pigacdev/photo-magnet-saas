@@ -272,40 +272,40 @@ export function StorefrontConfigurationForm({
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         <section className="dashboard-card space-y-8">
           <div>
-            <h2 className="text-sm font-semibold text-[#111111]">Print branding</h2>
-            <p className="mt-1 text-xs text-[#6B7280]">
+            <h2 className="text-sm font-semibold text-foreground">Print branding</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
               Shown on seller PDF print sheets. Max 40 characters. Empty uses
               default <span className="font-mono">@magnetooprints</span>.
             </p>
             <label className="mt-4 flex flex-col gap-1">
-              <span className="text-xs font-medium text-[#6B7280]">Brand line</span>
+              <span className="text-xs font-medium text-muted-foreground">Brand line</span>
               <input
                 type="text"
                 value={brandDraft}
                 onChange={(e) => setBrandDraft(e.target.value.slice(0, 40))}
                 maxLength={40}
                 placeholder="@magnetooprints"
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
               />
             </label>
           </div>
 
-          <div className="border-t border-gray-100 pt-8">
-            <h2 className="text-sm font-semibold text-[#111111]">Order notifications</h2>
-            <p className="mt-1 text-xs text-[#6B7280]">
+          <div className="border-t border-border pt-8">
+            <h2 className="text-sm font-semibold text-foreground">Order notifications</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
               Email alerts when a customer places an order.
             </p>
             <label className="mt-4 flex cursor-pointer items-start gap-2">
               <input
                 type="checkbox"
-                className="mt-0.5 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
+                className="mt-0.5 rounded border-border text-primary focus:ring-primary"
                 checked={notifSendDraft}
                 onChange={(e) => setNotifSendDraft(e.target.checked)}
               />
-              <span className="text-sm text-[#111111]">Send new-order emails</span>
+              <span className="text-sm text-foreground">Send new-order emails</span>
             </label>
             <label className="mt-4 flex flex-col gap-1">
-              <span className="text-xs font-medium text-[#6B7280]">
+              <span className="text-xs font-medium text-muted-foreground">
                 Notification email
                 {notifSendDraft ? " (required)" : ""}
               </span>
@@ -316,14 +316,14 @@ export function StorefrontConfigurationForm({
                 placeholder="seller@example.com"
                 autoComplete="email"
                 required={notifSendDraft}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
               />
             </label>
           </div>
 
-          <div className="border-t border-gray-100 pt-8">
-            <h2 className="text-sm font-semibold text-[#111111]">Shapes</h2>
-            <p className="mt-1 text-xs text-[#6B7280]">
+          <div className="border-t border-border pt-8">
+            <h2 className="text-sm font-semibold text-foreground">Shapes</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
               Magnet sizes available in this storefront.
             </p>
             <fieldset className="mt-4 space-y-2">
@@ -335,8 +335,8 @@ export function StorefrontConfigurationForm({
                     key={key}
                     className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
                       checked
-                        ? "border-[#2563EB] bg-blue-50 text-[#111111]"
-                        : "border-gray-300 text-[#6B7280] hover:border-gray-400"
+                        ? "border-primary text-foreground"
+                        : "border-border text-muted-foreground hover:border-muted-foreground"
                     }`}
                   >
                     <input
@@ -348,8 +348,8 @@ export function StorefrontConfigurationForm({
                     <span
                       className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
                         checked
-                          ? "border-[#2563EB] bg-[#2563EB]"
-                          : "border-gray-300"
+                          ? "border-primary bg-primary"
+                          : "border-border"
                       }`}
                     >
                       {checked ? (
@@ -376,7 +376,7 @@ export function StorefrontConfigurationForm({
             {selectedShapeKeys.size === 0 ? (
               <p className="mt-3 text-xs text-[#DC2626]">Select at least one shape.</p>
             ) : (
-              <p className="mt-3 text-xs text-[#6B7280]">
+              <p className="mt-3 text-xs text-muted-foreground">
                 {selectedShapeKeys.size} shape
                 {selectedShapeKeys.size === 1 ? "" : "s"} selected
               </p>
@@ -385,8 +385,8 @@ export function StorefrontConfigurationForm({
         </section>
 
         <section className="dashboard-card min-w-0">
-          <h2 className="text-sm font-semibold text-[#111111]">Pricing</h2>
-          <p className="mt-1 text-xs text-[#6B7280]">
+          <h2 className="text-sm font-semibold text-foreground">Pricing</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
             How customers are charged for their magnets.
           </p>
           <div className="mt-4 space-y-4">
@@ -427,11 +427,11 @@ export function StorefrontConfigurationForm({
         </p>
       ) : null}
 
-      <div className="flex items-center gap-3 border-t border-gray-200 pt-6">
+      <div className="flex items-center gap-3 border-t border-border pt-6">
         <button
           type="submit"
           disabled={saving}
-          className="min-h-[44px] rounded-lg bg-[#2563EB] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
+          className="min-h-[44px] rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save configuration"}
         </button>

@@ -195,7 +195,7 @@ export default function OrderPhotosPage() {
   if (loading) {
     return (
       <div className={orderLoadingScreen}>
-        <p className="text-sm text-[#6B7280]">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
   }
@@ -223,7 +223,7 @@ export default function OrderPhotosPage() {
         type="button"
         disabled={uploadingPhotos || atPhotoLimit || maxUploadImages == null}
         onClick={onPickPhotos}
-        className="w-full rounded-2xl border-2 border-[#2563EB] bg-[#2563EB] py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full rounded-2xl border-2 border-primary bg-primary py-4 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {uploadingPhotos
           ? "Uploading…"
@@ -233,14 +233,14 @@ export default function OrderPhotosPage() {
       </button>
 
       {maxUploadImages != null && (
-        <p className="text-center text-sm text-[#6B7280]">
+        <p className="text-center text-sm text-muted-foreground">
           JPG, PNG, or HEIC — up to 10&nbsp;MB each.{" "}
           {formatUploadLimitHint(maxUploadImages)} for this order.
         </p>
       )}
 
       {atPhotoLimit && maxUploadImages != null && (
-        <p className="text-center text-sm text-[#6B7280]">
+        <p className="text-center text-sm text-muted-foreground">
           Maximum reached ({maxUploadImages} photo
           {maxUploadImages === 1 ? "" : "s"} for this order).
         </p>
@@ -253,7 +253,7 @@ export default function OrderPhotosPage() {
       )}
 
       {imagesLoading && (
-        <p className="text-center text-sm text-[#6B7280]">Loading photos…</p>
+        <p className="text-center text-sm text-muted-foreground">Loading photos…</p>
       )}
 
       {hasAnyLowResolution && images.length > 0 && (
@@ -276,7 +276,7 @@ export default function OrderPhotosPage() {
             return (
               <div key={img.id} className="image-item flex flex-col gap-1.5">
                 <div
-                  className="relative w-full overflow-hidden rounded-[12px] border border-gray-200 bg-gray-100"
+                  className="relative w-full overflow-hidden rounded-[12px] border border-border bg-gray-100"
                   data-low-resolution={low ? "true" : "false"}
                   role="listitem"
                 >
@@ -301,7 +301,7 @@ export default function OrderPhotosPage() {
                     ×
                   </button>
                 </div>
-                <p className="px-0.5 text-xs text-[#6B7280]">
+                <p className="px-0.5 text-xs text-muted-foreground">
                   {img.width} × {img.height} px
                   {low ? " • Low quality" : ""}
                 </p>
@@ -322,7 +322,7 @@ export default function OrderPhotosPage() {
 
       <Link
         href={orderBackHref}
-        className="text-center text-sm text-[#2563EB] underline-offset-4 hover:underline"
+        className="text-center text-sm text-primary underline-offset-4 hover:underline"
       >
         Back to shape &amp; price
       </Link>

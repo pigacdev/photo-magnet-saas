@@ -16,6 +16,7 @@ import { api } from "@/lib/api";
 import { PlanUsageAlertBanner } from "@/components/dashboard/PlanUsageAlertBanner";
 import { storefrontNavHref } from "@/components/dashboard/dashboardNav";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
+import { useChartTheme } from "@/hooks/useChartTheme";
 
 type Last7DayPoint = {
   date: string;
@@ -55,7 +56,7 @@ function DeltaVsLastMonthOrders({
   const d = thisMonth - lastMonth;
   if (d === 0) {
     return (
-      <p className="mt-1 text-xs tabular-nums text-gray-500">
+      <p className="mt-1 text-xs tabular-nums text-muted-foreground">
         0 vs last month
       </p>
     );
@@ -84,7 +85,7 @@ function DeltaVsLastMonthRevenue({
   const d = Math.round((thisMonth - lastMonth) * 100) / 100;
   if (Math.abs(d) < 0.005) {
     return (
-      <p className="mt-1 text-xs tabular-nums text-gray-500">
+      <p className="mt-1 text-xs tabular-nums text-muted-foreground">
         0 vs last month
       </p>
     );
@@ -114,7 +115,7 @@ function DeltaVsLastMonthCount({
   const d = thisMonth - lastMonth;
   if (d === 0) {
     return (
-      <p className="mt-1 text-xs tabular-nums text-gray-500">
+      <p className="mt-1 text-xs tabular-nums text-muted-foreground">
         0 vs last month
       </p>
     );
@@ -146,15 +147,15 @@ function KpiCard({
 }) {
   const inner = (
     <>
-      <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-[#111111]">
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
         {value}
       </p>
       {delta}
       {subtitle ? (
-        <p className="mt-1 text-xs text-[#9CA3AF]">{subtitle}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
       ) : null}
     </>
   );
@@ -163,7 +164,7 @@ function KpiCard({
     return (
       <Link
         href={href}
-        className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:border-gray-300 hover:bg-[#F9FAFB]"
+        className="rounded-lg border border-border bg-card p-4 shadow-sm transition-colors hover:border-border hover:bg-surface"
       >
         {inner}
       </Link>
@@ -171,7 +172,7 @@ function KpiCard({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
       {inner}
     </div>
   );
@@ -196,6 +197,7 @@ function DashboardTrendsChart({
   last7Days: Last7DayPoint[];
   byMonth: ByMonthPoint[];
 }) {
+  const chartTheme = useChartTheme();
   const data: Array<Last7DayPoint | ByMonthPoint> =
     trendMode === "days" ? last7Days : byMonth;
   const xDataKey = trendMode === "days" ? "date" : "label";
@@ -209,15 +211,15 @@ function DashboardTrendsChart({
       : "Orders and revenue by month (this year)";
 
   return (
-    <div className="w-full min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="w-full min-w-0 overflow-hidden rounded-lg border border-border bg-card p-4 shadow-sm">
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => onTrendModeChange("days")}
           className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
             trendMode === "days"
-              ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
-              : "border-gray-200 bg-white text-[#374151] hover:bg-gray-50"
+              ? "border-primary bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+              : "border-border bg-background text-muted-foreground hover:bg-surface"
           }`}
         >
           Last 7 days
@@ -227,15 +229,15 @@ function DashboardTrendsChart({
           onClick={() => onTrendModeChange("months")}
           className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
             trendMode === "months"
-              ? "border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]"
-              : "border-gray-200 bg-white text-[#374151] hover:bg-gray-50"
+              ? "border-primary bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+              : "border-border bg-background text-muted-foreground hover:bg-surface"
           }`}
         >
           By month
         </button>
       </div>
-      <h2 className="mt-4 text-sm font-semibold text-[#111111]">{title}</h2>
-      <p className="mt-1 text-xs text-[#6B7280]">{subtitle}</p>
+      <h2 className="mt-4 text-sm font-semibold text-foreground">{title}</h2>
+      <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
       <div className="mt-4 h-[280px] w-full min-h-[280px] min-w-0 max-w-full">
         <div className="h-full w-full min-w-0" style={{ width: "100%", minHeight: 280 }}>
           <ResponsiveContainer
@@ -250,29 +252,31 @@ function DashboardTrendsChart({
               data={data}
               margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
               <XAxis
                 dataKey={xDataKey}
-                tick={{ fontSize: 11, fill: "#6B7280" }}
+                tick={{ fontSize: 11, fill: chartTheme.tick }}
                 tickFormatter={(v) => formatX(String(v))}
                 interval={0}
               />
               <YAxis
                 yAxisId="orders"
                 allowDecimals={false}
-                tick={{ fontSize: 11, fill: "#6B7280" }}
+                tick={{ fontSize: 11, fill: chartTheme.tick }}
                 width={36}
               />
               <YAxis
                 yAxisId="revenue"
                 orientation="right"
-                tick={{ fontSize: 11, fill: "#6B7280" }}
+                tick={{ fontSize: 11, fill: chartTheme.tick }}
                 width={44}
               />
               <Tooltip
                 contentStyle={{
                   borderRadius: "8px",
-                  border: "1px solid #E5E7EB",
+                  border: `1px solid ${chartTheme.tooltipBorder}`,
+                  backgroundColor: chartTheme.tooltipBg,
+                  color: chartTheme.tooltipText,
                   fontSize: "12px",
                 }}
                 labelFormatter={(label) => formatX(String(label))}
@@ -342,10 +346,10 @@ export default function DashboardPage() {
     <div className="dashboard-page">
       <div>
         <PlanUsageAlertBanner />
-        <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Dashboard
         </h1>
-        <p className="mt-2 text-[#6B7280]">
+        <p className="mt-2 text-muted-foreground">
           Manage your events and orders.
         </p>
 
@@ -449,28 +453,28 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <Link
           href="/dashboard/orders"
-          className="rounded-lg border border-gray-200 p-6 transition-colors hover:border-gray-300 hover:bg-[#F9FAFB]"
+          className="rounded-lg border border-border p-6 transition-colors hover:border-border hover:bg-surface"
         >
-          <h2 className="text-base font-medium text-[#111111]">Orders</h2>
-          <p className="mt-1 text-sm text-[#6B7280]">
+          <h2 className="text-base font-medium text-foreground">Orders</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             View orders and download print sheets.
           </p>
         </Link>
         <Link
           href="/dashboard/events"
-          className="rounded-lg border border-gray-200 p-6 transition-colors hover:border-gray-300 hover:bg-[#F9FAFB]"
+          className="rounded-lg border border-border p-6 transition-colors hover:border-border hover:bg-surface"
         >
-          <h2 className="text-base font-medium text-[#111111]">Events</h2>
-          <p className="mt-1 text-sm text-[#6B7280]">
+          <h2 className="text-base font-medium text-foreground">Events</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Create and manage your events.
           </p>
         </Link>
         <Link
           href={storefrontNavHref(storefront?.id ?? null)}
-          className="rounded-lg border border-gray-200 p-6 transition-colors hover:border-gray-300 hover:bg-[#F9FAFB]"
+          className="rounded-lg border border-border p-6 transition-colors hover:border-border hover:bg-surface"
         >
-          <h2 className="text-base font-medium text-[#111111]">Storefront</h2>
-          <p className="mt-1 text-sm text-[#6B7280]">
+          <h2 className="text-base font-medium text-foreground">Storefront</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Manage your always-on ordering link.
           </p>
         </Link>

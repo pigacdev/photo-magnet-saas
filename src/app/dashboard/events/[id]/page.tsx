@@ -18,6 +18,7 @@ import {
 import { api } from "@/lib/api";
 import { EventConfigurationForm } from "@/components/dashboard/EventConfigurationForm";
 import { confirmUnsavedChanges } from "@/hooks/useUnsavedChangesWarning";
+import { chartTooltipStyle, useChartTheme } from "@/hooks/useChartTheme";
 
 type AllowedShape = {
   id: string;
@@ -98,19 +99,19 @@ type EventAnalytics = {
 const STATUS_BADGE: Record<Event["status"], { label: string; className: string }> = {
   upcoming: {
     label: "Upcoming",
-    className: "bg-blue-50 text-[#2563EB]",
+    className: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
   },
   active: {
     label: "Active",
-    className: "bg-green-50 text-[#16A34A]",
+    className: "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400",
   },
   ended: {
     label: "Ended",
-    className: "bg-gray-100 text-[#6B7280]",
+    className: "bg-surface text-muted-foreground",
   },
   inactive: {
     label: "Inactive",
-    className: "bg-amber-50 text-[#B45309]",
+    className: "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
   },
 };
 
@@ -163,14 +164,14 @@ function KpiCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 text-xl font-semibold tabular-nums text-[#111111]">
+      <p className="mt-2 text-xl font-semibold tabular-nums text-foreground">
         {value}
       </p>
-      {sub ? <p className="mt-1 text-xs text-[#9CA3AF]">{sub}</p> : null}
+      {sub ? <p className="mt-1 text-xs text-muted-foreground">{sub}</p> : null}
     </div>
   );
 }
@@ -178,6 +179,10 @@ function KpiCard({
 function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
   const { metrics, salesByShape, paymentBreakdown, ordersByDay } = data;
   const currency = metrics.currency || "EUR";
+  const chartTheme = useChartTheme();
+  const tick = { fontSize: 11, fill: chartTheme.tick };
+  const tickSm = { fontSize: 10, fill: chartTheme.tick };
+  const tooltipStyle = chartTooltipStyle(chartTheme);
 
   const ordersTimeData = useMemo(
     () =>
@@ -214,8 +219,8 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
   return (
     <div className="space-y-6">
       <section className="dashboard-card">
-        <h2 className="text-sm font-semibold text-[#111111]">Overview</h2>
-        <p className="mt-1 text-xs text-[#6B7280]">Key metrics for this event</p>
+        <h2 className="text-sm font-semibold text-foreground">Overview</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Key metrics for this event</p>
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <KpiCard
             label="Total orders"
@@ -254,8 +259,8 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
       </section>
 
       <section className="dashboard-card">
-        <h2 className="text-sm font-semibold text-[#111111]">Orders over time</h2>
-        <p className="mt-1 text-xs text-[#6B7280]">Count and revenue by day (UTC)</p>
+        <h2 className="text-sm font-semibold text-foreground">Orders over time</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Count and revenue by day (UTC)</p>
         <div className="mt-4 h-[280px] w-full min-h-[280px] min-w-0">
           <div className="h-full w-full min-w-0" style={{ minHeight: 280 }}>
             <ResponsiveContainer
@@ -269,30 +274,26 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
                 data={ordersTimeData}
                 margin={{ top: 8, right: 12, left: 0, bottom: 8 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                 <XAxis
                   dataKey="dateLabel"
-                  tick={{ fontSize: 10, fill: "#6B7280" }}
+                  tick={tickSm}
                   interval="preserveStartEnd"
                 />
                 <YAxis
                   yAxisId="orders"
                   allowDecimals={false}
-                  tick={{ fontSize: 11, fill: "#6B7280" }}
+                  tick={tick}
                   width={32}
                 />
                 <YAxis
                   yAxisId="revenue"
                   orientation="right"
-                  tick={{ fontSize: 11, fill: "#6B7280" }}
+                  tick={tick}
                   width={48}
                 />
                 <Tooltip
-                  contentStyle={{
-                    borderRadius: "8px",
-                    border: "1px solid #E5E7EB",
-                    fontSize: "12px",
-                  }}
+                  contentStyle={tooltipStyle}
                   formatter={(value, name) => {
                     if (name === "revenue" || name === "Revenue") {
                       return [formatMoney(Number(value), currency), "Revenue"];
@@ -327,8 +328,8 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
 
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
       <section className="dashboard-card">
-        <h2 className="text-sm font-semibold text-[#111111]">Sales by shape</h2>
-        <p className="mt-1 text-xs text-[#6B7280]">Revenue (paid orders, copy-weighted)</p>
+        <h2 className="text-sm font-semibold text-foreground">Sales by shape</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Revenue (paid orders, copy-weighted)</p>
         <div className="mt-4 h-[280px] w-full min-h-[280px] min-w-0">
           <div className="h-full w-full min-w-0" style={{ minHeight: 280 }}>
             <ResponsiveContainer
@@ -343,24 +344,20 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
                 layout="vertical"
                 margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                 <XAxis
                   type="number"
-                  tick={{ fontSize: 11, fill: "#6B7280" }}
+                  tick={tick}
                   tickFormatter={(v) => formatMoney(Number(v), currency)}
                 />
                 <YAxis
                   type="category"
                   dataKey="name"
                   width={120}
-                  tick={{ fontSize: 10, fill: "#6B7280" }}
+                  tick={tickSm}
                 />
                 <Tooltip
-                  contentStyle={{
-                    borderRadius: "8px",
-                    border: "1px solid #E5E7EB",
-                    fontSize: "12px",
-                  }}
+                  contentStyle={tooltipStyle}
                   formatter={(value) => [formatMoney(Number(value), currency), "Revenue"]}
                 />
                 <Bar dataKey="revenue" name="Revenue" fill="#2563EB" radius={[0, 4, 4, 0]} />
@@ -371,8 +368,8 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
       </section>
 
       <section className="dashboard-card">
-        <h2 className="text-sm font-semibold text-[#111111]">Payment breakdown</h2>
-        <p className="mt-1 text-xs text-[#6B7280]">Orders and revenue by payment path</p>
+        <h2 className="text-sm font-semibold text-foreground">Payment breakdown</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Orders and revenue by payment path</p>
         <div className="mt-4 h-[260px] w-full min-h-[260px] min-w-0">
           <div className="h-full w-full min-w-0" style={{ minHeight: 260 }}>
             <ResponsiveContainer
@@ -386,10 +383,10 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
                 data={paymentChartData}
                 margin={{ top: 8, right: 12, left: 0, bottom: 8 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 10, fill: "#6B7280" }}
+                  tick={tickSm}
                   interval={0}
                   angle={-12}
                   textAnchor="end"
@@ -398,21 +395,17 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
                 <YAxis
                   yAxisId="orders"
                   allowDecimals={false}
-                  tick={{ fontSize: 11, fill: "#6B7280" }}
+                  tick={tick}
                   width={32}
                 />
                 <YAxis
                   yAxisId="revenue"
                   orientation="right"
-                  tick={{ fontSize: 11, fill: "#6B7280" }}
+                  tick={tick}
                   width={44}
                 />
                 <Tooltip
-                  contentStyle={{
-                    borderRadius: "8px",
-                    border: "1px solid #E5E7EB",
-                    fontSize: "12px",
-                  }}
+                  contentStyle={tooltipStyle}
                   formatter={(value, name) => {
                     if (name === "revenue" || name === "Revenue") {
                       return [formatMoney(Number(value), currency), "Revenue"];
@@ -674,14 +667,14 @@ export default function EventDetailPage() {
   }
 
   if (loading) {
-    return <p className="text-sm text-[#6B7280]">Loading…</p>;
+    return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
   if (error || !event) {
     return (
       <div>
         <p className="text-sm text-[#DC2626]">{error || "Event not found"}</p>
-        <Link href="/dashboard/events" className="mt-2 inline-block text-sm text-[#2563EB]">
+        <Link href="/dashboard/events" className="mt-2 inline-block text-sm text-primary">
           Back to events
         </Link>
       </div>
@@ -690,13 +683,13 @@ export default function EventDetailPage() {
 
   const tabBtn =
     "rounded-lg border px-4 py-2 text-sm font-medium transition-colors";
-  const tabIdle = `${tabBtn} border-gray-300 bg-white text-[#111111] hover:bg-[#F9FAFB]`;
-  const tabActive = `${tabBtn} border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]`;
+  const tabIdle = `${tabBtn} border-border bg-background text-foreground hover:bg-surface`;
+  const tabActive = `${tabBtn} border-primary bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300`;
 
   const analyticsBlock = (
     <>
       {analyticsLoading ? (
-        <p className="text-sm text-[#6B7280]">Loading analytics…</p>
+        <p className="text-sm text-muted-foreground">Loading analytics…</p>
       ) : null}
       {analyticsError ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -724,13 +717,13 @@ export default function EventDetailPage() {
         <div>
           <Link
             href="/dashboard/events"
-            className="-ml-1 inline-block rounded-md px-1 py-0.5 text-sm text-[#6B7280] transition-colors hover:bg-[#F9FAFB] hover:text-[#111111]"
+            className="-ml-1 inline-block rounded-md px-1 py-0.5 text-sm text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
           >
             &larr; All events
           </Link>
           <div className="mt-4 flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
                 {event.name}
               </h1>
               <div className="mt-2">
@@ -744,16 +737,16 @@ export default function EventDetailPage() {
             <button
               type="button"
               onClick={() => void handleDelete()}
-              className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
+              className="shrink-0 rounded-lg border border-border px-3 py-2 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
             >
               Delete
             </button>
           </div>
         </div>
 
-        <p className="text-sm text-[#6B7280]">
-          <span className="font-medium text-[#374151]">This event has ended. </span>
-          <span className="font-medium text-[#374151]">Event ran: </span>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-muted-foreground">This event has ended. </span>
+          <span className="font-medium text-muted-foreground">Event ran: </span>
           {formatDateShort(analytics?.event.startsAt ?? event.startDate)} —{" "}
           {formatDateShort(analytics?.event.endsAt ?? event.endDate)}
         </p>
@@ -797,8 +790,8 @@ export default function EventDetailPage() {
         </div>
 
         <section className="dashboard-card">
-          <h2 className="text-sm font-semibold text-[#111111]">Event archive</h2>
-          <p className="mt-1 text-xs text-[#6B7280]">
+          <h2 className="text-sm font-semibold text-foreground">Event archive</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
             Download paid-order media before the cleanup deadline.
           </p>
           {exportArchiveBlocked ? (
@@ -815,7 +808,7 @@ export default function EventDetailPage() {
               >
                 {exportLoading ? "Preparing download…" : "Download event archive"}
               </button>
-              <p className="mt-2 text-xs text-[#6B7280]">
+              <p className="mt-2 text-xs text-muted-foreground">
                 Paid orders only. Missing files (cleanup or cloud storage) are listed in MEDIA_SKIPPED.txt when applicable.
               </p>
             </>
@@ -838,14 +831,14 @@ export default function EventDetailPage() {
       <div>
         <Link
           href="/dashboard/events"
-          className="-ml-1 inline-block rounded-md px-1 py-0.5 text-sm text-[#6B7280] transition-colors hover:bg-[#F9FAFB] hover:text-[#111111]"
+          className="-ml-1 inline-block rounded-md px-1 py-0.5 text-sm text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
         >
           &larr; All events
         </Link>
 
         <div className="mt-4 flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               {event.name}
             </h1>
             <div className="mt-2">
@@ -860,14 +853,14 @@ export default function EventDetailPage() {
             <button
               type="button"
               onClick={handleToggleActive}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB]"
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface"
             >
               {event.isActive ? "Deactivate" : "Activate"}
             </button>
             <button
               type="button"
               onClick={() => void handleDelete()}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
             >
               Delete
             </button>
@@ -876,7 +869,7 @@ export default function EventDetailPage() {
       </div>
 
       <div
-        className="flex flex-wrap gap-2 border-b border-gray-200 pb-2"
+        className="flex flex-wrap gap-2 border-b border-border pb-2"
         role="tablist"
         aria-label="Event sections"
       >

@@ -47,16 +47,16 @@ export default function NewStorefrontPage() {
   }
 
   if (resolvingStorefront || storefront) {
-    return <p className="text-sm text-[#6B7280]">Loading…</p>;
+    return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
   return (
     <div className="dashboard-page mx-auto max-w-2xl">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Create storefront
         </h1>
-        <p className="mt-2 text-sm text-[#6B7280]">
+        <p className="mt-2 text-sm text-muted-foreground">
           Set a name first. You will configure shapes, pricing, and other settings
           on the next screen.
         </p>
@@ -64,7 +64,7 @@ export default function NewStorefrontPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-[#111111]">
+          <label htmlFor="name" className="block text-sm font-medium text-foreground">
             Storefront name
           </label>
           <input
@@ -73,7 +73,7 @@ export default function NewStorefrontPage() {
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1.5 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#111111] placeholder:text-[#6B7280] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] focus:outline-none"
+            className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
             placeholder="e.g. My Photo Booth"
           />
         </div>
@@ -84,14 +84,14 @@ export default function NewStorefrontPage() {
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-[#2563EB] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
+            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
           >
             {loading ? "Creating…" : "Create storefront"}
           </button>
           <button
             type="button"
             onClick={() => router.push("/dashboard/storefronts")}
-            className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB]"
+            className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface"
           >
             Cancel
           </button>

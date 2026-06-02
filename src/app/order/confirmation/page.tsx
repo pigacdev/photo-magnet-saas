@@ -27,7 +27,7 @@ export default function OrderConfirmationPage() {
         />
         <Link
           href={continueHref}
-          className="text-sm font-medium text-[#2563EB] underline-offset-4 hover:underline"
+          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           Continue
         </Link>

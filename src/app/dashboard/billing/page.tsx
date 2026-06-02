@@ -89,17 +89,17 @@ function BillingContent() {
         </p>
       )}
 
-      <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
         Billing &amp; plan
       </h1>
 
-      <p className="mt-2 text-sm text-[#6B7280]">
+      <p className="mt-2 text-sm text-muted-foreground">
         Compare benefits and manage your subscription.
       </p>
 
       {user && usage && (
-        <section className="mt-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-[#111111]">Current plan</h2>
+        <section className="mt-6 rounded-lg border border-border bg-card p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-foreground">Current plan</h2>
           <div className="mt-4">
             <UserProfileSummary
               user={user}
@@ -112,8 +112,8 @@ function BillingContent() {
         </section>
       )}
 
-      <div className="mt-6 space-y-3 rounded-lg border border-gray-200 p-5">
-        <p className="text-lg font-semibold text-[#111111]">
+      <div className="mt-6 space-y-3 rounded-lg border border-border p-5">
+        <p className="text-lg font-semibold text-foreground">
           PRO — €29/month
         </p>
 
@@ -148,12 +148,12 @@ function BillingContent() {
             You are currently on PRO plan
           </p>
         ) : (
-          <p className="mt-4 text-sm text-gray-500">Loading plan…</p>
+          <p className="mt-4 text-sm text-muted-foreground">Loading plan…</p>
         )}
       </div>
 
-      <p className="mt-6 text-sm text-[#6B7280]">
-        <Link href="/dashboard" className="text-[#2563EB] hover:underline">
+      <p className="mt-6 text-sm text-muted-foreground">
+        <Link href="/dashboard" className="text-primary hover:underline">
           ← Back to dashboard
         </Link>
       </p>
@@ -165,7 +165,7 @@ export default function BillingPage() {
   return (
     <Suspense
       fallback={
-        <div className="dashboard-page mx-auto max-w-2xl text-sm text-[#6B7280]">Loading…</div>
+        <div className="dashboard-page mx-auto max-w-2xl text-sm text-muted-foreground">Loading…</div>
       }
     >
       <BillingContent />

@@ -112,7 +112,7 @@ function OrderUnavailableInner() {
 
         <Link
           href="/"
-          className="inline-block text-sm text-[#2563EB] underline"
+          className="inline-block text-sm text-primary underline"
         >
           Start a new order
         </Link>
@@ -126,7 +126,7 @@ export default function OrderUnavailablePage() {
     <Suspense
       fallback={
         <div className={orderLoadingScreen}>
-          <p className="text-sm text-[#6B7280]">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       }
     >

@@ -264,7 +264,7 @@ export function FixedCropCanvas({ image, shape, onChange }: Props) {
       <div className="mt-4 flex items-center justify-center gap-4">
         <button
           type="button"
-          className="min-h-12 min-w-12 rounded-2xl border-2 border-gray-300 bg-white text-lg font-semibold text-[#111111] active:bg-gray-50"
+          className="min-h-12 min-w-12 rounded-2xl border-2 border-border bg-background text-lg font-semibold text-foreground active:bg-surface"
           aria-label="Zoom out"
           onClick={zoomOut}
         >
@@ -272,14 +272,14 @@ export function FixedCropCanvas({ image, shape, onChange }: Props) {
         </button>
         <button
           type="button"
-          className="min-h-12 min-w-12 rounded-2xl border-2 border-gray-300 bg-white text-lg font-semibold text-[#111111] active:bg-gray-50"
+          className="min-h-12 min-w-12 rounded-2xl border-2 border-border bg-background text-lg font-semibold text-foreground active:bg-surface"
           aria-label="Zoom in"
           onClick={zoomIn}
         >
           +
         </button>
       </div>
-      <p className="mt-2 text-center text-xs text-[#6B7280]">
+      <p className="mt-2 text-center text-xs text-muted-foreground">
         Drag to move · Pinch or scroll to zoom
       </p>
     </div>

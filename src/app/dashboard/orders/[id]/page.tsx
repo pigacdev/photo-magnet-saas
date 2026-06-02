@@ -400,18 +400,18 @@ export default function OrderDetailPage() {
       <div>
         <Link
           href="/dashboard/orders"
-          className="text-sm font-medium text-[#2563EB] hover:underline"
+          className="text-sm font-medium text-primary hover:underline"
         >
           ← Orders
         </Link>
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#6B7280]">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : !order ? (
-        <p className="text-sm text-[#6B7280]">Order not found.</p>
+        <p className="text-sm text-muted-foreground">Order not found.</p>
       ) : (
         <>
           <div
@@ -420,11 +420,11 @@ export default function OrderDetailPage() {
             }`}
           >
           <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-          <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
-            <h1 className="text-lg font-semibold text-[#111111] sm:text-xl">
+          <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
+            <h1 className="text-lg font-semibold text-foreground sm:text-xl">
               Order
             </h1>
-            <div className="mt-2 space-y-1 text-sm text-[#6B7280]">
+            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
               <p className="break-all">{order.orderId}</p>
               <p>Created: {formatDate(order.createdAt)}</p>
               <p>
@@ -441,8 +441,8 @@ export default function OrderDetailPage() {
                 )}
               </p>
             </div>
-            <div className="mt-6 rounded-lg border border-gray-200 bg-[#FAFAFA] p-4 sm:p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+            <div className="mt-6 rounded-lg border border-border bg-surface p-4 sm:p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Order status
               </p>
               <div className="mt-3">
@@ -459,7 +459,7 @@ export default function OrderDetailPage() {
                       type="button"
                       disabled={actionBusy !== null}
                       onClick={() => handleStatusAction(next)}
-                      className="min-h-[44px] rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#111111] transition-colors hover:bg-gray-50 disabled:opacity-50 sm:min-w-[160px]"
+                      className="min-h-[44px] rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface disabled:opacity-50 sm:min-w-[160px]"
                     >
                       {actionBusy === "status"
                         ? "Updating…"
@@ -472,16 +472,16 @@ export default function OrderDetailPage() {
 
             <dl className="mt-6 grid gap-4 sm:grid-cols-2">
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Type
                 </dt>
-                <dd className="mt-1 text-[#111111]">{order.contextType}</dd>
+                <dd className="mt-1 text-foreground">{order.contextType}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+                <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Total
                 </dt>
-                <dd className="mt-1 text-lg font-semibold tabular-nums text-[#111111]">
+                <dd className="mt-1 text-lg font-semibold tabular-nums text-foreground">
                   {formatMoney(order.totalPrice, order.currency)}
                 </dd>
               </div>
@@ -495,7 +495,7 @@ export default function OrderDetailPage() {
                       type="button"
                       disabled={actionBusy !== null || !canPrintNow}
                       onClick={() => void printOrderPreview()}
-                      className="min-h-[48px] rounded-lg bg-[#2563EB] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[180px]"
+                      className="min-h-[48px] rounded-lg bg-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[180px]"
                     >
                       {actionBusy === "printPreview"
                         ? "Preparing…"
@@ -507,7 +507,7 @@ export default function OrderDetailPage() {
                       type="button"
                       disabled={actionBusy !== null}
                       onClick={() => void markPrinted()}
-                      className="min-h-[48px] rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50 sm:min-w-[180px]"
+                      className="min-h-[48px] rounded-lg border border-border bg-background px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50 sm:min-w-[180px]"
                     >
                       {actionBusy === "markPrinted"
                         ? "Updating…"
@@ -529,14 +529,14 @@ export default function OrderDetailPage() {
                   !hasOrderPrinted &&
                   !printOutcomePrompt &&
                   canPrintNow && (
-                  <p className="text-xs text-[#6B7280]">
+                  <p className="text-xs text-muted-foreground">
                     Open the PDF preview, then confirm when production printing is
                     done.
                   </p>
                 )}
                 {showMarkPrinted && printOutcomePrompt && (
-                  <div className="rounded-lg border border-gray-200 bg-[#FAFAFA] p-4 sm:p-5">
-                    <p className="text-sm font-medium text-[#111111]">
+                  <div className="rounded-lg border border-border bg-surface p-4 sm:p-5">
+                    <p className="text-sm font-medium text-foreground">
                       Did everything print correctly?
                     </p>
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -544,7 +544,7 @@ export default function OrderDetailPage() {
                         type="button"
                         disabled={actionBusy !== null}
                         onClick={() => void markPrinted()}
-                        className="min-h-[48px] rounded-lg bg-[#2563EB] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[200px]"
+                        className="min-h-[48px] rounded-lg bg-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[200px]"
                       >
                         {actionBusy === "markPrinted"
                           ? "Updating…"
@@ -554,7 +554,7 @@ export default function OrderDetailPage() {
                         type="button"
                         disabled={actionBusy !== null}
                         onClick={() => setPrintOutcomePrompt(false)}
-                        className="min-h-[48px] rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50 sm:min-w-[220px]"
+                        className="min-h-[48px] rounded-lg border border-border bg-background px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50 sm:min-w-[220px]"
                       >
                         No → I&apos;ll reprint some later
                       </button>
@@ -566,15 +566,15 @@ export default function OrderDetailPage() {
 
           </div>
 
-          <div className="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
+          <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-lg font-semibold text-[#111111] sm:text-xl">
+                <h2 className="text-lg font-semibold text-foreground sm:text-xl">
                   Customer & shipping
                 </h2>
                 <button
                   type="button"
                   onClick={() => setCustomerEditOpen(true)}
-                  className="min-h-[44px] text-left text-sm font-medium text-[#2563EB] hover:underline sm:text-right"
+                  className="min-h-[44px] text-left text-sm font-medium text-primary hover:underline sm:text-right"
                 >
                   Edit customer info
                 </button>
@@ -583,28 +583,28 @@ export default function OrderDetailPage() {
                 <dl className="mt-3 space-y-2 text-sm">
                   {order.customerName && (
                     <div>
-                      <dt className="text-xs text-[#6B7280]">Name</dt>
-                      <dd className="text-[#111111]">{order.customerName}</dd>
+                      <dt className="text-xs text-muted-foreground">Name</dt>
+                      <dd className="text-foreground">{order.customerName}</dd>
                     </div>
                   )}
                   {order.customerEmail && (
                     <div>
-                      <dt className="text-xs text-[#6B7280]">Email</dt>
-                      <dd className="text-[#111111]">{order.customerEmail}</dd>
+                      <dt className="text-xs text-muted-foreground">Email</dt>
+                      <dd className="text-foreground">{order.customerEmail}</dd>
                     </div>
                   )}
                   {order.customerPhone && (
                     <div>
-                      <dt className="text-xs text-[#6B7280]">Phone</dt>
-                      <dd className="text-[#111111]">{order.customerPhone}</dd>
+                      <dt className="text-xs text-muted-foreground">Phone</dt>
+                      <dd className="text-foreground">{order.customerPhone}</dd>
                     </div>
                   )}
                   {order.shippingType && order.contextType === "STOREFRONT" && (
                     <div>
-                      <dt className="text-xs text-[#6B7280]">
+                      <dt className="text-xs text-muted-foreground">
                         Shipping method
                       </dt>
-                      <dd className="text-[#111111]">
+                      <dd className="text-foreground">
                         {shippingTypeLabel(order.shippingType)}
                       </dd>
                     </div>
@@ -613,8 +613,8 @@ export default function OrderDetailPage() {
                     normalizeLegacyShippingType(order.shippingType) ===
                       "pickup" && (
                       <div>
-                        <dt className="text-xs text-[#6B7280]">Address</dt>
-                        <dd className="text-sm text-[#6B7280]">
+                        <dt className="text-xs text-muted-foreground">Address</dt>
+                        <dd className="text-sm text-muted-foreground">
                           No delivery address (pickup).
                         </dd>
                       </div>
@@ -639,10 +639,10 @@ export default function OrderDetailPage() {
                       if (lines.length === 0) return null;
                       return (
                         <div>
-                          <dt className="text-xs text-[#6B7280]">
+                          <dt className="text-xs text-muted-foreground">
                             Delivery address
                           </dt>
-                          <dd className="mt-1 whitespace-pre-wrap rounded-md bg-[#F9FAFB] p-2 text-sm text-[#111111]">
+                          <dd className="mt-1 whitespace-pre-wrap rounded-md bg-surface p-2 text-sm text-foreground">
                             {lines.join("\n")}
                           </dd>
                         </div>
@@ -657,10 +657,10 @@ export default function OrderDetailPage() {
                     typeof (order.shippingAddress as { lockerId?: unknown })
                       .lockerId === "string" && (
                       <div>
-                        <dt className="text-xs text-[#6B7280]">
+                        <dt className="text-xs text-muted-foreground">
                           BoxNow locker id
                         </dt>
-                        <dd className="mt-1 rounded-md bg-[#F9FAFB] p-2 font-mono text-sm text-[#111111]">
+                        <dd className="mt-1 rounded-md bg-surface p-2 font-mono text-sm text-foreground">
                           {
                             (order.shippingAddress as { lockerId: string })
                               .lockerId
@@ -670,7 +670,7 @@ export default function OrderDetailPage() {
                     )}
                 </dl>
               ) : (
-                <p className="mt-3 text-sm text-[#6B7280]">
+                <p className="mt-3 text-sm text-muted-foreground">
                   No customer details yet.
                 </p>
               )}
@@ -678,21 +678,21 @@ export default function OrderDetailPage() {
           </div>
 
           <div>
-            <h2 className="text-base font-semibold text-[#111111]">Images</h2>
+            <h2 className="text-base font-semibold text-foreground">Images</h2>
             {!allMediaRemoved && printableImages.length > 0 ? (
-              <p className="mt-1 text-xs text-[#6B7280]">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Use{" "}
-                <span className="font-medium text-[#111111]">Select unprinted</span>{" "}
+                <span className="font-medium text-foreground">Select unprinted</span>{" "}
                 for the usual run, then print only those sheets. Tap cards to adjust.
                 Printed items are dimmed but can be included for reprint.
               </p>
             ) : null}
             {order.images.length === 0 ? (
-              <p className="mt-3 text-sm text-[#6B7280]">
+              <p className="mt-3 text-sm text-muted-foreground">
                 No images available.
               </p>
             ) : allMediaRemoved ? (
-              <p className="mt-3 rounded-lg border border-gray-200 bg-[#F9FAFB] px-4 py-8 text-center text-sm text-[#6B7280]">
+              <p className="mt-3 rounded-lg border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
                 Media removed after retention period.
               </p>
             ) : (
@@ -702,7 +702,7 @@ export default function OrderDetailPage() {
                     type="button"
                     disabled={unprintedImageIds.length === 0}
                     onClick={() => setSelectedImageIds(unprintedImageIds)}
-                    className="rounded-lg border border-[#2563EB] bg-[#EFF6FF] px-3 py-2 text-sm font-semibold text-[#1D4ED8] transition-colors hover:bg-[#DBEAFE] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:font-medium disabled:text-[#9CA3AF]"
+                    className="rounded-lg border border-primary bg-blue-50 dark:bg-blue-950/40 px-3 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300 transition-colors hover:bg-blue-100 dark:hover:bg-blue-950/60 disabled:cursor-not-allowed disabled:border-border disabled:bg-surface disabled:font-medium disabled:text-muted-foreground"
                   >
                     Select unprinted
                   </button>
@@ -711,7 +711,7 @@ export default function OrderDetailPage() {
                     onClick={() =>
                       setSelectedImageIds(printableImages.map((img) => img.id))
                     }
-                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB]"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface"
                   >
                     Select all
                   </button>
@@ -719,7 +719,7 @@ export default function OrderDetailPage() {
                     type="button"
                     disabled={selectedImageIds.length === 0}
                     onClick={() => setSelectedImageIds([])}
-                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Clear selection
                   </button>
@@ -736,10 +736,10 @@ export default function OrderDetailPage() {
                             isSelected ? "Deselect image" : "Select image"
                           }
                           onClick={() => toggleImageSelected(img.id)}
-                          className={`group relative h-[132px] w-[132px] overflow-hidden rounded-lg border bg-[#F9FAFB] text-left transition-shadow ${
+                          className={`group relative h-[132px] w-[132px] overflow-hidden rounded-lg border bg-surface text-left transition-shadow ${
                             isSelected
-                              ? "border-[#2563EB] ring-2 ring-[#2563EB]"
-                              : "border-gray-200"
+                              ? "border-primary ring-2 ring-primary"
+                              : "border-border"
                           }`}
                         >
                           {img.renderedUrl ? (
@@ -752,7 +752,7 @@ export default function OrderDetailPage() {
                             />
                           ) : (
                             <div
-                              className={`flex h-full items-center justify-center p-2 text-center text-xs text-[#6B7280] ${
+                              className={`flex h-full items-center justify-center p-2 text-center text-xs text-muted-foreground ${
                                 img.printed ? "opacity-60" : ""
                               }`}
                             >
@@ -762,8 +762,8 @@ export default function OrderDetailPage() {
                           <span
                             className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md border text-sm font-semibold shadow-sm ${
                               isSelected
-                                ? "border-[#2563EB] bg-[#2563EB] text-white"
-                                : "border-gray-200 bg-white/95 text-[#6B7280]"
+                                ? "border-primary bg-primary text-white"
+                                : "border-border bg-background/95 text-muted-foreground"
                             }`}
                             aria-hidden
                           >
@@ -773,7 +773,7 @@ export default function OrderDetailPage() {
                             className={`pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-3rem)] flex-col gap-0.5 rounded-md border px-2 py-1 text-[10px] font-semibold leading-tight shadow-sm ${
                               img.printed
                                 ? "border-green-200 bg-green-50/95 text-green-800"
-                                : "border-gray-200 bg-white/95 text-[#6B7280]"
+                                : "border-border bg-background/95 text-muted-foreground"
                             }`}
                           >
                             <span>Copies: {img.copies ?? 1}</span>
@@ -792,9 +792,9 @@ export default function OrderDetailPage() {
           </div>
 
           {selectedImageIds.length > 0 && !allMediaRemoved && (
-            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-6">
+            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-6">
               <div className="flex w-full flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-[#111111]">
+                <p className="text-sm text-foreground">
                   {selectedImageIds.length} selected
                 </p>
                 <div className="flex flex-wrap items-center justify-end gap-2">
@@ -806,7 +806,7 @@ export default function OrderDetailPage() {
                       actionBusy !== null
                     }
                     onClick={() => void handleMarkSelectedPrinted()}
-                    className="rounded border border-gray-300 px-3 py-2 text-sm text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50"
+                    className="rounded border border-border px-3 py-2 text-sm text-foreground transition-colors hover:bg-surface disabled:opacity-50"
                   >
                     {actionBusy === "markPrinted"
                       ? "Updating…"
@@ -820,7 +820,7 @@ export default function OrderDetailPage() {
                       actionBusy !== null
                     }
                     onClick={() => void printSelectedImages()}
-                    className="min-h-[48px] rounded-lg bg-[#2563EB] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
+                    className="min-h-[48px] rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
                   >
                     {isPrintingSelected || actionBusy === "printSelected"
                       ? "Preparing…"

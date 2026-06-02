@@ -28,7 +28,7 @@ export default function AccountPage() {
   }
 
   if (loading) {
-    return <p className="text-sm text-[#6B7280]">Loading…</p>;
+    return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
   if (!user) {
@@ -38,30 +38,30 @@ export default function AccountPage() {
   return (
     <div className="dashboard-page mx-auto max-w-2xl">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Account
         </h1>
-        <p className="mt-2 text-sm text-[#6B7280]">
+        <p className="mt-2 text-sm text-muted-foreground">
           Your profile and subscription details.
         </p>
       </div>
 
       <section className="dashboard-card">
-        <h2 className="text-sm font-semibold text-[#111111]">Profile</h2>
+        <h2 className="text-sm font-semibold text-foreground">Profile</h2>
         <dl className="mt-4 space-y-3 text-sm">
           <div>
-            <dt className="text-[#6B7280]">Name</dt>
-            <dd className="mt-0.5 font-medium text-[#111111]">
+            <dt className="text-muted-foreground">Name</dt>
+            <dd className="mt-0.5 font-medium text-foreground">
               {user.name || "—"}
             </dd>
           </div>
           <div>
-            <dt className="text-[#6B7280]">Email</dt>
-            <dd className="mt-0.5 font-medium text-[#111111]">{user.email}</dd>
+            <dt className="text-muted-foreground">Email</dt>
+            <dd className="mt-0.5 font-medium text-foreground">{user.email}</dd>
           </div>
           <div>
-            <dt className="text-[#6B7280]">Role</dt>
-            <dd className="mt-0.5 font-medium text-[#111111]">
+            <dt className="text-muted-foreground">Role</dt>
+            <dd className="mt-0.5 font-medium text-foreground">
               {user.role === "ADMIN" ? "Admin" : "Staff"}
             </dd>
           </div>
@@ -69,7 +69,7 @@ export default function AccountPage() {
       </section>
 
       <section className="dashboard-card">
-        <h2 className="text-sm font-semibold text-[#111111]">Plan &amp; usage</h2>
+        <h2 className="text-sm font-semibold text-foreground">Plan &amp; usage</h2>
         <div className="mt-4">
           <UserProfileSummary
             user={user}
@@ -82,7 +82,7 @@ export default function AccountPage() {
         {usage?.plan === "FREE" && (
           <Link
             href="/dashboard/billing"
-            className="mt-4 inline-block text-sm font-medium text-[#2563EB] hover:underline"
+            className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
           >
             Upgrade to PRO
           </Link>

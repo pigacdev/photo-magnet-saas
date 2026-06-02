@@ -56,19 +56,19 @@ export function UserMenu({ user, usage, onUsageRefresh }: UserMenuProps) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-[#F9FAFB]"
+        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-surface"
       >
         <span
-          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#F3F4F6] text-xs font-medium text-[#374151]"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-medium text-muted-foreground"
           aria-hidden
         >
           {userInitials(user)}
         </span>
-        <span className="hidden max-w-[160px] truncate font-medium text-[#111111] sm:inline">
+        <span className="hidden max-w-[160px] truncate font-medium text-foreground sm:inline">
           {displayName}
         </span>
         <svg
-          className={`size-4 text-[#6B7280] transition-transform ${open ? "rotate-180" : ""}`}
+          className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
           viewBox="0 0 20 20"
           fill="currentColor"
           aria-hidden
@@ -84,7 +84,7 @@ export function UserMenu({ user, usage, onUsageRefresh }: UserMenuProps) {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-lg border border-gray-200 bg-white py-2 shadow-lg"
+          className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-lg border border-border bg-card py-2 shadow-lg"
         >
           <UserProfileSummary
             user={user}
@@ -93,14 +93,14 @@ export function UserMenu({ user, usage, onUsageRefresh }: UserMenuProps) {
             onSubscriptionChange={onUsageRefresh}
           />
 
-          <div className="my-2 border-t border-gray-100" />
+          <div className="my-2 border-t border-border" />
 
           <nav className="flex flex-col px-1">
             <Link
               href="/dashboard/account"
               role="menuitem"
               onClick={close}
-              className="rounded-md px-3 py-2 text-sm text-[#374151] transition-colors hover:bg-[#F9FAFB] hover:text-[#111111]"
+              className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
             >
               Account
             </Link>
@@ -108,20 +108,20 @@ export function UserMenu({ user, usage, onUsageRefresh }: UserMenuProps) {
               href="/dashboard/billing"
               role="menuitem"
               onClick={close}
-              className="rounded-md px-3 py-2 text-sm text-[#374151] transition-colors hover:bg-[#F9FAFB] hover:text-[#111111]"
+              className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
             >
               Billing &amp; plan
             </Link>
           </nav>
 
-          <div className="my-2 border-t border-gray-100" />
+          <div className="my-2 border-t border-border" />
 
           <div className="px-1">
             <button
               type="button"
               role="menuitem"
               onClick={() => void handleLogout()}
-              className="w-full rounded-md px-3 py-2 text-left text-sm text-[#374151] transition-colors hover:bg-[#F9FAFB] hover:text-[#111111]"
+              className="w-full rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
             >
               Log out
             </button>

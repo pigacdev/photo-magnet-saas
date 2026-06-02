@@ -33,10 +33,10 @@ export type CustomerEditModalProps = {
 };
 
 function fieldInputClass(hasError: boolean): string {
-  return `w-full rounded-lg border bg-white px-3 py-1.5 text-sm text-[#111111] outline-none focus:ring-2 ${
+  return `w-full rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground outline-none focus:ring-2 ${
     hasError
       ? "border-red-300 ring-red-200 focus:ring-red-200"
-      : "border-gray-200 ring-[#2563EB] focus:ring-[#2563EB]"
+      : "border-border ring-primary focus:ring-primary"
   }`;
 }
 
@@ -149,12 +149,12 @@ export function CustomerEditModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="customer-edit-title"
-        className="relative max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl"
+        className="relative max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border border-border bg-background shadow-xl"
       >
-        <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
+        <div className="border-b border-border px-4 py-3 sm:px-5">
           <h2
             id="customer-edit-title"
-            className="text-base font-semibold text-[#111111] sm:text-lg"
+            className="text-base font-semibold text-foreground sm:text-lg"
           >
             Edit customer info
           </h2>
@@ -170,7 +170,7 @@ export function CustomerEditModal({
 
             <div className="grid gap-2.5 sm:grid-cols-2">
               <label className="flex flex-col gap-1">
-                <span className="text-sm font-medium text-[#111111]">
+                <span className="text-sm font-medium text-foreground">
                   First name <span className="text-red-600">*</span>
                 </span>
                 <input
@@ -185,7 +185,7 @@ export function CustomerEditModal({
               </label>
 
               <label className="flex flex-col gap-1">
-                <span className="text-sm font-medium text-[#111111]">
+                <span className="text-sm font-medium text-foreground">
                   Last name <span className="text-red-600">*</span>
                 </span>
                 <input
@@ -201,7 +201,7 @@ export function CustomerEditModal({
             </div>
 
             <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-[#111111]">
+              <span className="text-sm font-medium text-foreground">
                 Email <span className="text-red-600">*</span>
               </span>
               <input
@@ -216,7 +216,7 @@ export function CustomerEditModal({
             </label>
 
             <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-[#111111]">
+              <span className="text-sm font-medium text-foreground">
                 Phone <span className="text-red-600">*</span>
               </span>
               <input
@@ -233,7 +233,7 @@ export function CustomerEditModal({
             {!isEvent && (
               <>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[#111111]">
+                  <span className="text-sm font-medium text-foreground">
                     Delivery type <span className="text-red-600">*</span>
                   </span>
                   <select
@@ -258,7 +258,7 @@ export function CustomerEditModal({
                 {isShipping && (
                   <div className="grid gap-2.5 sm:grid-cols-2">
                     <label className="flex flex-col gap-1 sm:col-span-2">
-                      <span className="text-sm font-medium text-[#111111]">
+                      <span className="text-sm font-medium text-foreground">
                         Street <span className="text-red-600">*</span>
                       </span>
                       <input
@@ -271,7 +271,7 @@ export function CustomerEditModal({
                       <FieldHint error={fieldErrors.street} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[#111111]">
+                      <span className="text-sm font-medium text-foreground">
                         House number <span className="text-red-600">*</span>
                       </span>
                       <input
@@ -288,7 +288,7 @@ export function CustomerEditModal({
                       <FieldHint error={fieldErrors.houseNumber} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[#111111]">
+                      <span className="text-sm font-medium text-foreground">
                         City <span className="text-red-600">*</span>
                       </span>
                       <input
@@ -301,7 +301,7 @@ export function CustomerEditModal({
                       <FieldHint error={fieldErrors.city} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[#111111]">
+                      <span className="text-sm font-medium text-foreground">
                         Post code <span className="text-red-600">*</span>
                       </span>
                       <input
@@ -314,7 +314,7 @@ export function CustomerEditModal({
                       <FieldHint error={fieldErrors.postCode} />
                     </label>
                     <label className="flex flex-col gap-1 sm:col-span-2">
-                      <span className="text-sm font-medium text-[#111111]">
+                      <span className="text-sm font-medium text-foreground">
                         Country <span className="text-red-600">*</span>
                       </span>
                       <input
@@ -331,7 +331,7 @@ export function CustomerEditModal({
 
                 {values.shippingType === "boxnow" && (
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[#111111]">
+                    <span className="text-sm font-medium text-foreground">
                       BoxNow locker id{" "}
                       <span className="text-red-600">*</span>
                     </span>
@@ -349,19 +349,19 @@ export function CustomerEditModal({
             )}
           </div>
 
-          <div className="flex flex-col-reverse gap-2 border-t border-gray-100 px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
+          <div className="flex flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
             <button
               type="button"
               disabled={saving}
               onClick={onClose}
-              className="min-h-10 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:opacity-50"
+              className="min-h-10 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="min-h-10 rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
+              className="min-h-10 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save"}
             </button>

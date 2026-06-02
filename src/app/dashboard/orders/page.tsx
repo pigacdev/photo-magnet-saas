@@ -172,14 +172,14 @@ function statusParamFromSelections(selected: SellerListStatusValue[]): string {
 function OrderCustomerCell({ o }: { o: SellerOrderListItem }) {
   return (
     <div className="space-y-1">
-      <p className="font-medium text-[#111111]">
+      <p className="font-medium text-foreground">
         {o.customerName?.trim() ? o.customerName : "Guest"}
       </p>
       {o.customerEmail?.trim() ? (
-        <p className="text-xs text-gray-500">{o.customerEmail}</p>
+        <p className="text-xs text-muted-foreground">{o.customerEmail}</p>
       ) : null}
       {o.customerPhone?.trim() ? (
-        <p className="text-xs text-gray-500">{o.customerPhone}</p>
+        <p className="text-xs text-muted-foreground">{o.customerPhone}</p>
       ) : null}
     </div>
   );
@@ -188,7 +188,7 @@ function OrderCustomerCell({ o }: { o: SellerOrderListItem }) {
 function OrderStatusCell({ status }: { status: string }) {
   const key = status as OrderWorkflowStatus;
   const badgeClass =
-    ORDER_STATUS_BADGE_CLASS[key] ?? "bg-gray-100 text-[#6B7280]";
+    ORDER_STATUS_BADGE_CLASS[key] ?? "bg-gray-100 text-muted-foreground";
   return (
     <span
       className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${badgeClass}`}
@@ -464,20 +464,20 @@ function OrdersListContent() {
 
   const quickBtn =
     "inline-flex min-h-11 items-center rounded-lg border px-3 text-sm font-medium transition-colors";
-  const quickBtnIdle = `${quickBtn} border-gray-300 bg-white text-[#111111] hover:bg-[#F9FAFB]`;
-  const quickBtnActive = `${quickBtn} border-[#2563EB] bg-[#EFF6FF] text-[#1D4ED8]`;
+  const quickBtnIdle = `${quickBtn} border-border bg-background text-foreground hover:bg-surface`;
+  const quickBtnActive = `${quickBtn} border-primary bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300`;
 
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Orders
         </h1>
-        <p className="mt-2 text-[#6B7280]">
+        <p className="mt-2 text-muted-foreground">
           Read-only list of orders from your events and storefronts.
         </p>
         {selectedContextSummary ? (
-          <p className="mt-2 text-sm text-[#2563EB]">
+          <p className="mt-2 text-sm text-primary">
             Showing orders for{" "}
             <span className="font-medium">{selectedContextSummary.label}</span>
             : {selectedContextSummary.name}
@@ -486,7 +486,7 @@ function OrdersListContent() {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-[#6B7280]">Context</span>
+        <span className="text-xs font-medium text-muted-foreground">Context</span>
         <select
           value={contextSelectValue}
           disabled={contextsLoading}
@@ -507,7 +507,7 @@ function OrdersListContent() {
               q.set("page", "1");
             });
           }}
-          className="w-full max-w-md min-h-11 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2 disabled:cursor-wait disabled:opacity-60 sm:min-w-[280px]"
+          className="w-full max-w-md min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2 disabled:cursor-wait disabled:opacity-60 sm:min-w-[280px]"
           aria-label="Filter orders by event or storefront"
         >
           <option value="">
@@ -533,7 +533,7 @@ function OrdersListContent() {
           ) : null}
         </select>
         {!contextsLoading && !selectedContextSummary && contexts ? (
-          <p className="text-xs text-[#9CA3AF]">
+          <p className="text-xs text-muted-foreground">
             All events and storefronts — use the menu to narrow the list.
           </p>
         ) : null}
@@ -541,7 +541,7 @@ function OrdersListContent() {
 
       <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-[#6B7280]">Date</span>
+          <span className="text-xs font-medium text-muted-foreground">Date</span>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -568,49 +568,49 @@ function OrdersListContent() {
               type="button"
               onClick={() => clearDateFilters()}
               disabled={!hasDateInUrl}
-              className={`${quickBtn} border-gray-300 bg-white text-[#111111] hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-40`}
+              className={`${quickBtn} border-border bg-background text-foreground hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40`}
             >
               Clear
             </button>
           </div>
         </div>
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-[#6B7280]">From</span>
+          <span className="text-xs font-medium text-muted-foreground">From</span>
           <input
             type="date"
             value={fromDateValue}
             onChange={(e) => updateDateFilter("from", e.target.value)}
-            className="min-h-11 w-[140px] rounded-lg border border-gray-200 px-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+            className="min-h-11 w-[140px] rounded-lg border border-border px-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-[#6B7280]">To</span>
+          <span className="text-xs font-medium text-muted-foreground">To</span>
           <input
             type="date"
             value={toDateValue}
             onChange={(e) => updateDateFilter("to", e.target.value)}
-            className="min-h-11 w-[140px] rounded-lg border border-gray-200 px-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+            className="min-h-11 w-[140px] rounded-lg border border-border px-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
           />
         </label>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex min-w-[200px] flex-1 flex-col gap-1.5">
-          <span className="text-xs font-medium text-[#6B7280]">Search</span>
+          <span className="text-xs font-medium text-muted-foreground">Search</span>
           <input
             type="search"
             value={searchDraft}
             onChange={(e) => setSearchDraft(e.target.value)}
             placeholder="Search by order ID, customer name, email, or phone"
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+            className="rounded-lg border border-border px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
           />
         </label>
         <div className="relative flex w-full min-w-[200px] flex-col gap-1.5 sm:w-56">
-          <span className="text-xs font-medium text-[#6B7280]">Status</span>
+          <span className="text-xs font-medium text-muted-foreground">Status</span>
           <details ref={detailsRef} className="group relative">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] marker:hidden focus-visible:ring-2 [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary marker:hidden focus-visible:ring-2 [&::-webkit-details-marker]:hidden">
               <span className="min-w-0 truncate">
-                <span className="font-medium text-[#6B7280]">Showing:</span>{" "}
+                <span className="font-medium text-muted-foreground">Showing:</span>{" "}
                 {selectedStatuses.length === 0
                   ? "All"
                   : selectedStatuses
@@ -622,17 +622,17 @@ function OrdersListContent() {
                       .join(", ")}
               </span>
               <span
-                className="shrink-0 text-[#9CA3AF] transition-transform group-open:rotate-180"
+                className="shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
                 aria-hidden
               >
                 ▾
               </span>
             </summary>
-            <div className="absolute left-0 right-0 z-20 mt-1 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
-              <div className="border-b border-gray-100 px-3 pb-2">
+            <div className="absolute left-0 right-0 z-20 mt-1 rounded-lg border border-border bg-background py-2 shadow-lg">
+              <div className="border-b border-border px-3 pb-2">
                 <button
                   type="button"
-                  className="text-sm font-medium text-[#2563EB] hover:underline"
+                  className="text-sm font-medium text-primary hover:underline"
                   onClick={() => {
                     replaceQuery((q) => {
                       q.delete("status");
@@ -648,7 +648,7 @@ function OrdersListContent() {
                   const checked = selectedStatuses.includes(opt.value);
                   return (
                     <li key={opt.value}>
-                      <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-[#111111] hover:bg-[#F9FAFB]">
+                      <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-surface">
                         <input
                           type="checkbox"
                           checked={checked}
@@ -666,7 +666,7 @@ function OrdersListContent() {
                               q.set("page", "1");
                             });
                           }}
-                          className="h-4 w-4 rounded border-gray-300 text-[#2563EB] focus:ring-[#2563EB]"
+                          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                         />
                         {opt.label}
                       </label>
@@ -678,7 +678,7 @@ function OrdersListContent() {
           </details>
         </div>
         <label className="flex w-full min-w-[120px] flex-col gap-1.5 sm:w-32">
-          <span className="text-xs font-medium text-[#6B7280]">Page size</span>
+          <span className="text-xs font-medium text-muted-foreground">Page size</span>
           <select
             value={searchParams.get("pageSize") ?? String(pagination.pageSize)}
             onChange={(e) => {
@@ -688,7 +688,7 @@ function OrdersListContent() {
                 q.set("page", "1");
               });
             }}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-[#111111] outline-none ring-[#2563EB] focus:ring-2"
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
           >
             <option value="10">10</option>
             <option value="20">20</option>
@@ -698,30 +698,30 @@ function OrdersListContent() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#6B7280]">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : (
         <>
           {orders.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-[#6B7280]">
+              <p className="text-muted-foreground">
                 {hasFilters ? "No matching orders." : "No orders yet."}
               </p>
             </div>
           ) : (
             <>
               {/* Desktop table */}
-              <div className="hidden overflow-x-auto rounded-lg border border-gray-200 md:block">
+              <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
                 <table className="w-full min-w-[900px] text-left text-sm">
-                  <thead className="border-b border-gray-200 bg-[#F9FAFB] text-[#6B7280]">
+                  <thead className="border-b border-border bg-surface text-muted-foreground">
                     <tr>
                       <th className="px-4 py-3 font-medium">Code</th>
                       <th className="px-4 py-3 font-medium">Customer</th>
                       <th className="px-4 py-3 font-medium">
                         <button
                           type="button"
-                          className="inline-flex items-center gap-0.5 hover:text-[#111111]"
+                          className="inline-flex items-center gap-0.5 hover:text-foreground"
                           onClick={() => toggleSort("status")}
                         >
                           Status
@@ -735,7 +735,7 @@ function OrdersListContent() {
                       <th className="px-4 py-3 font-medium">
                         <button
                           type="button"
-                          className="inline-flex items-center gap-0.5 hover:text-[#111111]"
+                          className="inline-flex items-center gap-0.5 hover:text-foreground"
                           onClick={() => toggleSort("createdAt")}
                         >
                           Created
@@ -756,14 +756,14 @@ function OrdersListContent() {
                         key={o.id}
                         role="link"
                         tabIndex={0}
-                        className="cursor-pointer border-b border-gray-100 transition-colors last:border-0 hover:bg-[#F9FAFB]"
+                        className="cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-surface"
                         onClick={() => router.push(`/dashboard/orders/${o.id}`)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ")
                             router.push(`/dashboard/orders/${o.id}`);
                         }}
                       >
-                        <td className="px-4 py-3 font-medium text-[#111111]">
+                        <td className="px-4 py-3 font-medium text-foreground">
                           {formatOrderReference(o)}
                         </td>
                         <td className="max-w-[220px] px-4 py-3">
@@ -772,17 +772,17 @@ function OrdersListContent() {
                         <td className="px-4 py-3">
                           <OrderStatusCell status={o.status} />
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-[#6B7280]">
+                        <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                           {formatDate(o.createdAt)}
                         </td>
-                        <td className="px-4 py-3 tabular-nums text-[#111111]">
+                        <td className="px-4 py-3 tabular-nums text-foreground">
                           {o.imageCount}
                         </td>
                         <td className="px-4 py-3">
                           <Link
                             href={`/dashboard/orders/${o.id}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="font-medium text-[#2563EB] hover:underline"
+                            className="font-medium text-primary hover:underline"
                           >
                             View
                           </Link>
@@ -799,10 +799,10 @@ function OrdersListContent() {
                   <li key={o.id}>
                     <Link
                       href={`/dashboard/orders/${o.id}`}
-                      className="block rounded-lg border border-gray-200 p-4 transition-colors active:bg-[#F9FAFB]"
+                      className="block rounded-lg border border-border p-4 transition-colors active:bg-surface"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-medium text-[#111111]">
+                        <span className="font-medium text-foreground">
                           {formatOrderReference(o)}
                         </span>
                         <OrderStatusCell status={o.status} />
@@ -812,24 +812,24 @@ function OrdersListContent() {
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                         <div>
-                          <p className="text-xs text-[#6B7280]">Created</p>
-                          <p className="text-[#6B7280]">
+                          <p className="text-xs text-muted-foreground">Created</p>
+                          <p className="text-muted-foreground">
                             {formatDate(o.createdAt)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-[#6B7280]">Images</p>
-                          <p className="tabular-nums text-[#111111]">
+                          <p className="text-xs text-muted-foreground">Images</p>
+                          <p className="tabular-nums text-foreground">
                             {o.imageCount}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-[#6B7280]">Type</p>
-                          <p className="text-[#111111]">{o.contextType}</p>
+                          <p className="text-xs text-muted-foreground">Type</p>
+                          <p className="text-foreground">{o.contextType}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-[#6B7280]">Total</p>
-                          <p className="font-medium text-[#111111]">
+                          <p className="text-xs text-muted-foreground">Total</p>
+                          <p className="font-medium text-foreground">
                             {formatMoney(o.totalPrice, o.currency)}
                           </p>
                         </div>
@@ -841,10 +841,10 @@ function OrdersListContent() {
             </>
           )}
 
-          <div className="flex flex-col items-center justify-between gap-3 border-t border-gray-100 pt-4 sm:flex-row">
-            <p className="text-sm text-[#6B7280]">
+          <div className="flex flex-col items-center justify-between gap-3 border-t border-border pt-4 sm:flex-row">
+            <p className="text-sm text-muted-foreground">
               Page {page} of {totalPages}
-              <span className="text-[#9CA3AF]">
+              <span className="text-muted-foreground">
                 {" "}
                 ({pagination.total} total)
               </span>
@@ -858,7 +858,7 @@ function OrdersListContent() {
                     q.set("page", String(Math.max(1, page - 1)));
                   })
                 }
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Previous
               </button>
@@ -870,7 +870,7 @@ function OrdersListContent() {
                     q.set("page", String(Math.min(totalPages, page + 1)));
                   })
                 }
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
               </button>
@@ -887,10 +887,10 @@ export default function OrdersListPage() {
     <Suspense
       fallback={
         <div className="flex flex-col gap-8">
-          <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Orders
           </h1>
-          <p className="text-sm text-[#6B7280]">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       }
     >

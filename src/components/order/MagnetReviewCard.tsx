@@ -47,9 +47,9 @@ export function MagnetReviewCard({
   previewFrameClass,
 }: MagnetReviewCardProps) {
   return (
-    <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+    <article className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-[#111111]">
+        <h2 className="text-sm font-semibold text-foreground">
           Magnet {index + 1}
         </h2>
         {isLowResolution && (
@@ -63,10 +63,10 @@ export function MagnetReviewCard({
         href={cropEditHref}
         onClick={onCropLinkClick}
         aria-label={`Edit magnet ${index + 1} — adjust crop`}
-        className={`group relative mx-auto block w-full max-w-md touch-manipulation overflow-hidden outline-none transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 ${previewFrameClass}`}
+        className={`group relative mx-auto block w-full max-w-md touch-manipulation overflow-hidden outline-none transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${previewFrameClass}`}
       >
         <CroppedShapePreview image={image} shape={shape} />
-        <span className="pointer-events-none absolute right-2 top-2 flex size-9 items-center justify-center rounded-full bg-white/95 text-[#374151] shadow-md ring-1 ring-black/5 transition group-hover:bg-white group-hover:text-[#2563EB]">
+        <span className="pointer-events-none absolute right-2 top-2 flex size-9 items-center justify-center rounded-full bg-background/95 text-muted-foreground shadow-md ring-1 ring-black/5 transition group-hover:bg-background group-hover:text-primary">
           <PencilIcon />
         </span>
       </Link>
@@ -78,11 +78,11 @@ export function MagnetReviewCard({
             aria-label="Decrease copies for this magnet"
             disabled={copies <= 1}
             onClick={() => onAdjustCopies(-1)}
-            className="flex h-11 min-w-[2.75rem] shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-[#F9FAFB] text-lg font-semibold text-[#111111] disabled:opacity-40"
+            className="flex h-11 min-w-[2.75rem] shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-lg font-semibold text-foreground disabled:opacity-40"
           >
             −
           </button>
-          <span className="min-w-[2.5rem] text-center text-lg font-semibold tabular-nums text-[#111111]">
+          <span className="min-w-[2.5rem] text-center text-lg font-semibold tabular-nums text-foreground">
             {copies}
           </span>
           <button
@@ -90,7 +90,7 @@ export function MagnetReviewCard({
             aria-label="Increase copies for this magnet"
             disabled={totalMagnets >= magnetCap}
             onClick={() => onAdjustCopies(1)}
-            className="flex h-11 min-w-[2.75rem] shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-[#F9FAFB] text-lg font-semibold text-[#111111] disabled:opacity-40"
+            className="flex h-11 min-w-[2.75rem] shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-lg font-semibold text-foreground disabled:opacity-40"
           >
             +
           </button>

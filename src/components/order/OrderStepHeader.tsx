@@ -14,16 +14,16 @@ export function OrderStepHeader({
   return (
     <header className={`mb-6 ${className}`}>
       {step && (
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#6B7280]">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Step {step.current} of {step.total}
           {step.label ? ` — ${step.label}` : ""}
         </p>
       )}
-      <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
         {title}
       </h1>
       {subtitle && (
-        <p className="mt-1 text-sm text-[#6B7280]">{subtitle}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
       )}
     </header>
   );

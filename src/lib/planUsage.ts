@@ -23,7 +23,7 @@ export function usageBarFillClass(level: PlanUsageLevel): string {
     case "reached":
       return "bg-red-600";
     default:
-      return "bg-[#2563EB]";
+      return "bg-primary";
   }
 }
 
@@ -34,7 +34,7 @@ export function usageBarFillClassCompact(level: PlanUsageLevel): string {
     case "reached":
       return "bg-red-600";
     default:
-      return "bg-[#111111]";
+      return "bg-foreground";
   }
 }
 

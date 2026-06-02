@@ -16,7 +16,7 @@ import { useSellerStorefront } from "@/hooks/useSellerStorefront";
 function LogoMark() {
   return (
     <svg
-      className="size-8 shrink-0 text-[#2563EB]"
+      className="size-8 shrink-0 text-primary"
       viewBox="0 0 32 32"
       fill="none"
       aria-hidden
@@ -52,16 +52,16 @@ export function DashboardSidebar({
 
   return (
     <aside
-      className={`flex h-full w-60 shrink-0 flex-col border-r border-gray-200 bg-white ${className}`}
+      className={`flex h-full w-60 shrink-0 flex-col border-r border-border bg-background ${className}`}
     >
-      <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-gray-200 px-4">
+      <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-border px-4">
         <Link
           href="/dashboard"
           onClick={onNavigate}
           className="flex min-w-0 items-center gap-2.5"
         >
           <LogoMark />
-          <span className="truncate text-sm font-semibold text-[#111111]">
+          <span className="truncate text-sm font-semibold text-foreground">
             Photo Magnet
           </span>
         </Link>
@@ -82,20 +82,20 @@ export function DashboardSidebar({
                 onClick={onNavigate}
                 className={`relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-blue-50 text-[#111111]"
-                    : "text-gray-700 hover:bg-gray-50 hover:text-[#111111]"
+                    ? "bg-blue-50 text-foreground dark:bg-blue-950/40"
+                    : "text-muted-foreground hover:bg-surface hover:text-foreground"
                 }`}
               >
                 {isActive && (
                   <span
-                    className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-[#2563EB]"
+                    className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary"
                     aria-hidden
                   />
                 )}
                 <DashboardNavIcon
                   name={item.icon}
                   className={`size-5 shrink-0 ${
-                    isActive ? "text-[#2563EB]" : "text-[#6B7280]"
+                    isActive ? "text-primary" : "text-muted-foreground"
                   }`}
                 />
                 {item.label}

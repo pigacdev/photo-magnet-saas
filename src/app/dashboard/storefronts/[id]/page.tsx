@@ -53,14 +53,14 @@ export default function StorefrontDetailPage() {
   }, [storefront?.id]);
 
   if (loading) {
-    return <p className="text-sm text-[#6B7280]">Loading…</p>;
+    return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
   if (error || !storefront) {
     return (
       <div>
         <p className="text-sm text-[#DC2626]">{error || "Storefront not found"}</p>
-        <Link href="/dashboard/storefronts" className="mt-2 inline-block text-sm text-[#2563EB]">
+        <Link href="/dashboard/storefronts" className="mt-2 inline-block text-sm text-primary">
           Back to storefront
         </Link>
       </div>
@@ -70,15 +70,15 @@ export default function StorefrontDetailPage() {
   return (
     <div className="dashboard-page">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           {storefront.name}
         </h1>
         <div className="mt-2">
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
               storefront.isOpen
-                ? "bg-green-50 text-[#16A34A]"
-                : "bg-gray-100 text-[#6B7280]"
+                ? "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400"
+                : "bg-surface text-muted-foreground"
             }`}
           >
             {storefront.isOpen ? "Open" : "Closed"}

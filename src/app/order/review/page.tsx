@@ -353,7 +353,7 @@ export default function OrderReviewPage() {
         <div className="mb-6 h-8 w-48 animate-pulse rounded bg-neutral-200" />
         <div className="grid gap-4 pb-4 md:grid-cols-2">
           {[1, 2].map((k) => (
-            <div key={k} className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div key={k} className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
               <div className="mx-auto aspect-[3/4] max-w-md animate-pulse rounded-xl bg-neutral-200" />
               <div className="flex gap-2">
                 <div className="h-12 flex-1 animate-pulse rounded-xl bg-neutral-200" />
@@ -370,8 +370,8 @@ export default function OrderReviewPage() {
     return (
       <OrderShell>
         <div className="flex flex-col gap-4 py-2">
-          <p className="text-sm text-[#6B7280]">Nothing to review.</p>
-          <Link href="/order" className="text-sm text-[#2563EB] underline">
+          <p className="text-sm text-muted-foreground">Nothing to review.</p>
+          <Link href="/order" className="text-sm text-primary underline">
             Back to order
           </Link>
         </div>
@@ -382,7 +382,7 @@ export default function OrderReviewPage() {
   const bottomBar = (
     <OrderBottomBar contentWidth="wide">
       {isPerItemPricing ? (
-        <div className="text-center text-sm font-medium text-[#111111]">
+        <div className="text-center text-sm font-medium text-foreground">
           <p className="tabular-nums">
             Total magnets: {totalMagnets}
             {session != null && totalMagnets > magnetCap
@@ -394,7 +394,7 @@ export default function OrderReviewPage() {
           </p>
         </div>
       ) : (
-        <p className="text-center text-sm font-medium text-[#111111]">
+        <p className="text-center text-sm font-medium text-foreground">
           {images.length === 0
             ? `0 magnets · ${formatMoney(session?.totalPrice ?? null, currency)}`
             : `${images.length} magnet${images.length === 1 ? "" : "s"} · ${formatMoney(session?.totalPrice ?? null, currency)}`}

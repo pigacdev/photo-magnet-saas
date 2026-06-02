@@ -19,9 +19,9 @@ import {
 } from "@/lib/eventCalendar";
 
 const STATUS_DOT: Record<CalendarEventStatus, string> = {
-  upcoming: "bg-[#2563EB]",
+  upcoming: "bg-primary",
   active: "bg-[#16A34A]",
-  ended: "bg-[#6B7280]",
+  ended: "bg-muted-foreground",
   inactive: "bg-[#F59E0B]",
 };
 
@@ -85,7 +85,7 @@ function EventBar({
     <button
       type="button"
       onClick={onClick}
-      className="flex h-5 w-full min-w-0 items-center gap-1.5 truncate rounded-md border border-gray-200 bg-white px-1.5 text-left text-xs text-[#111111] shadow-sm transition-colors hover:bg-[#F9FAFB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-1"
+      className="flex h-5 w-full min-w-0 items-center gap-1.5 truncate rounded-md border border-border bg-background px-1.5 text-left text-xs text-foreground shadow-sm transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
       title={name}
     >
       <span
@@ -118,7 +118,7 @@ function WeekRow({
   const { segments } = layoutWeekEventSegments(monthEvents, weekDays);
 
   return (
-    <div className="grid grid-cols-7 border-b border-gray-200 last:border-b-0">
+    <div className="grid grid-cols-7 border-b border-border last:border-b-0">
       {weekDays.map((day, dayIndex) => {
         const inMonth = day.getMonth() === month;
         const isToday = isSameDay(day, today);
@@ -140,22 +140,22 @@ function WeekRow({
         return (
           <div
             key={day.toISOString()}
-            className={`relative flex min-h-[120px] flex-col border-r border-gray-200 p-2 last:border-r-0 ${
-              inMonth ? "bg-white" : "bg-[#F9FAFB]"
+            className={`relative flex min-h-[120px] flex-col border-r border-border p-2 last:border-r-0 ${
+              inMonth ? "bg-background" : "bg-surface"
             }`}
           >
             {isToday ? (
-              <span className="inline-flex size-7 items-center justify-center rounded-full bg-[#2563EB] text-xs font-medium text-white">
+              <span className="inline-flex size-7 items-center justify-center rounded-full bg-primary text-xs font-medium text-white">
                 {day.getDate()}
               </span>
             ) : (
               <span
                 className={`inline-flex size-7 items-center justify-center text-xs font-medium ${
                   !inMonth
-                    ? "text-[#9CA3AF]"
+                    ? "text-muted-foreground"
                     : isWeekend
-                      ? "text-[#B45309]"
-                      : "text-[#111111]"
+                      ? "text-amber-700 dark:text-amber-400"
+                      : "text-foreground"
                 }`}
               >
                 {day.getDate()}
@@ -186,7 +186,7 @@ function WeekRow({
             </div>
 
             {overflow > 0 && (
-              <p className="mt-auto pt-1 text-[10px] text-[#6B7280]">
+              <p className="mt-auto pt-1 text-[10px] text-muted-foreground">
                 +{overflow} more
               </p>
             )}
@@ -217,12 +217,12 @@ function DesktopMonthGrid({
   );
 
   return (
-    <div className="hidden overflow-hidden rounded-lg border border-gray-200 lg:block">
-      <div className="grid grid-cols-7 border-b border-gray-200 bg-[#F9FAFB]">
+    <div className="hidden overflow-hidden rounded-lg border border-border lg:block">
+      <div className="grid grid-cols-7 border-b border-border bg-surface">
         {WEEKDAY_LABELS.map((label) => (
           <div
             key={label}
-            className="px-2 py-2 text-center text-xs font-medium text-[#6B7280]"
+            className="px-2 py-2 text-center text-xs font-medium text-muted-foreground"
           >
             {label}
           </div>
@@ -271,8 +271,8 @@ function MobileMonthList({
 
   if (daysWithEvents.length === 0) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center lg:hidden">
-        <p className="text-sm text-[#6B7280]">No events this month.</p>
+      <div className="rounded-lg border border-border bg-background px-4 py-8 text-center lg:hidden">
+        <p className="text-sm text-muted-foreground">No events this month.</p>
       </div>
     );
   }
@@ -284,11 +284,11 @@ function MobileMonthList({
         return (
           <div
             key={day.toISOString()}
-            className="overflow-hidden rounded-lg border border-gray-200 bg-white"
+            className="overflow-hidden rounded-lg border border-border bg-background"
           >
             <div
-              className={`border-b border-gray-200 px-4 py-2 text-sm font-medium ${
-                isToday ? "bg-[#2563EB] text-white" : "bg-[#F9FAFB] text-[#111111]"
+              className={`border-b border-border px-4 py-2 text-sm font-medium ${
+                isToday ? "bg-primary text-white" : "bg-surface text-foreground"
               }`}
             >
               {day.toLocaleDateString("en-US", {
@@ -297,19 +297,19 @@ function MobileMonthList({
                 day: "numeric",
               })}
             </div>
-            <ul className="divide-y divide-gray-100">
+            <ul className="divide-y divide-border">
               {dayEvents.map((event) => (
                 <li key={`${event.id}-${day.toISOString()}`}>
                   <button
                     type="button"
                     onClick={() => onEventClick(event.id)}
-                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm transition-colors hover:bg-[#F9FAFB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563EB]"
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
                   >
                     <span
                       className={`size-2 shrink-0 rounded-full ${STATUS_DOT[event.status]}`}
                       aria-hidden
                     />
-                    <span className="font-medium text-[#111111]">{event.name}</span>
+                    <span className="font-medium text-foreground">{event.name}</span>
                   </button>
                 </li>
               ))}
@@ -354,7 +354,7 @@ export function EventCalendar({ events }: EventCalendarProps) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-lg font-medium text-[#111111]">
+        <p className="text-lg font-medium text-foreground">
           {formatTodayHeader(today)}
         </p>
         <div className="flex flex-wrap items-center gap-3">
@@ -363,18 +363,18 @@ export function EventCalendar({ events }: EventCalendarProps) {
               type="button"
               onClick={goToPreviousMonth}
               aria-label="Previous month"
-              className="inline-flex size-9 items-center justify-center rounded-lg border border-gray-200 text-[#6B7280] transition-colors hover:bg-[#F9FAFB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+              className="inline-flex size-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <ChevronLeftIcon className="size-5" />
             </button>
-            <span className="min-w-[140px] text-center text-sm font-medium text-[#111111]">
+            <span className="min-w-[140px] text-center text-sm font-medium text-foreground">
               {formatMonthYear(year, month)}
             </span>
             <button
               type="button"
               onClick={goToNextMonth}
               aria-label="Next month"
-              className="inline-flex size-9 items-center justify-center rounded-lg border border-gray-200 text-[#6B7280] transition-colors hover:bg-[#F9FAFB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+              className="inline-flex size-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <ChevronRightIcon className="size-5" />
             </button>
@@ -382,7 +382,7 @@ export function EventCalendar({ events }: EventCalendarProps) {
           <button
             type="button"
             onClick={goToToday}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-[#111111] transition-colors hover:bg-[#F9FAFB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             Today
           </button>

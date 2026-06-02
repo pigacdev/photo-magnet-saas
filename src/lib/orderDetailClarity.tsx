@@ -43,8 +43,8 @@ export function OrderStatusRow({
             : "📋"}
       </span>
       <div>
-        <p className="text-sm font-semibold text-[#111111]">{label}</p>
-        <p className="text-xs text-[#6B7280]">{hint}</p>
+        <p className="text-sm font-semibold text-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground">{hint}</p>
       </div>
     </div>
   );

@@ -1,12 +1,29 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #111111;
   --muted-foreground: #6b7280;
   --border: #d1d5db;
+  --surface: #f9fafb;
+  --card: #ffffff;
   --primary: #2563eb;
   --primary-foreground: #ffffff;
+  --primary-hover: #1d4ed8;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --muted-foreground: #a3a3a3;
+  --border: #262626;
+  --surface: #141414;
+  --card: #171717;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --primary-hover: #3b82f6;
 }
 
 @theme inline {
@@ -14,15 +31,20 @@
   --color-foreground: var(--foreground);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-surface: #f9fafb;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 html {
   color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
@@ -39,27 +61,27 @@ body {
   }
 
   a:not([class]):hover {
-    color: #1d4ed8;
+    color: var(--primary-hover);
   }
 
   input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]),
   textarea,
   select {
-    background-color: #ffffff;
-    color: #111111;
-    border: 1px solid #d1d5db;
+    background-color: var(--background);
+    color: var(--foreground);
+    border: 1px solid var(--border);
     border-style: solid;
   }
 
   input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"])::placeholder,
   textarea::placeholder {
-    color: #6b7280;
+    color: var(--muted-foreground);
     opacity: 1;
   }
 
   select option {
-    background-color: #ffffff;
-    color: #111111;
+    background-color: var(--background);
+    color: var(--foreground);
   }
 
   input:-webkit-autofill,
@@ -71,8 +93,8 @@ body {
   select:-webkit-autofill,
   select:-webkit-autofill:hover,
   select:-webkit-autofill:focus {
-    -webkit-text-fill-color: #111111;
-    box-shadow: 0 0 0 1000px #ffffff inset;
+    -webkit-text-fill-color: var(--foreground);
+    box-shadow: 0 0 0 1000px var(--background) inset;
     transition: background-color 99999s ease-out;
   }
 }
@@ -88,10 +110,9 @@ body {
 
   .dashboard-card {
     border-radius: 0.75rem;
-    border: 1px solid #e5e7eb;
-    background-color: #ffffff;
+    border: 1px solid var(--border);
+    background-color: var(--card);
     padding: 1.5rem;
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   }
 }
-

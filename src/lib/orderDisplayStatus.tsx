@@ -23,14 +23,14 @@ export const ORDER_STATUS_LABELS: Record<OrderWorkflowStatus, string> = {
 };
 
 export const ORDER_STATUS_BADGE_CLASS: Record<OrderWorkflowStatus, string> = {
-  NEW: "bg-blue-50 text-[#1D4ED8]",
-  CONFIRMED: "bg-indigo-50 text-indigo-800",
-  INVOICE_SENT: "bg-purple-50 text-purple-800",
-  PAID: "bg-green-50 text-[#16A34A]",
-  IN_PRODUCTION: "bg-orange-50 text-[#C2410C]",
-  SHIPPED: "bg-teal-50 text-teal-800",
-  COMPLETED: "bg-gray-100 text-[#374151]",
-  CANCELLED: "bg-red-50 text-red-700",
+  NEW: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
+  CONFIRMED: "bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300",
+  INVOICE_SENT: "bg-purple-50 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300",
+  PAID: "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400",
+  IN_PRODUCTION: "bg-orange-50 text-orange-800 dark:bg-orange-950/40 dark:text-orange-300",
+  SHIPPED: "bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300",
+  COMPLETED: "bg-surface text-muted-foreground",
+  CANCELLED: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400",
 };
 
 export function orderStatusLabel(status: string): string {

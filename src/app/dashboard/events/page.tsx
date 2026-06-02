@@ -19,19 +19,19 @@ type Event = {
 const STATUS_BADGE: Record<Event["status"], { label: string; className: string }> = {
   upcoming: {
     label: "Upcoming",
-    className: "bg-blue-50 text-[#2563EB]",
+    className: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
   },
   active: {
     label: "Active",
-    className: "bg-green-50 text-[#16A34A]",
+    className: "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400",
   },
   ended: {
     label: "Ended",
-    className: "bg-gray-100 text-[#6B7280]",
+    className: "bg-surface text-muted-foreground",
   },
   inactive: {
     label: "Inactive",
-    className: "bg-amber-50 text-[#B45309]",
+    className: "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
   },
 };
 
@@ -57,38 +57,38 @@ export default function EventsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight text-[#111111]">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Events
         </h1>
         <Link
           href="/dashboard/events/new"
-          className="rounded-lg bg-[#2563EB] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8]"
+          className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8]"
         >
           Create event
         </Link>
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#6B7280]">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : events.length === 0 ? (
         <div className="py-8 text-center">
-          <p className="text-[#6B7280]">No events yet.</p>
-          <p className="mt-1 text-sm text-[#6B7280]">
+          <p className="text-muted-foreground">No events yet.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
             Create your first event to start accepting orders.
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-gray-200">
+        <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 bg-[#F9FAFB]">
+            <thead className="border-b border-border bg-surface">
               <tr>
-                <th className="px-4 py-3 font-medium text-[#6B7280]">Name</th>
-                <th className="px-4 py-3 font-medium text-[#6B7280]">Status</th>
-                <th className="px-4 py-3 font-medium text-[#6B7280]">Start</th>
-                <th className="px-4 py-3 font-medium text-[#6B7280]">End</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground">Name</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground">Status</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground">Start</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground">End</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-border">
               {events
                 .filter((event) => event.id)
                 .map((event) => {
@@ -99,7 +99,7 @@ export default function EventsPage() {
                       role="link"
                       tabIndex={0}
                       aria-label={`Open event ${event.name}`}
-                      className="cursor-pointer hover:bg-[#F9FAFB] focus-visible:bg-[#F9FAFB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2"
+                      className="cursor-pointer hover:bg-surface focus-visible:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                       onClick={() => router.push(href)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
@@ -109,7 +109,7 @@ export default function EventsPage() {
                       }}
                     >
                       <td className="px-4 py-3">
-                        <span className="font-medium text-[#111111]">{event.name}</span>
+                        <span className="font-medium text-foreground">{event.name}</span>
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -118,10 +118,10 @@ export default function EventsPage() {
                           {STATUS_BADGE[event.status].label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-[#6B7280]">
+                      <td className="px-4 py-3 text-muted-foreground">
                         {formatDate(event.startDate)}
                       </td>
-                      <td className="px-4 py-3 text-[#6B7280]">
+                      <td className="px-4 py-3 text-muted-foreground">
                         {formatDate(event.endDate)}
                       </td>
                     </tr>
