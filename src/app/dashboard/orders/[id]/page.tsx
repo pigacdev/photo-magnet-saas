@@ -462,19 +462,12 @@ export default function OrderDetailPage() {
             </div>
             <div className="mt-2 space-y-1 text-sm text-muted-foreground">
               <p>Created: {formatDate(order.createdAt)}</p>
-              <p>
-                {allMediaRemoved ? (
-                  <>
-                    Media removed after retention period — printing is not
-                    available.
-                  </>
-                ) : (
-                  <>
-                    {printableImages.filter((img) => img.printed).length} /{" "}
-                    {printableImages.length} images printed
-                  </>
-                )}
-              </p>
+              {allMediaRemoved ? (
+                <p>
+                  Media removed after retention period — printing is not
+                  available.
+                </p>
+              ) : null}
             </div>
             <div className="mt-6 rounded-lg border border-border bg-surface p-4 sm:p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -537,16 +530,24 @@ export default function OrderDetailPage() {
               <div className="mt-6 flex flex-col gap-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   {showPrintOrder && (
-                    <button
-                      type="button"
-                      disabled={actionBusy !== null || !canPrintNow}
-                      onClick={() => void printOrderPreview()}
-                      className="min-h-[48px] rounded-lg bg-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[180px]"
-                    >
-                      {actionBusy === "printPreview"
-                        ? "Preparing…"
-                        : "Print order"}
-                    </button>
+                    <div className="flex flex-col items-start gap-1.5">
+                      <button
+                        type="button"
+                        disabled={actionBusy !== null || !canPrintNow}
+                        onClick={() => void printOrderPreview()}
+                        className="min-h-[48px] rounded-lg bg-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[180px]"
+                      >
+                        {actionBusy === "printPreview"
+                          ? "Preparing…"
+                          : "Print order"}
+                      </button>
+                      {!allMediaRemoved && (
+                        <p className="text-sm text-muted-foreground">
+                          {printableImages.filter((img) => img.printed).length} /{" "}
+                          {printableImages.length} images printed
+                        </p>
+                      )}
+                    </div>
                   )}
                   {showMarkPrinted && !printOutcomePrompt && (
                     <button
