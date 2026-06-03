@@ -79,12 +79,12 @@ export default function AccountPage() {
             onSubscriptionChange={refreshUsage}
           />
         </div>
-        {usage?.plan === "FREE" && (
+        {usage && usage.plan !== "PRO" && (
           <Link
             href="/dashboard/billing"
             className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
           >
-            Upgrade to PRO
+            View plans
           </Link>
         )}
       </section>

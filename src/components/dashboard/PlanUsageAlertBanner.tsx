@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { getCachedOrganizationUsage } from "@/lib/auth";
+import { hasUnlimitedOrders } from "@/lib/planCatalog";
 import { getPlanUsageLevel } from "@/lib/planUsage";
 
 export function PlanUsageAlertBanner() {
   const usage = getCachedOrganizationUsage();
-  if (!usage || usage.plan !== "FREE") return null;
+  if (!usage || hasUnlimitedOrders(usage.orderLimit)) return null;
 
   const level = getPlanUsageLevel(usage);
   if (level === "normal") return null;
@@ -35,8 +36,8 @@ export function PlanUsageAlertBanner() {
           </p>
         ) : (
           <p>
-            You&apos;ve used {usage.ordersThisMonth} of {usage.orderLimit} free orders
-            this month. Upgrade to PRO to avoid interruptions.
+            You&apos;ve used {usage.ordersThisMonth} of {usage.orderLimit} orders this
+            month. Upgrade your plan to avoid interruptions.
           </p>
         )}
         <Link
@@ -45,7 +46,7 @@ export function PlanUsageAlertBanner() {
             isReached ? "text-red-900" : "text-amber-950"
           }`}
         >
-          Upgrade to PRO — €29/month
+          View plans &amp; upgrade
         </Link>
       </div>
     </div>

@@ -357,7 +357,7 @@ export function ShareLinkCard({
                   href="/dashboard/billing"
                   className="inline-block text-sm font-medium text-primary underline"
                 >
-                  Upgrade to PRO
+                  View plans
                 </Link>
               </div>
             </div>

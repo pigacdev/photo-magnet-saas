@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import type { OrganizationUsage, User } from "@/lib/auth";
+import { planDisplayName } from "@/lib/planCatalog";
 import {
   getPlanUsageLevel,
+  showMonthlyUsageMeter,
   usageBarFillClass,
   usagePercentage,
 } from "@/lib/planUsage";
@@ -17,6 +19,7 @@ export type SidebarPlanBadgeProps = {
 export function SidebarPlanBadge({ user, usage }: SidebarPlanBadgeProps) {
   const displayName = user.name?.trim() || user.email;
   const usageLevel = usage ? getPlanUsageLevel(usage) : "normal";
+  const label = usage ? (usage.planLabel ?? planDisplayName(usage.plan)) : null;
 
   return (
     <Link
@@ -40,22 +43,26 @@ export function SidebarPlanBadge({ user, usage }: SidebarPlanBadgeProps) {
           {displayName}
         </p>
 
-        {usage ? (
+        {usage && label ? (
           <div className="mt-2 w-full">
             <div className="flex items-center justify-center gap-2">
               <span
                 className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
                   usage.plan === "PRO"
-                    ? "bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40 dark:text-blue-300"
-                    : "bg-background text-muted-foreground ring-1 ring-border"
+                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                    : usage.plan === "HOBBY"
+                      ? "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+                      : "bg-background text-muted-foreground ring-1 ring-border"
                 }`}
               >
-                {usage.plan === "PRO" ? "PRO" : "Free"}
+                {label}
               </span>
             </div>
 
-            {usage.plan === "PRO" ? (
-              <p className="mt-1.5 text-xs text-green-600 dark:text-green-400">Unlimited orders</p>
+            {!showMonthlyUsageMeter(usage) ? (
+              <p className="mt-1.5 text-xs text-green-600 dark:text-green-400">
+                Unlimited orders
+              </p>
             ) : (
               <div className="mt-2 space-y-1.5">
                 <div className="flex justify-between text-xs text-muted-foreground">

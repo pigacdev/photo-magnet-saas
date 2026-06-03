@@ -8,11 +8,12 @@ export type User = {
 };
 
 export type OrganizationUsage = {
-  plan: "FREE" | "PRO";
+  plan: "FREE" | "HOBBY" | "PRO";
+  planLabel?: string;
   ordersThisMonth: number;
   orderLimit: number;
   currentPeriodEnd: string;
-  cancelAtPeriodEnd?: boolean;
+  clerkPlanSlug?: string | null;
 };
 
 type AuthResponse = {
@@ -22,6 +23,7 @@ type AuthResponse = {
 
 let cachedUser: User | null | undefined;
 let cachedOrganization: OrganizationUsage | null | undefined;
+const usageListeners = new Set<() => void>();
 
 function setCache(user: User | null, organization?: OrganizationUsage | null) {
   cachedUser = user;
@@ -30,6 +32,13 @@ function setCache(user: User | null, organization?: OrganizationUsage | null) {
   } else if (user === null) {
     cachedOrganization = null;
   }
+  usageListeners.forEach((listener) => listener());
+}
+
+/** Subscribe to usage cache updates (e.g. sidebar after billing sync). */
+export function subscribeOrganizationUsage(listener: () => void): () => void {
+  usageListeners.add(listener);
+  return () => usageListeners.delete(listener);
 }
 
 /** Call after subscription or profile changes so the next `getMe()` refetches. */

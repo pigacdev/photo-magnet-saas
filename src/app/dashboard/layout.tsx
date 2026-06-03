@@ -7,6 +7,7 @@ import {
   getMe,
   getCachedOrganizationUsage,
   invalidateAuthCache,
+  subscribeOrganizationUsage,
   type User,
   type OrganizationUsage,
 } from "@/lib/auth";
@@ -32,9 +33,11 @@ export default function DashboardLayout({
       return;
     }
 
-    invalidateAuthCache();
     void getToken()
-      .then(() => getMe())
+      .then(() => {
+        invalidateAuthCache();
+        return getMe();
+      })
       .then((u) => {
         if (!u) {
           setLoadError(
@@ -52,6 +55,12 @@ export default function DashboardLayout({
         setChecking(false);
       });
   }, [isLoaded, isSignedIn, getToken, router]);
+
+  useEffect(() => {
+    return subscribeOrganizationUsage(() => {
+      setUsage(getCachedOrganizationUsage());
+    });
+  }, []);
 
   if (!isLoaded || checking) {
     return (

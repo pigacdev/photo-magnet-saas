@@ -18,6 +18,10 @@ model Organization {
   currentPeriodEnd     DateTime
   stripeCustomerId     String?  @unique
   stripeSubscriptionId String?
+  /// Clerk Billing subscription id (`subscription.*` webhooks).
+  clerkSubscriptionId  String?
+  /// Last synced Clerk User Plan slug (e.g. free_user, hobby, pro).
+  clerkPlanSlug        String?
   orders               Order[]
   user                 User     @relation(fields: [id], references: [id], onDelete: Cascade)
 }
@@ -25,6 +29,12 @@ model Organization {
 /// Stripe webhook idempotency: one row per processed `evt_...` id.
 model ProcessedStripeEvent {
   /// Stripe event id
+  id        String   @id
+  createdAt DateTime @default(now())
+}
+
+/// Clerk webhook idempotency: one row per Svix `svix-id` header.
+model ProcessedClerkEvent {
   id        String   @id
   createdAt DateTime @default(now())
 }
@@ -335,5 +345,6 @@ enum ShapeType {
 
 enum Plan {
   FREE
+  HOBBY
   PRO
 }

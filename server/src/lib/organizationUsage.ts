@@ -1,14 +1,14 @@
 import type { Plan } from "../../../src/generated/prisma/client";
 import { prisma } from "./prisma";
-import { getStripeOrNull } from "./stripe";
-import { getStripeSubscriptionPeriod } from "./stripeSubscriptionPeriod";
+import { planDisplayName } from "./planCatalog";
 
 export type OrganizationUsagePayload = {
   plan: Plan;
+  planLabel: string;
   ordersThisMonth: number;
   orderLimit: number;
   currentPeriodEnd: string;
-  cancelAtPeriodEnd?: boolean;
+  clerkPlanSlug?: string | null;
 };
 
 const orgSelect = {
@@ -16,7 +16,7 @@ const orgSelect = {
   ordersThisMonth: true,
   orderLimit: true,
   currentPeriodEnd: true,
-  stripeSubscriptionId: true,
+  clerkPlanSlug: true,
 } as const;
 
 function baseUsage(org: {
@@ -24,16 +24,19 @@ function baseUsage(org: {
   ordersThisMonth: number;
   orderLimit: number;
   currentPeriodEnd: Date;
+  clerkPlanSlug?: string | null;
 }): OrganizationUsagePayload {
   return {
     plan: org.plan,
+    planLabel: planDisplayName(org.plan),
     ordersThisMonth: org.ordersThisMonth,
     orderLimit: org.orderLimit,
     currentPeriodEnd: org.currentPeriodEnd.toISOString(),
+    clerkPlanSlug: org.clerkPlanSlug,
   };
 }
 
-/** Build organization usage for auth responses; enriches PRO subs from Stripe when available. */
+/** Build organization usage for auth responses (Clerk Billing synced via webhooks). */
 export async function buildOrganizationUsage(
   orgId: string,
 ): Promise<OrganizationUsagePayload | null> {
@@ -44,51 +47,5 @@ export async function buildOrganizationUsage(
 
   if (!org) return null;
 
-  const usage = baseUsage(org);
-
-  if (org.plan !== "PRO" || !org.stripeSubscriptionId) {
-    return usage;
-  }
-
-  const stripe = getStripeOrNull();
-  if (!stripe) return usage;
-
-  try {
-    const sub = await stripe.subscriptions.retrieve(org.stripeSubscriptionId);
-    const period = getStripeSubscriptionPeriod(sub);
-    if (!period) return usage;
-
-    await prisma.organization.update({
-      where: { id: orgId },
-      data: {
-        currentPeriodStart: period.currentPeriodStart,
-        currentPeriodEnd: period.currentPeriodEnd,
-      },
-    });
-
-    return {
-      ...usage,
-      currentPeriodEnd: period.currentPeriodEnd.toISOString(),
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
-    };
-  } catch {
-    return usage;
-  }
-}
-
-/** Sync Stripe subscription period dates into Organization (webhooks + cancel/reactivate). */
-export async function syncOrganizationFromStripeSubscription(
-  orgId: string,
-  sub: Parameters<typeof getStripeSubscriptionPeriod>[0],
-): Promise<void> {
-  const period = getStripeSubscriptionPeriod(sub);
-  if (!period) return;
-
-  await prisma.organization.update({
-    where: { id: orgId },
-    data: {
-      currentPeriodStart: period.currentPeriodStart,
-      currentPeriodEnd: period.currentPeriodEnd,
-    },
-  });
+  return baseUsage(org);
 }

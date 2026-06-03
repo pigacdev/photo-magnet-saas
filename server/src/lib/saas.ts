@@ -1,10 +1,11 @@
 import type { Plan } from "../../../src/generated/prisma/client";
 import { prisma } from "./prisma";
+import { hasUnlimitedOrders } from "./planCatalog";
 
 export const ORDER_LIMIT_REACHED = "ORDER_LIMIT_REACHED";
 
 export const SELLER_ORDER_LIMIT_MESSAGE =
-  "Free plan limit reached. Upgrade to continue.";
+  "Monthly order limit reached. Upgrade to continue.";
 
 export const BUYER_STORE_ORDER_LIMIT_MESSAGE =
   "Ordering is not available for this store. Please contact the store.";
@@ -15,7 +16,7 @@ export const BUYER_EVENT_ORDER_LIMIT_MESSAGE =
 export const PRO_FEATURE_REQUIRED = "PRO_FEATURE_REQUIRED";
 
 export const PRO_FEATURE_REQUIRED_MESSAGE =
-  "Contact support is available on the PRO plan.";
+  "Contact support is available on the Pro plan.";
 
 export type OrganizationUsageLevel = "normal" | "warning" | "reached";
 
@@ -36,7 +37,7 @@ export function getOrganizationUsageLevel(org: {
   ordersThisMonth: number;
   orderLimit: number;
 }): OrganizationUsageLevel {
-  if (org.plan === "PRO") return "normal";
+  if (hasUnlimitedOrders(org.orderLimit)) return "normal";
   if (org.ordersThisMonth >= org.orderLimit) return "reached";
   if (org.ordersThisMonth >= usageWarningThreshold(org.orderLimit)) {
     return "warning";
@@ -69,7 +70,7 @@ export async function assertCanCreateOrder(orgId: string): Promise<void> {
 
   if (!org) throw new Error("Organization not found");
 
-  if (org.plan === "PRO") return;
+  if (hasUnlimitedOrders(org.orderLimit)) return;
 
   if (org.ordersThisMonth >= org.orderLimit) {
     throw new Error(ORDER_LIMIT_REACHED);

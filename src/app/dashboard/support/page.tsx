@@ -93,14 +93,14 @@ function SupportPageContent() {
             Contact support is a PRO feature
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Upgrade to PRO to submit support tickets and get help from the
+            Upgrade to Pro to submit support tickets and get help from the
             Magnetoo team.
           </p>
           <Link
             href="/dashboard/billing"
             className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
           >
-            Upgrade to PRO
+            View plans
           </Link>
           <p className="mt-4 text-sm text-muted-foreground">
             <Link href="/dashboard" className="text-primary hover:underline">

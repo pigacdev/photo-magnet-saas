@@ -402,17 +402,18 @@ IMPORTANT RULE:
 ### To implement
 
 * Organization dashboard
-* Subscription model (Stripe Billing)
-* Plan limits:
+* Plan limits (future):
 
   * Number of events
   * Storage
-  * Orders/month
 
-### Billing
+### Billing (in progress)
 
-* Monthly subscription
-* Usage tracking (optional later)
+* **Clerk User Billing** — checkout via `<PricingTable />`, plan catalog in Clerk Dashboard (Free / Hobby / Pro)
+* **Clerk billing webhooks** — sync `Organization.plan`, `orderLimit`, `clerkPlanSlug` from subscription events
+* **Usage metering (app)** — `ordersThisMonth` / `orderLimit` (Free: 10/mo; Hobby: 100; Pro: unlimited) enforced in Express `saas.ts`
+* **Clerk Features** — boolean gates (e.g. `priority_support` on Pro) via `has({ feature })` in Next.js
+* Legacy Stripe seller webhooks retained only for downgrading orgs still on `stripeSubscriptionId`
 
 ### Access control
 

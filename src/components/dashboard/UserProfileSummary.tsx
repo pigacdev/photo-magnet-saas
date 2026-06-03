@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import type { OrganizationUsage, User } from "@/lib/auth";
-import { invalidateAuthCache, getMe } from "@/lib/auth";
-import { api } from "@/lib/api";
+import { planDisplayName } from "@/lib/planCatalog";
 import {
   getPlanUsageLevel,
+  showMonthlyUsageMeter,
   usageBarFillClassCompact,
   usagePercentage,
 } from "@/lib/planUsage";
@@ -41,61 +40,20 @@ export function UserProfileSummary({
   user,
   usage,
   variant,
-  onSubscriptionChange,
   showIdentity = true,
 }: UserProfileSummaryProps) {
-  const [confirmCancel, setConfirmCancel] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [actionError, setActionError] = useState("");
-
   const percentage = usage ? usagePercentage(usage) : 0;
   const usageLevel = usage ? getPlanUsageLevel(usage) : "normal";
   const isCompact = variant === "compact";
-
-  async function refreshAfterAction() {
-    invalidateAuthCache();
-    await getMe();
-    onSubscriptionChange?.();
-  }
-
-  async function handleCancel() {
-    setActionError("");
-    setActionLoading(true);
-    try {
-      await api("/api/stripe/cancel-subscription", { method: "POST" });
-      setConfirmCancel(false);
-      await refreshAfterAction();
-    } catch (err) {
-      setActionError(
-        err instanceof Error ? err.message : "Could not cancel subscription",
-      );
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function handleReactivate() {
-    setActionError("");
-    setActionLoading(true);
-    try {
-      await api("/api/stripe/reactivate-subscription", { method: "POST" });
-      await refreshAfterAction();
-    } catch (err) {
-      setActionError(
-        err instanceof Error ? err.message : "Could not reactivate subscription",
-      );
-    } finally {
-      setActionLoading(false);
-    }
-  }
+  const planLabel = usage
+    ? (usage.planLabel ?? planDisplayName(usage.plan))
+    : null;
 
   function periodLabel(): string | null {
     if (!usage?.currentPeriodEnd) return null;
     const date = formatPeriodDate(usage.currentPeriodEnd);
-    if (usage.plan === "PRO") {
-      return usage.cancelAtPeriodEnd
-        ? `Access until ${date}`
-        : `Renews ${date}`;
+    if (usage.plan === "PRO" || usage.plan === "HOBBY") {
+      return `Usage resets ${date}`;
     }
     return `Usage resets ${date}`;
   }
@@ -129,24 +87,26 @@ export function UserProfileSummary({
         </div>
       )}
 
-      {usage && (
+      {usage && planLabel && (
         <div className={isCompact ? "space-y-2 px-3 pb-1" : "space-y-3"}>
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={`inline-flex rounded-full px-2 py-0.5 font-medium ${
                 usage.plan === "PRO"
-                  ? "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
-                  : "bg-surface text-muted-foreground"
+                  ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                  : usage.plan === "HOBBY"
+                    ? "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+                    : "bg-surface text-muted-foreground"
               } ${isCompact ? "text-xs" : "text-sm"}`}
             >
-              {usage.plan}
+              {planLabel}
             </span>
             <span className={`text-muted-foreground ${isCompact ? "text-xs" : "text-sm"}`}>
               {user.role === "ADMIN" ? "Admin" : "Staff"}
             </span>
           </div>
 
-          {usage.plan === "PRO" ? (
+          {!showMonthlyUsageMeter(usage) ? (
             <p className={`text-green-600 ${isCompact ? "text-xs" : "text-sm"}`}>
               Unlimited orders
             </p>
@@ -183,77 +143,10 @@ export function UserProfileSummary({
             </p>
           )}
 
-          {!isCompact && usage.plan === "PRO" && !usage.cancelAtPeriodEnd && (
-            <div className={isCompact ? "pt-1" : "pt-2"}>
-              {!confirmCancel ? (
-                <button
-                  type="button"
-                  onClick={() => setConfirmCancel(true)}
-                  className={`font-medium text-[#DC2626] transition-colors hover:text-red-700 ${
-                    isCompact ? "text-xs" : "text-sm"
-                  }`}
-                >
-                  Cancel subscription
-                </button>
-              ) : (
-                <div className={`space-y-2 rounded-md border border-border bg-surface p-3 ${isCompact ? "text-xs" : "text-sm"}`}>
-                  <p className="text-muted-foreground">
-                    You&apos;ll keep PRO until{" "}
-                    {usage.currentPeriodEnd
-                      ? formatPeriodDate(usage.currentPeriodEnd)
-                      : "the end of your billing period"}
-                    . After that you&apos;ll be on the Free plan.
-                  </p>
-                  {actionError && (
-                    <p className="text-red-600">{actionError}</p>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={actionLoading}
-                      onClick={() => void handleCancel()}
-                      className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
-                    >
-                      {actionLoading ? "Canceling…" : "Confirm cancel"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={actionLoading}
-                      onClick={() => {
-                        setConfirmCancel(false);
-                        setActionError("");
-                      }}
-                      className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-                    >
-                      Keep subscription
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {!isCompact && usage.plan === "PRO" && usage.cancelAtPeriodEnd && (
-            <div className={isCompact ? "pt-1" : "pt-2"}>
-              <p className={`text-orange-600 ${isCompact ? "text-xs" : "text-sm"}`}>
-                Subscription will not renew.
-              </p>
-              {actionError && (
-                <p className={`mt-1 text-red-600 ${isCompact ? "text-xs" : "text-sm"}`}>
-                  {actionError}
-                </p>
-              )}
-              <button
-                type="button"
-                disabled={actionLoading}
-                onClick={() => void handleReactivate()}
-                className={`mt-1 font-medium text-primary hover:underline disabled:opacity-60 ${
-                  isCompact ? "text-xs" : "text-sm"
-                }`}
-              >
-                {actionLoading ? "Updating…" : "Keep subscription"}
-              </button>
-            </div>
+          {!isCompact && (usage.plan === "PRO" || usage.plan === "HOBBY") && (
+            <p className="text-sm text-muted-foreground">
+              Change or cancel your subscription in Plans below.
+            </p>
           )}
         </div>
       )}

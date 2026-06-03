@@ -1,4 +1,5 @@
 import type { OrganizationUsage } from "@/lib/auth";
+import { hasUnlimitedOrders } from "@/lib/planCatalog";
 
 export type PlanUsageLevel = "normal" | "warning" | "reached";
 
@@ -8,7 +9,7 @@ export function usageWarningThreshold(orderLimit: number): number {
 }
 
 export function getPlanUsageLevel(usage: OrganizationUsage): PlanUsageLevel {
-  if (usage.plan === "PRO") return "normal";
+  if (hasUnlimitedOrders(usage.orderLimit)) return "normal";
   if (usage.ordersThisMonth >= usage.orderLimit) return "reached";
   if (usage.ordersThisMonth >= usageWarningThreshold(usage.orderLimit)) {
     return "warning";
@@ -39,9 +40,13 @@ export function usageBarFillClassCompact(level: PlanUsageLevel): string {
 }
 
 export function usagePercentage(usage: OrganizationUsage): number {
-  if (usage.plan !== "FREE" || usage.orderLimit <= 0) return 0;
+  if (hasUnlimitedOrders(usage.orderLimit) || usage.orderLimit <= 0) return 0;
   return Math.min(
     100,
     Math.round((usage.ordersThisMonth / usage.orderLimit) * 100),
   );
+}
+
+export function showMonthlyUsageMeter(usage: OrganizationUsage): boolean {
+  return !hasUnlimitedOrders(usage.orderLimit);
 }

@@ -3,6 +3,8 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { PricingTable } from "@clerk/nextjs";
+import "./billing-plans.css";
 import {
   getMe,
   getCachedOrganizationUsage,
@@ -10,79 +12,43 @@ import {
   type User,
   type OrganizationUsage,
 } from "@/lib/auth";
-import { api } from "@/lib/api";
 import { UserProfileSummary } from "@/components/dashboard/UserProfileSummary";
 
 function BillingContent() {
   const searchParams = useSearchParams();
   const reason = searchParams.get("reason");
   const success = searchParams.get("success");
-  const canceled = searchParams.get("canceled");
   const [user, setUser] = useState<User | null>(null);
   const [usage, setUsage] = useState<OrganizationUsage | null>(null);
-  const [upgradeError, setUpgradeError] = useState("");
-  const [upgrading, setUpgrading] = useState(false);
 
-  useEffect(() => {
-    void getMe().then((u) => {
+  function refreshAccount() {
+    invalidateAuthCache();
+    return getMe().then((u) => {
       setUser(u);
       setUsage(getCachedOrganizationUsage());
     });
+  }
+
+  useEffect(() => {
+    void refreshAccount();
   }, []);
 
   useEffect(() => {
     if (success === "true") {
-      invalidateAuthCache();
-      void getMe().then((u) => {
-        setUser(u);
-        setUsage(getCachedOrganizationUsage());
-      });
+      void refreshAccount();
     }
   }, [success]);
 
-  function refreshUsage() {
-    setUsage(getCachedOrganizationUsage());
-  }
-
-  async function handleUpgrade() {
-    setUpgradeError("");
-    setUpgrading(true);
-    try {
-      const data = await api<{ url?: string }>("/api/stripe/create-subscription", {
-        method: "POST",
-      });
-      if (data.url) {
-        window.location.href = data.url;
-        return;
-      }
-      setUpgradeError("Could not start checkout");
-    } catch (err) {
-      setUpgradeError(
-        err instanceof Error ? err.message : "Could not start checkout",
-      );
-    } finally {
-      setUpgrading(false);
-    }
-  }
-
-  const plan = usage?.plan ?? null;
-
   return (
-    <div className="dashboard-page mx-auto max-w-2xl">
+    <div className="dashboard-page mx-auto max-w-6xl">
       {success === "true" && (
         <p className="mb-4 text-sm text-green-600">
-          Subscription activated successfully.
-        </p>
-      )}
-      {canceled === "true" && (
-        <p className="mb-4 text-sm text-gray-600">
-          Checkout was canceled.
+          Subscription updated. It may take a moment for usage limits to sync.
         </p>
       )}
       {reason === "limit" && (
         <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          Free plan limit reached (10 orders per month). Upgrade to PRO to keep
-          accepting orders.
+          Monthly order limit reached. Upgrade to keep accepting orders.
         </p>
       )}
 
@@ -91,7 +57,8 @@ function BillingContent() {
       </h1>
 
       <p className="mt-2 text-sm text-muted-foreground">
-        Compare benefits and manage your subscription.
+        Compare plans, upgrade, or manage your subscription. Payment methods,
+        invoices, and cancellation are handled in the plan manager below.
       </p>
 
       {user && usage && (
@@ -103,52 +70,29 @@ function BillingContent() {
               usage={usage}
               variant="full"
               showIdentity={false}
-              onSubscriptionChange={refreshUsage}
             />
           </div>
         </section>
       )}
 
-      <div className="mt-6 space-y-3 rounded-lg border border-border p-5">
-        <p className="text-lg font-semibold text-foreground">
-          PRO — €29/month
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold text-foreground">Plans</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Free includes 10 orders per month. Paid plans raise or remove that cap.
         </p>
-
-        <ul className="space-y-1 text-sm text-gray-600">
-          <li>✔ Unlimited orders</li>
-          <li>✔ Unlimited events</li>
-          <li>✔ 1 storefront</li>
-          <li>✔ Priority workflow</li>
-          <li>✔ Contact support</li>
-        </ul>
-
-        {upgradeError && (
-          <p className="text-sm text-red-700">{upgradeError}</p>
-        )}
-
-        {plan === "FREE" ? (
-          <>
-            <p className="mt-4 text-sm text-gray-600">
-              Upgrade to remove limits and keep accepting orders without
-              interruption.
-            </p>
-            <button
-              type="button"
-              disabled={upgrading}
-              onClick={() => void handleUpgrade()}
-              className="mt-4 w-full rounded bg-black py-2 text-white disabled:opacity-60"
-            >
-              {upgrading ? "Redirecting…" : "Upgrade to PRO"}
-            </button>
-          </>
-        ) : plan === "PRO" ? (
-          <p className="mt-4 text-sm text-green-600">
-            You are currently on PRO plan
-          </p>
-        ) : (
-          <p className="mt-4 text-sm text-muted-foreground">Loading plan…</p>
-        )}
-      </div>
+        <div className="mt-4 clerk-pricing-table">
+          <PricingTable
+            for="user"
+            highlightedPlan="pro"
+            newSubscriptionRedirectUrl="/dashboard/billing?success=true"
+            appearance={{
+              elements: {
+                pricingTable: "magnetoo-clerk-pricing-table",
+              },
+            }}
+          />
+        </div>
+      </section>
 
       <p className="mt-6 text-sm text-muted-foreground">
         <Link href="/dashboard" className="text-primary hover:underline">
@@ -163,7 +107,9 @@ export default function BillingPage() {
   return (
     <Suspense
       fallback={
-        <div className="dashboard-page mx-auto max-w-2xl text-sm text-muted-foreground">Loading…</div>
+        <div className="dashboard-page mx-auto max-w-6xl text-sm text-muted-foreground">
+          Loading…
+        </div>
       }
     >
       <BillingContent />

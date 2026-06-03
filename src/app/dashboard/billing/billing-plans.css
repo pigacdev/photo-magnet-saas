@@ -1,0 +1,38 @@
+/**
+ * Clerk <PricingTable /> uses a responsive grid with ~20rem min column width.
+ * On max-w-3xl only two cards fit per row, so Pro wraps alone on row 2.
+ * Force three columns and Free → Hobby → Pro order on desktop.
+ */
+.clerk-pricing-table {
+  width: 100%;
+}
+
+.clerk-pricing-table .magnetoo-clerk-pricing-table {
+  --grid-min-size: 11rem;
+  --grid-max-columns: 3;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .clerk-pricing-table .magnetoo-clerk-pricing-table {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-auto-flow: row;
+    align-items: stretch;
+  }
+
+  /* Visual order: Free, Hobby, Pro (Hobby left of Pro on the same row) */
+  .clerk-pricing-table .magnetoo-clerk-pricing-table [id*="free_user"],
+  .clerk-pricing-table .magnetoo-clerk-pricing-table [id*="-free"],
+  .clerk-pricing-table .magnetoo-clerk-pricing-table [id$="free"] {
+    order: 1;
+  }
+
+  .clerk-pricing-table .magnetoo-clerk-pricing-table [id*="hobby"] {
+    order: 2;
+  }
+
+  .clerk-pricing-table .magnetoo-clerk-pricing-table [id*="pro"] {
+    order: 3;
+  }
+}

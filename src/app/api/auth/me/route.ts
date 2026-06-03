@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { ensureSellerUser } from "@/lib/clerkUserSync";
+import { syncOrganizationBillingFromClerk } from "@/lib/clerkBillingSync";
 import { prisma } from "@/lib/prisma";
 import { buildOrganizationUsage } from "../../../../../server/src/lib/organizationUsage";
 
@@ -19,7 +20,7 @@ function resolveClerkEmail(
 }
 
 export async function GET() {
-  const { userId } = await auth();
+  const { userId, sessionClaims } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
@@ -51,11 +52,21 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
       where: { id: synced.id, deletedAt: null },
-      select: { id: true, email: true, name: true, role: true },
+      select: { id: true, email: true, name: true, role: true, clerkId: true },
     });
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 401 });
+    }
+
+    try {
+      await syncOrganizationBillingFromClerk(
+        user.id,
+        userId,
+        sessionClaims as Record<string, unknown>,
+      );
+    } catch (syncErr) {
+      console.warn("[GET /api/auth/me] Clerk billing sync failed", syncErr);
     }
 
     const organization = await buildOrganizationUsage(user.id);

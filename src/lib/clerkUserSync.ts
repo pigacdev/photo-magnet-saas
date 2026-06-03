@@ -96,3 +96,17 @@ export async function ensureSellerUser(
     return user;
   });
 }
+
+/** Soft-delete seller when Clerk sends user.deleted. */
+export async function softDeleteSellerByClerkId(clerkId: string): Promise<void> {
+  const user = await prisma.user.findFirst({
+    where: { clerkId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!user) return;
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { deletedAt: new Date(), clerkId: null },
+  });
+}

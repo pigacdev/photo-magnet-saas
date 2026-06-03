@@ -10,6 +10,8 @@ import { ensureSellerUser } from "../../../src/lib/clerkUserSync";
 export interface AuthUser {
   userId: string;
   role: string;
+  clerkUserId: string;
+  sessionClaims: Record<string, unknown>;
 }
 
 let clerkClient: ReturnType<typeof createClerkClient> | null | undefined;
@@ -167,7 +169,12 @@ export async function resolveAuthUser(
       dbUser = { id: synced.id, role: synced.role };
     }
 
-    return { userId: dbUser.id, role: dbUser.role };
+    return {
+      userId: dbUser.id,
+      role: dbUser.role,
+      clerkUserId,
+      sessionClaims: (auth.sessionClaims ?? {}) as Record<string, unknown>,
+    };
   } catch (err) {
     if (process.env.NODE_ENV !== "production") {
       console.error("[auth] resolveAuthUser failed:", err);
