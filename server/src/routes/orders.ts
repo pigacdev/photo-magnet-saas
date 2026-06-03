@@ -8,8 +8,7 @@ import { Router } from "express";
 import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { sessionConfig } from "../config/session";
-import { authConfig } from "../config/auth";
-import { verifyToken, type JwtPayload } from "../lib/auth";
+import { resolveAuthUser, type AuthUser } from "../lib/clerkSession";
 import { authenticate, requireRole } from "../middleware/auth";
 import { clearSessionCookie } from "../lib/orderSessionApi";
 import { ORDER_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
@@ -923,19 +922,13 @@ ordersRouter.patch("/:id/customer", async (req: Request, res: Response) => {
   }
 
   if (!authorized) {
-    const authToken = req.cookies?.[authConfig.cookieName] as string | undefined;
-    if (authToken) {
-      try {
-        const user = verifyToken(authToken);
-        if (
-          (user.role === "ADMIN" || user.role === "STAFF") &&
-          user.userId === order.organizationId
-        ) {
-          authorized = true;
-        }
-      } catch {
-        /* invalid token */
-      }
+    const sellerUser = await resolveAuthUser(req);
+    if (
+      sellerUser &&
+      (sellerUser.role === "ADMIN" || sellerUser.role === "STAFF") &&
+      sellerUser.userId === order.organizationId
+    ) {
+      authorized = true;
     }
   }
 
@@ -1247,15 +1240,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
     return;
   }
 
-  const token = req.cookies?.[authConfig.cookieName] as string | undefined;
-  let sellerUser: JwtPayload | null = null;
-  if (token) {
-    try {
-      sellerUser = verifyToken(token);
-    } catch {
-      sellerUser = null;
-    }
-  }
+  let sellerUser: AuthUser | null = await resolveAuthUser(req);
 
   if (sellerUser) {
     let order = await prisma.order.findFirst({

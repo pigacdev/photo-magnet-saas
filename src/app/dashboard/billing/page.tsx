@@ -10,6 +10,7 @@ import {
   type User,
   type OrganizationUsage,
 } from "@/lib/auth";
+import { api } from "@/lib/api";
 import { UserProfileSummary } from "@/components/dashboard/UserProfileSummary";
 
 function BillingContent() {
@@ -47,22 +48,18 @@ function BillingContent() {
     setUpgradeError("");
     setUpgrading(true);
     try {
-      const res = await fetch("/api/stripe/create-subscription", {
+      const data = await api<{ url?: string }>("/api/stripe/create-subscription", {
         method: "POST",
-        credentials: "include",
       });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok) {
-        setUpgradeError(data.error ?? "Could not start checkout");
-        return;
-      }
       if (data.url) {
         window.location.href = data.url;
         return;
       }
       setUpgradeError("Could not start checkout");
-    } catch {
-      setUpgradeError("Could not start checkout");
+    } catch (err) {
+      setUpgradeError(
+        err instanceof Error ? err.message : "Could not start checkout",
+      );
     } finally {
       setUpgrading(false);
     }

@@ -42,7 +42,7 @@ Browser → Next.js (port 3000) → rewrites → Express API (port 4000) → Pos
 | HTTP server | **Express 5** | `server/src/` |
 | Dev runner | **tsx** | `npm run dev:server` — watch mode |
 | Security | `helmet`, `cors`, `express-rate-limit` | |
-| Auth | **JWT** + **bcrypt** | Cookie-based sessions |
+| Auth | **Clerk** | Seller sessions via Clerk; Express verifies Clerk tokens |
 | File uploads | **multer** | Multipart handling |
 
 **Entry point:** `server/src/index.ts`

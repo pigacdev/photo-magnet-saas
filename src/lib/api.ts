@@ -10,6 +10,15 @@ function getApiBase(): string {
   return "";
 }
 
+let clerkTokenGetter: (() => Promise<string | null>) | null = null;
+
+/** Set by ClerkTokenBridge so Express can verify auth via Authorization header. */
+export function registerClerkTokenGetter(
+  getter: (() => Promise<string | null>) | null,
+): void {
+  clerkTokenGetter = getter;
+}
+
 type RequestOptions = {
   method?: string;
   body?: unknown;
@@ -27,6 +36,24 @@ function throwIfNotOk(res: Response, data: unknown): void {
   throw err;
 }
 
+async function buildRequestHeaders(
+  body?: unknown,
+): Promise<HeadersInit | undefined> {
+  const headers: Record<string, string> = {};
+  if (body) headers["Content-Type"] = "application/json";
+
+  if (typeof window !== "undefined" && clerkTokenGetter) {
+    try {
+      const token = await clerkTokenGetter();
+      if (token) headers.Authorization = `Bearer ${token}`;
+    } catch {
+      /* Clerk not ready yet */
+    }
+  }
+
+  return Object.keys(headers).length > 0 ? headers : undefined;
+}
+
 export async function api<T>(
   path: string,
   options: RequestOptions = {},
@@ -35,7 +62,7 @@ export async function api<T>(
 
   const res = await fetch(`${getApiBase()}${path}`, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: await buildRequestHeaders(body),
     body: body ? JSON.stringify(body) : undefined,
     credentials: "include",
     /** Avoid stale JSON (e.g. session images list after POST). */
@@ -52,6 +79,7 @@ export async function api<T>(
 export async function apiFormData<T>(path: string, formData: FormData): Promise<T> {
   const res = await fetch(`${getApiBase()}${path}`, {
     method: "POST",
+    headers: await buildRequestHeaders(),
     body: formData,
     credentials: "include",
     cache: "no-store",

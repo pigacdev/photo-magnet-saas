@@ -49,3 +49,6 @@ next-env.d.ts
 
 # local session uploads (API serves from /uploads)
 /uploads
+
+# clerk configuration (can include secrets)
+/.clerk/

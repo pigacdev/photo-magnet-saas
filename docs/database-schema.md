@@ -14,8 +14,9 @@
 ## User
 
 - id (uuid)
+- clerk_id (unique, nullable — Clerk external user id)
 - email (unique)
-- password_hash
+- password_hash (nullable — legacy only)
 - role (`ADMIN`, `STAFF`)
 - stripe_customer_id (nullable)
 - created_at

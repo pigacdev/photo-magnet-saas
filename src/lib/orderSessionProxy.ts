@@ -20,8 +20,13 @@ function noSessionRedirect(request: NextRequest): NextResponse {
  *
  * After commit, session is CONVERTED — payment / success / confirmation must still load.
  */
-export async function middleware(request: NextRequest) {
+export async function handleOrderSession(
+  request: NextRequest,
+): Promise<NextResponse | null> {
   const pathname = request.nextUrl.pathname;
+  if (!pathname.startsWith("/order")) {
+    return null;
+  }
 
   const isSuccessRoute = pathname.startsWith("/order/success");
   const isConfirmationRoute =
@@ -82,7 +87,3 @@ export async function middleware(request: NextRequest) {
     clearTimeout(timeoutId);
   }
 }
-
-export const config = {
-  matcher: ["/order/:path*"],
-};

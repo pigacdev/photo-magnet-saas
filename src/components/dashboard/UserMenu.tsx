@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useClerk } from "@clerk/nextjs";
 import type { OrganizationUsage, User } from "@/lib/auth";
-import { logout } from "@/lib/auth";
+import { invalidateAuthCache } from "@/lib/auth";
 import { UserProfileSummary, userInitials } from "./UserProfileSummary";
 
 export type UserMenuProps = {
@@ -15,6 +16,7 @@ export type UserMenuProps = {
 
 export function UserMenu({ user, usage, onUsageRefresh }: UserMenuProps) {
   const router = useRouter();
+  const { signOut } = useClerk();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -43,8 +45,9 @@ export function UserMenu({ user, usage, onUsageRefresh }: UserMenuProps) {
 
   async function handleLogout() {
     close();
-    await logout();
-    router.replace("/login");
+    invalidateAuthCache();
+    await signOut();
+    router.replace("/");
   }
 
   const displayName = user.name || user.email;

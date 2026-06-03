@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { OrganizationUsage, User } from "@/lib/auth";
 import { invalidateAuthCache, getMe } from "@/lib/auth";
+import { api } from "@/lib/api";
 import {
   getPlanUsageLevel,
   usageBarFillClassCompact,
@@ -61,19 +62,13 @@ export function UserProfileSummary({
     setActionError("");
     setActionLoading(true);
     try {
-      const res = await fetch("/api/stripe/cancel-subscription", {
-        method: "POST",
-        credentials: "include",
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        setActionError(data.error ?? "Could not cancel subscription");
-        return;
-      }
+      await api("/api/stripe/cancel-subscription", { method: "POST" });
       setConfirmCancel(false);
       await refreshAfterAction();
-    } catch {
-      setActionError("Could not cancel subscription");
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Could not cancel subscription",
+      );
     } finally {
       setActionLoading(false);
     }
@@ -83,18 +78,12 @@ export function UserProfileSummary({
     setActionError("");
     setActionLoading(true);
     try {
-      const res = await fetch("/api/stripe/reactivate-subscription", {
-        method: "POST",
-        credentials: "include",
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        setActionError(data.error ?? "Could not reactivate subscription");
-        return;
-      }
+      await api("/api/stripe/reactivate-subscription", { method: "POST" });
       await refreshAfterAction();
-    } catch {
-      setActionError("Could not reactivate subscription");
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Could not reactivate subscription",
+      );
     } finally {
       setActionLoading(false);
     }
