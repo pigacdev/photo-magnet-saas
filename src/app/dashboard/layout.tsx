@@ -53,10 +53,6 @@ export default function DashboardLayout({
       });
   }, [isLoaded, isSignedIn, getToken, router]);
 
-  function refreshUsage() {
-    setUsage(getCachedOrganizationUsage());
-  }
-
   if (!isLoaded || checking) {
     return (
       <div className="flex min-h-full flex-1 items-center justify-center bg-surface p-6">
@@ -76,7 +72,7 @@ export default function DashboardLayout({
   if (!user) return null;
 
   return (
-    <DashboardShell user={user} usage={usage} onUsageRefresh={refreshUsage}>
+    <DashboardShell user={user} usage={usage}>
       {children}
     </DashboardShell>
   );

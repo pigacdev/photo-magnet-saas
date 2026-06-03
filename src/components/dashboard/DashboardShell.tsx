@@ -8,14 +8,12 @@ import { DashboardSidebar } from "./DashboardSidebar";
 export type DashboardShellProps = {
   user: User;
   usage: OrganizationUsage | null;
-  onUsageRefresh?: () => void;
   children: React.ReactNode;
 };
 
 export function DashboardShell({
   user,
   usage,
-  onUsageRefresh,
   children,
 }: DashboardShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -58,12 +56,7 @@ export function DashboardShell({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col bg-surface">
-        <DashboardHeader
-          user={user}
-          usage={usage}
-          onUsageRefresh={onUsageRefresh}
-          onMenuToggle={() => setMobileOpen((v) => !v)}
-        />
+        <DashboardHeader onMenuToggle={() => setMobileOpen((v) => !v)} />
         <main className="flex-1 px-4 py-6 lg:px-6">{children}</main>
       </div>
     </div>

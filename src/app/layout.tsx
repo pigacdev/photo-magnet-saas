@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { ClerkAuthHeader } from "@/components/auth/ClerkAuthHeader";
 import { ClerkTokenBridge } from "@/components/auth/ClerkTokenBridge";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { clerkAppearance } from "@/lib/clerkAppearance";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -39,6 +40,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-background font-sans text-foreground antialiased">
         <ClerkProvider
+          appearance={clerkAppearance}
           signInUrl="/sign-in"
           signUpUrl="/sign-up"
           signInFallbackRedirectUrl="/dashboard"

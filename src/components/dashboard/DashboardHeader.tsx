@@ -1,22 +1,13 @@
 "use client";
 
-import type { OrganizationUsage, User } from "@/lib/auth";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { UserMenu } from "./UserMenu";
+import { AppUserButton } from "@/components/auth/AppUserButton";
 
 export type DashboardHeaderProps = {
-  user: User;
-  usage: OrganizationUsage | null;
-  onUsageRefresh?: () => void;
   onMenuToggle: () => void;
 };
 
-export function DashboardHeader({
-  user,
-  usage,
-  onUsageRefresh,
-  onMenuToggle,
-}: DashboardHeaderProps) {
+export function DashboardHeader({ onMenuToggle }: DashboardHeaderProps) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-4 lg:px-6">
       <button
@@ -34,7 +25,7 @@ export function DashboardHeader({
 
       <div className="flex items-center gap-1">
         <ThemeToggle />
-        <UserMenu user={user} usage={usage} onUsageRefresh={onUsageRefresh} />
+        <AppUserButton showAppLinks />
       </div>
     </header>
   );

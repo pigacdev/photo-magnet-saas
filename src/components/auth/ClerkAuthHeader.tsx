@@ -1,12 +1,12 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import {
   Show,
   SignInButton,
   SignUpButton,
-  UserButton,
 } from "@clerk/nextjs";
+import { usePathname } from "next/navigation";
+import { AppUserButton } from "@/components/auth/AppUserButton";
 
 export function ClerkAuthHeader() {
   const pathname = usePathname();
@@ -41,7 +41,7 @@ export function ClerkAuthHeader() {
         </SignUpButton>
       </Show>
       <Show when="signed-in">
-        <UserButton />
+        <AppUserButton />
       </Show>
     </header>
   );
