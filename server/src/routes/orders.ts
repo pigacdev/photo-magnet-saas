@@ -27,12 +27,16 @@ import {
   parseCancellationNote,
   parseEventPaymentPreference,
 } from "../lib/orderStatus";
-import {
-  expandStatusFilterParams,
-  isKnownStatusFilterToken,
-  orderStatusSortPriority,
-} from "../lib/orderListStatusFilter";
 import { validateOrderSessionContext } from "../lib/sessionContextValidation";
+import {
+  parseSellerOrderListQuery,
+  paginateSellerOrders,
+  querySellerOrders,
+} from "../lib/sellerOrderListQuery";
+import {
+  buildOrdersExportCsv,
+  ordersExportFilename,
+} from "../lib/ordersCsvExport";
 import {
   expandOrderImagesForPrintSheet,
   generatePrintSheet,
@@ -83,12 +87,6 @@ function isReadyToPrintForSeller(order: { status: string }): boolean {
   return isPrintEligibleStatus(order.status as import("../../../src/generated/prisma/client").OrderStatus);
 }
 
-function parsePositiveInt(value: unknown, fallback: number): number {
-  const n = Number.parseInt(String(value ?? ""), 10);
-  if (!Number.isFinite(n) || n < 1) return fallback;
-  return n;
-}
-
 /** GET /api/orders — seller list with search, filters, pagination (status filtered in memory). */
 ordersRouter.get(
   "/",
@@ -97,237 +95,34 @@ ordersRouter.get(
   async (req: Request, res: Response) => {
     const userId = req.user!.userId;
 
-    const page = parsePositiveInt(req.query.page, 1);
-    const pageSizeRaw = parsePositiveInt(req.query.pageSize, 20);
-    const pageSize = Math.min(100, Math.max(1, pageSizeRaw));
-
-    const searchRaw =
-      typeof req.query.search === "string" ? req.query.search.trim() : "";
-    const statusRaw =
-      typeof req.query.status === "string" ? req.query.status.trim().toLowerCase() : "";
-    /** Single or comma-separated (e.g. `unpaid,paid`); OR match on workflow status. */
-    let statusFilterTokens: string[] = [];
-    if (statusRaw.length > 0) {
-      const parts = statusRaw
-        .split(",")
-        .map((s) => s.trim().toLowerCase())
-        .filter(Boolean);
-      const seen = new Set<string>();
-      for (const p of parts) {
-        if (!isKnownStatusFilterToken(p)) {
-          res.status(400).json({ error: `Invalid status: ${p}` });
-          return;
-        }
-        if (!seen.has(p)) {
-          seen.add(p);
-          statusFilterTokens.push(p);
-        }
-      }
-    }
-    const expandedStatusFilter =
-      statusFilterTokens.length > 0
-        ? expandStatusFilterParams(statusFilterTokens)
-        : null;
-
-    let createdAt: { gte?: Date; lte?: Date } | undefined;
-    const dateFrom =
-      typeof req.query.dateFrom === "string" ? req.query.dateFrom.trim() : "";
-    const dateTo =
-      typeof req.query.dateTo === "string" ? req.query.dateTo.trim() : "";
-    const dateRange =
-      typeof req.query.dateRange === "string" ? req.query.dateRange.trim() : "";
-
-    if (dateFrom || dateTo) {
-      const range: { gte?: Date; lte?: Date } = {};
-      if (dateFrom) {
-        const d = new Date(dateFrom);
-        if (!Number.isNaN(d.getTime())) range.gte = d;
-      }
-      if (dateTo) {
-        const d = new Date(dateTo);
-        if (!Number.isNaN(d.getTime())) {
-          d.setHours(23, 59, 59, 999);
-          range.lte = d;
-        }
-      }
-      if (range.gte || range.lte) createdAt = range;
-    } else if (dateRange.includes(",")) {
-      const [a, b] = dateRange.split(",").map((s) => s.trim());
-      const start = a ? new Date(a) : null;
-      const end = b ? new Date(b) : null;
-      if (start && !Number.isNaN(start.getTime())) {
-        const range: { gte?: Date; lte?: Date } = { gte: start };
-        if (end && !Number.isNaN(end.getTime())) {
-          end.setHours(23, 59, 59, 999);
-          range.lte = end;
-        }
-        createdAt = range;
-      }
-    }
-
-    const contextTypeQ =
-      typeof req.query.contextType === "string"
-        ? req.query.contextType.trim().toUpperCase()
-        : "";
-    const contextIdQ =
-      typeof req.query.contextId === "string" ? req.query.contextId.trim() : "";
-
-    if (contextTypeQ && !contextIdQ) {
-      res
-        .status(400)
-        .json({ error: "contextId is required when contextType is set" });
-      return;
-    }
-    if (contextIdQ && !contextTypeQ) {
-      res
-        .status(400)
-        .json({ error: "contextType is required when contextId is set" });
+    const parsed = parseSellerOrderListQuery(
+      req.query as Record<string, unknown>,
+    );
+    if (!parsed.ok) {
+      res.status(parsed.error.status).json({ error: parsed.error.error });
       return;
     }
 
-    let contextType: "EVENT" | "STOREFRONT" | undefined;
-    let contextId: string | undefined;
-    if (contextTypeQ && contextIdQ) {
-      if (contextTypeQ !== "EVENT" && contextTypeQ !== "STOREFRONT") {
-        res.status(400).json({ error: "Invalid contextType" });
-        return;
-      }
-      if (contextTypeQ === "EVENT") {
-        const ev = await prisma.event.findFirst({
-          where: { id: contextIdQ, userId, deletedAt: null },
-          select: { id: true },
-        });
-        if (!ev) {
-          res
-            .status(400)
-            .json({ error: "Unknown event or not accessible" });
-          return;
-        }
-      } else {
-        const sf = await prisma.storefront.findFirst({
-          where: { id: contextIdQ, userId, deletedAt: null },
-          select: { id: true },
-        });
-        if (!sf) {
-          res
-            .status(400)
-            .json({ error: "Unknown storefront or not accessible" });
-          return;
-        }
-      }
-      contextType = contextTypeQ;
-      contextId = contextIdQ;
+    const { params } = parsed;
+    const result = await querySellerOrders(userId, {
+      search: params.search,
+      expandedStatusFilter: params.expandedStatusFilter,
+      createdAt: params.createdAt,
+      contextType: params.contextType,
+      contextId: params.contextId,
+      sortBy: params.sortBy,
+      sortOrder: params.sortOrder,
+    });
+    if (!result.ok) {
+      res.status(result.error.status).json({ error: result.error.error });
+      return;
     }
 
-    const where: Prisma.OrderWhereInput = {
-      organizationId: userId,
-      ...(createdAt ? { createdAt } : {}),
-      ...(contextType && contextId
-        ? { contextType, contextId }
-        : {}),
-    };
-
-    const orders = await prisma.order.findMany({
-      where,
-      select: {
-        id: true,
-        shortCode: true,
-        customerName: true,
-        customerEmail: true,
-        customerPhone: true,
-        status: true,
-        printedAt: true,
-        shippedAt: true,
-        contextType: true,
-        contextId: true,
-        totalPrice: true,
-        currency: true,
-        createdAt: true,
-        orderImages: {
-          select: { printed: true, mediaDeletedAt: true },
-        },
-      },
-    });
-
-    let filtered = orders;
-
-    if (searchRaw.length > 0) {
-      const q = searchRaw.toLowerCase();
-      filtered = filtered.filter(
-        (o) =>
-          o.id.toLowerCase().includes(q) ||
-          (o.shortCode?.toLowerCase().includes(q) ?? false) ||
-          (o.customerName?.toLowerCase().includes(q) ?? false) ||
-          (o.customerEmail?.toLowerCase().includes(q) ?? false) ||
-          (o.customerPhone?.toLowerCase().includes(q) ?? false),
-      );
-    }
-
-    const sortByParam =
-      typeof req.query.sortBy === "string" ? req.query.sortBy.trim() : "";
-    const sortBy = sortByParam === "status" ? "status" : "createdAt";
-    const sortOrderRaw =
-      typeof req.query.sortOrder === "string"
-        ? req.query.sortOrder.trim().toLowerCase()
-        : "";
-    const sortOrder = sortOrderRaw === "asc" ? "asc" : "desc";
-
-    const mapped = filtered.map((o) => {
-      const printable = filterPrintableOrderImages(o.orderImages);
-      const totalImages = printable.length;
-      const printedImages = printable.filter((img) => img.printed).length;
-      return {
-        row: o,
-        payload: {
-          id: o.id,
-          shortCode: o.shortCode,
-          customerName: o.customerName,
-          customerEmail: o.customerEmail,
-          customerPhone: o.customerPhone,
-          status: o.status,
-          contextType: o.contextType,
-          contextId: o.contextId,
-          totalPrice: o.totalPrice.toString(),
-          currency: o.currency,
-          createdAt: o.createdAt.toISOString(),
-          imageCount: totalImages,
-          totalImages,
-          printedImages,
-        },
-      };
-    });
-
-    const statusFiltered =
-      expandedStatusFilter != null
-        ? mapped.filter((x) => expandedStatusFilter.has(x.row.status))
-        : mapped;
-
-    const sortedList = [...statusFiltered].sort((x, y) => {
-      if (sortBy === "createdAt") {
-        const ta = x.row.createdAt.getTime();
-        const tb = y.row.createdAt.getTime();
-        const cmp = sortOrder === "asc" ? ta - tb : tb - ta;
-        if (cmp !== 0) return cmp;
-        return x.row.id.localeCompare(y.row.id);
-      }
-      const pa = orderStatusSortPriority(
-        x.row.status as import("../../../src/generated/prisma/client").OrderStatus,
-      );
-      const pb = orderStatusSortPriority(
-        y.row.status as import("../../../src/generated/prisma/client").OrderStatus,
-      );
-      const cmp = sortOrder === "asc" ? pa - pb : pb - pa;
-      if (cmp !== 0) return cmp;
-      return y.row.createdAt.getTime() - x.row.createdAt.getTime();
-    });
-
-    // Pagination totals = full filtered+sorted count (never the current page length).
-    const total = sortedList.length;
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    // Clamp requested page when filters/sort shrink results (e.g. page=5 but only 1 page left).
-    const safePage = Math.min(page, totalPages);
-    const skip = (safePage - 1) * pageSize;
-    const pageSlice = sortedList.slice(skip, skip + pageSize);
+    const { pageSlice, pagination } = paginateSellerOrders(
+      result.rows,
+      params.page,
+      params.pageSize,
+    );
     const contextNames = await resolveOrderContextNames(
       pageSlice.map((x) => ({
         contextType: x.row.contextType,
@@ -345,13 +140,51 @@ ordersRouter.get(
 
     res.json({
       items: pageItems,
-      pagination: {
-        page: safePage,
-        pageSize,
-        total,
-        totalPages,
-      },
+      pagination,
     });
+  },
+);
+
+/** GET /api/orders/export.csv — CSV export of filtered/sorted orders (no pagination). */
+ordersRouter.get(
+  "/export.csv",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+
+    const parsed = parseSellerOrderListQuery(
+      req.query as Record<string, unknown>,
+    );
+    if (!parsed.ok) {
+      res.status(parsed.error.status).json({ error: parsed.error.error });
+      return;
+    }
+
+    const { params } = parsed;
+    const result = await querySellerOrders(userId, {
+      search: params.search,
+      expandedStatusFilter: params.expandedStatusFilter,
+      createdAt: params.createdAt,
+      contextType: params.contextType,
+      contextId: params.contextId,
+      sortBy: params.sortBy,
+      sortOrder: params.sortOrder,
+    });
+    if (!result.ok) {
+      res.status(result.error.status).json({ error: result.error.error });
+      return;
+    }
+
+    const csv = buildOrdersExportCsv(result.rows);
+    const filename = ordersExportFilename();
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`,
+    );
+    res.send(csv);
   },
 );
 

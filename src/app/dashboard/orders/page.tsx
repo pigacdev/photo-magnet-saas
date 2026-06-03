@@ -10,7 +10,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, apiDownload } from "@/lib/api";
 import { formatOrderReference } from "@/lib/orderReference";
 import {
   ORDER_STATUS_BADGE_CLASS,
@@ -208,6 +208,8 @@ function OrdersListContent() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [contexts, setContexts] = useState<OrderContextsResponse | null>(null);
   const [contextsLoading, setContextsLoading] = useState(true);
 
@@ -413,6 +415,38 @@ function OrdersListContent() {
       dateStyle: "medium",
       timeStyle: "short",
     });
+  }
+
+  const exportQueryString = useMemo(() => {
+    const q = new URLSearchParams(searchParams.toString());
+    q.delete("page");
+    q.delete("pageSize");
+    return q.toString();
+  }, [searchParams]);
+
+  async function downloadOrdersCsv() {
+    setExportLoading(true);
+    setExportError(null);
+    try {
+      const path = exportQueryString
+        ? `/api/orders/export.csv?${exportQueryString}`
+        : "/api/orders/export.csv";
+      const { blob, filename } = await apiDownload(path);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename ?? "orders-export.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setExportError(
+        e instanceof Error ? e.message : "Could not export orders.",
+      );
+    } finally {
+      setExportLoading(false);
+    }
   }
 
   const hasFilters =
@@ -723,7 +757,26 @@ function OrdersListContent() {
             <option value="50">50</option>
           </select>
         </label>
+        <div className="flex w-full min-w-[140px] flex-col gap-1.5 sm:w-auto">
+          <span className="text-xs font-medium text-muted-foreground">Export</span>
+          <button
+            type="button"
+            disabled={loading || exportLoading}
+            onClick={() => void downloadOrdersCsv()}
+            className="min-h-11 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {exportLoading
+              ? "Exporting…"
+              : loading
+                ? "Export CSV"
+                : `Export CSV (${pagination.total})`}
+          </button>
+        </div>
       </div>
+
+      {exportError ? (
+        <p className="text-sm text-red-600">{exportError}</p>
+      ) : null}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>

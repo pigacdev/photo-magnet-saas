@@ -75,6 +75,43 @@ export async function api<T>(
   return data as T;
 }
 
+/** Download a file from the API (CSV, ZIP, etc.) with auth headers. */
+export async function apiDownload(
+  path: string,
+): Promise<{ blob: Blob; filename: string | null }> {
+  const res = await fetch(`${getApiBase()}${path}`, {
+    method: "GET",
+    headers: await buildRequestHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    let msg = "Download failed.";
+    try {
+      const ct = res.headers.get("Content-Type") ?? "";
+      if (ct.includes("application/json")) {
+        const j = (await res.json()) as { error?: string; message?: string };
+        msg =
+          (typeof j.error === "string" && j.error) ||
+          (typeof j.message === "string" && j.message) ||
+          msg;
+      }
+    } catch {
+      /* keep default */
+    }
+    throw new Error(msg);
+  }
+
+  const blob = await res.blob();
+  let filename: string | null = null;
+  const cd = res.headers.get("Content-Disposition");
+  const m = /filename="([^"]+)"/i.exec(cd ?? "");
+  if (m?.[1]) filename = m[1];
+
+  return { blob, filename };
+}
+
 /** Multipart upload (e.g. session images). Do not set Content-Type — browser sets boundary. */
 export async function apiFormData<T>(path: string, formData: FormData): Promise<T> {
   const res = await fetch(`${getApiBase()}${path}`, {

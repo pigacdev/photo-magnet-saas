@@ -15,6 +15,7 @@ import { isDeletableOrderMediaUrl } from "./orderMediaCleanup";
 import { renderOrderImages, type OrderImageRenderInput } from "./renderOrderImages";
 import { s3Config } from "../config/s3";
 import { EVENT_MEDIA_RETENTION_HOURS_AFTER_END } from "../config/mediaRetention";
+import { csvEscape } from "./csvEscape";
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 
@@ -39,11 +40,6 @@ function sanitizeZipSegment(raw: string, maxLen = 48): string {
     .replace(/^-|-$/g, "")
     .slice(0, maxLen);
   return s.length > 0 ? s : "event";
-}
-
-function csvEscape(value: string): string {
-  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
 }
 
 /** Resolve order-media URL to an absolute local file path, or null if remote/S3/missing/unsafe. */

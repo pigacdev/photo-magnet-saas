@@ -11,6 +11,22 @@ export const ORDER_STATUSES: OrderStatus[] = [
   "CANCELLED",
 ];
 
+/** Keep in sync with `src/lib/orderDisplayStatus.tsx` ORDER_STATUS_LABELS. */
+const ORDER_STATUS_DISPLAY_LABELS: Record<OrderStatus, string> = {
+  NEW: "New",
+  CONFIRMED: "Confirmed",
+  INVOICE_SENT: "Invoice sent",
+  PAID: "Paid",
+  IN_PRODUCTION: "In production",
+  SHIPPED: "Shipped",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+};
+
+export function orderStatusDisplayLabel(status: string): string {
+  return ORDER_STATUS_DISPLAY_LABELS[status as OrderStatus] ?? status;
+}
+
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   NEW: ["CONFIRMED", "CANCELLED"],
   CONFIRMED: ["INVOICE_SENT", "PAID", "CANCELLED"],
