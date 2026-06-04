@@ -15,6 +15,7 @@ import { sessionRouter } from "./routes/session";
 import { systemRouter } from "./routes/system";
 import { ordersRouter } from "./routes/orders";
 import { dashboardRouter } from "./routes/dashboard";
+import { organizationRouter } from "./routes/organization";
 import { supportRouter } from "./routes/support";
 import { adminRouter } from "./routes/admin";
 import { stripeRouter, stripeWebhookHandler } from "./routes/stripe";
@@ -72,6 +73,12 @@ app.use(
   authenticate,
   requireRole("ADMIN", "STAFF"),
   dashboardRouter,
+);
+app.use(
+  "/api/organization",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  organizationRouter,
 );
 app.use(
   "/api/support",

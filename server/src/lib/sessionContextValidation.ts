@@ -3,6 +3,10 @@ import { prisma } from "./prisma";
 import { canAcceptOrders } from "./event";
 import { canStorefrontAcceptOrders } from "./storefront";
 import {
+  isOrganizationCurrencyConfigured,
+  SELLER_CURRENCY_NOT_CONFIGURED_MESSAGE,
+} from "./organizationCurrency";
+import {
   BUYER_EVENT_ORDER_LIMIT_MESSAGE,
   BUYER_STORE_ORDER_LIMIT_MESSAGE,
   canOrganizationAcceptOrders,
@@ -33,6 +37,15 @@ export async function validateEventOrderContext(
 
   if (!event) {
     return { ok: false, notFound: true };
+  }
+
+  const currencyReady = await isOrganizationCurrencyConfigured(event.userId);
+  if (!currencyReady) {
+    return {
+      ok: false,
+      notFound: false,
+      reason: SELLER_CURRENCY_NOT_CONFIGURED_MESSAGE,
+    };
   }
 
   const [pricing, shapeCount] = await Promise.all([
@@ -70,6 +83,15 @@ export async function validateStorefrontOrderContext(
 
   if (!storefront) {
     return { ok: false, notFound: true };
+  }
+
+  const currencyReady = await isOrganizationCurrencyConfigured(storefront.userId);
+  if (!currencyReady) {
+    return {
+      ok: false,
+      notFound: false,
+      reason: SELLER_CURRENCY_NOT_CONFIGURED_MESSAGE,
+    };
   }
 
   const [pricing, shapeCount] = await Promise.all([

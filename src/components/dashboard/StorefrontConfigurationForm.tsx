@@ -96,6 +96,7 @@ export function StorefrontConfigurationForm({
   onDirtyChange,
 }: StorefrontConfigurationFormProps) {
   const pricingRef = useRef<PricingEditorHandle>(null);
+  const orgCurrency = getCachedOrganizationUsage()?.currency ?? "EUR";
 
   const [brandDraft, setBrandDraft] = useState(storefront.brandText ?? "");
   const [notifEmailDraft, setNotifEmailDraft] = useState(
@@ -398,6 +399,7 @@ export function StorefrontConfigurationForm({
               embedded
               contextType="storefront"
               contextId={storefront.id}
+              currency={orgCurrency}
               initialPricing={storefront.pricing ?? []}
               initialMaxMagnetsPerOrder={storefront.maxMagnetsPerOrder ?? null}
               onFormChange={bumpPricingRevision}

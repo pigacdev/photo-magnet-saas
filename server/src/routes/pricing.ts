@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { SYSTEM_MAX_MAGNETS_PER_ORDER } from "../config/system";
+import { getOrganizationCurrency } from "../lib/organizationCurrency";
 import { prisma } from "../lib/prisma";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
 
@@ -55,6 +56,12 @@ pricingRouter.put("/:contextType/:contextId", async (req, res) => {
     return;
   }
 
+  const orgCurrency = await getOrganizationCurrency(userId);
+  if (!orgCurrency) {
+    res.status(400).json({ error: "Complete currency setup first" });
+    return;
+  }
+
   if (mode !== "PER_ITEM" && mode !== "BUNDLE") {
     res.status(400).json({ error: "Mode must be PER_ITEM or BUNDLE" });
     return;
@@ -80,7 +87,7 @@ pricingRouter.put("/:contextType/:contextId", async (req, res) => {
         contextId,
         type: "PER_ITEM",
         price: priceNum,
-        currency: "EUR",
+        currency: orgCurrency,
         displayOrder: null,
       },
     });
@@ -165,7 +172,7 @@ pricingRouter.put("/:contextType/:contextId", async (req, res) => {
             type: "BUNDLE",
             price: b.price,
             quantity: b.quantity,
-            currency: "EUR",
+            currency: orgCurrency,
             displayOrder: i,
           },
         }),

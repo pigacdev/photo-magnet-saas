@@ -3,6 +3,11 @@ import { prisma } from "../lib/prisma";
 import { canAcceptOrders } from "../lib/event";
 import { canStorefrontAcceptOrders } from "../lib/storefront";
 import {
+  isOrganizationCurrencyConfigured,
+  SELLER_CURRENCY_NOT_CONFIGURED_MESSAGE,
+  SELLER_SETUP_INCOMPLETE_CODE,
+} from "../lib/organizationCurrency";
+import {
   BUYER_EVENT_ORDER_LIMIT_MESSAGE,
   BUYER_STORE_ORDER_LIMIT_MESSAGE,
   canOrganizationAcceptOrders,
@@ -21,6 +26,17 @@ publicRouter.get("/entry/:contextType/:contextId", async (req, res) => {
     });
     if (!event) {
       res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const currencyReady = await isOrganizationCurrencyConfigured(event.userId);
+    if (!currencyReady) {
+      res.json({
+        name: event.name,
+        canOrder: false,
+        unavailableReason: SELLER_CURRENCY_NOT_CONFIGURED_MESSAGE,
+        unavailableCode: SELLER_SETUP_INCOMPLETE_CODE,
+      });
       return;
     }
 
@@ -70,6 +86,17 @@ publicRouter.get("/entry/:contextType/:contextId", async (req, res) => {
     });
     if (!storefront) {
       res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const currencyReady = await isOrganizationCurrencyConfigured(storefront.userId);
+    if (!currencyReady) {
+      res.json({
+        name: storefront.name,
+        canOrder: false,
+        unavailableReason: SELLER_CURRENCY_NOT_CONFIGURED_MESSAGE,
+        unavailableCode: SELLER_SETUP_INCOMPLETE_CODE,
+      });
       return;
     }
 

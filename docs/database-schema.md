@@ -25,6 +25,20 @@
 
 ---
 
+## Organization
+
+Seller tenant (1:1 with User; `id` = `user.id`). Billing limits + magnet order currency.
+
+- id (uuid, same as user id)
+- plan (`FREE`, `HOBBY`, `PRO`)
+- orders_this_month, order_limit, billing period fields
+- clerk_plan_slug (nullable)
+- **currency** (ISO 4217 alpha-3, nullable until onboarding — magnet pricing/analytics only; independent of Clerk subscription EUR billing)
+- **initial_setup_at** (nullable — set when currency first saved)
+- stripe_customer_id, clerk_subscription_id (nullable)
+
+---
+
 ## Event
 
 - id (uuid)
@@ -62,6 +76,7 @@
 - context_id (FK → Event or Storefront)
 - type (`per_item` | `bundle`)
 - price (decimal)
+- **currency** (ISO 4217, copied from Organization at write time)
 - quantity (nullable, for bundles)
 - created_at
 - updated_at
@@ -87,6 +102,7 @@
 - customer_name
 - payment_status (`pending`, `paid`, `cash`, `failed`)
 - total_price
+- **currency** (ISO 4217 snapshot at order commit)
 - context_type (`event` | `storefront`)
 - context_id
 - created_at

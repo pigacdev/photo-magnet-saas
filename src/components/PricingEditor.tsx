@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { api } from "@/lib/api";
+import { formatMoneyAmount } from "@/lib/currency";
 
 export type PricingRule = {
   id: string;
@@ -42,6 +43,8 @@ export type PricingEditorHandle = {
 type PricingEditorProps = {
   contextType: PricingContextType;
   contextId: string;
+  /** Seller org currency (ISO 4217) for labels and preview. */
+  currency: string;
   initialPricing: PricingRule[];
   /** Business cap for per-item orders; only saved with PER_ITEM pricing. */
   initialMaxMagnetsPerOrder?: number | null;
@@ -232,6 +235,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
     {
       contextType,
       contextId,
+      currency,
       initialPricing,
       initialMaxMagnetsPerOrder = null,
       onUpdate,
@@ -427,7 +431,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
                   htmlFor={inputId}
                   className="block text-sm font-medium text-foreground"
                 >
-                  Price per magnet (EUR)
+                  Price per magnet ({currency})
                 </label>
                 <input
                   id={inputId}
@@ -496,7 +500,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
                   </div>
                   <div className="flex-1">
                     <label className="block text-sm font-medium text-foreground">
-                      Price (EUR)
+                      Price ({currency})
                     </label>
                     <input
                       type="number"
@@ -561,6 +565,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
 
 export function PricingPreview({ pricing }: { pricing: PricingRule[] }) {
   const isPer = pricing[0]?.type === "PER_ITEM";
+  const displayCurrency = pricing[0]?.currency ?? "EUR";
 
   return (
     <div className="rounded-lg border border-border bg-surface px-4 py-3">
@@ -569,13 +574,13 @@ export function PricingPreview({ pricing }: { pricing: PricingRule[] }) {
       </p>
       {isPer ? (
         <p className="text-sm font-medium text-foreground">
-          €{Number(pricing[0].price).toFixed(2)} per magnet
+          {formatMoneyAmount(pricing[0].price, displayCurrency)} per magnet
         </p>
       ) : (
         <ul className="space-y-1">
           {pricing.map((p) => (
             <li key={p.id} className="text-sm font-medium text-foreground">
-              {p.quantity} for €{Number(p.price).toFixed(2)}
+              {p.quantity} for {formatMoneyAmount(p.price, p.currency || displayCurrency)}
             </li>
           ))}
         </ul>

@@ -13,6 +13,10 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "@/lib/api";
+import {
+  getCachedOrganizationUsage,
+  subscribeOrganizationUsage,
+} from "@/lib/auth";
 import { PlanUsageAlertBanner } from "@/components/dashboard/PlanUsageAlertBanner";
 import { storefrontNavHref } from "@/components/dashboard/dashboardNav";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
@@ -32,6 +36,7 @@ type ByMonthPoint = {
 };
 
 type DashboardStats = {
+  currency: string;
   ordersThisMonth: number;
   revenueThisMonth: number;
   ordersLastMonth: number;
@@ -191,11 +196,13 @@ function DashboardTrendsChart({
   onTrendModeChange,
   last7Days,
   byMonth,
+  currency,
 }: {
   trendMode: "days" | "months";
   onTrendModeChange: (mode: "days" | "months") => void;
   last7Days: Last7DayPoint[];
   byMonth: ByMonthPoint[];
+  currency: string;
 }) {
   const chartTheme = useChartTheme();
   const data: Array<Last7DayPoint | ByMonthPoint> =
@@ -285,7 +292,7 @@ function DashboardTrendsChart({
                     return [
                       new Intl.NumberFormat(undefined, {
                         style: "currency",
-                        currency: "EUR",
+                        currency: currency || "EUR",
                       }).format(Number(value)),
                       "Revenue",
                     ];
@@ -327,18 +334,30 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [trendMode, setTrendMode] = useState<"days" | "months">("days");
+  const [orgCurrency, setOrgCurrency] = useState<string | null>(
+    () => getCachedOrganizationUsage()?.currency ?? null,
+  );
 
   useEffect(() => {
+    return subscribeOrganizationUsage(() => {
+      setOrgCurrency(getCachedOrganizationUsage()?.currency ?? null);
+    });
+  }, []);
+
+  useEffect(() => {
+    setStatsLoading(true);
     void api<DashboardStats>("/api/dashboard/stats")
       .then(setStats)
       .catch(() => setStats(null))
       .finally(() => setStatsLoading(false));
-  }, []);
+  }, [orgCurrency]);
+
+  const displayCurrency = orgCurrency ?? stats?.currency ?? "EUR";
 
   function formatKpiMoney(n: number) {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
-      currency: "EUR",
+      currency: displayCurrency,
     }).format(n);
   }
 
@@ -444,6 +463,7 @@ export default function DashboardPage() {
                 onTrendModeChange={setTrendMode}
                 last7Days={stats.last7Days}
                 byMonth={stats.byMonth}
+                currency={displayCurrency}
               />
             </div>
           )}

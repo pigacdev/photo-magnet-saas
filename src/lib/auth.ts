@@ -14,6 +14,8 @@ export type OrganizationUsage = {
   orderLimit: number;
   currentPeriodEnd: string;
   clerkPlanSlug?: string | null;
+  currency: string | null;
+  initialSetupAt: string | null;
 };
 
 type AuthResponse = {

@@ -12,6 +12,7 @@ import {
   type OrganizationUsage,
 } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { OnboardingModal } from "@/components/dashboard/OnboardingModal";
 
 export default function DashboardLayout({
   children,
@@ -80,9 +81,25 @@ export default function DashboardLayout({
 
   if (!user) return null;
 
+  const needsOnboarding = usage != null && usage.currency == null;
+
+  async function handleOnboardingCompleted() {
+    invalidateAuthCache();
+    const u = await getMe();
+    if (u) {
+      setUser(u);
+      setUsage(getCachedOrganizationUsage());
+    }
+  }
+
   return (
-    <DashboardShell user={user} usage={usage}>
-      {children}
-    </DashboardShell>
+    <>
+      <DashboardShell user={user} usage={usage}>
+        {children}
+      </DashboardShell>
+      {needsOnboarding ? (
+        <OnboardingModal onCompleted={handleOnboardingCompleted} />
+      ) : null}
+    </>
   );
 }

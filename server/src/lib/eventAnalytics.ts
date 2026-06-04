@@ -1,6 +1,7 @@
 import type { AllowedShape } from "../../../src/generated/prisma/client";
 import { EVENT_MEDIA_RETENTION_HOURS_AFTER_END } from "../config/mediaRetention";
 import { isOrderSettled } from "./orderSettlement";
+import { getOrganizationCurrency } from "./organizationCurrency";
 import { prisma } from "./prisma";
 
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -158,6 +159,9 @@ export async function getEventAnalyticsForSeller(
 
   if (!event) return null;
 
+  const orgCurrency =
+    (await getOrganizationCurrency(sellerUserId)) ?? "EUR";
+
   const allowedShapes = await prisma.allowedShape.findMany({
     where: { contextType: "EVENT", contextId: eventId },
     orderBy: { displayOrder: "asc" },
@@ -202,7 +206,7 @@ export async function getEventAnalyticsForSeller(
   const uniqueCustomerKeys = new Set<string>();
   let totalImages = 0;
   let totalCopies = 0;
-  let currency = "EUR";
+  let currency = orgCurrency;
 
   const shapeMap = getShapeAggsMap(allowedShapes);
 

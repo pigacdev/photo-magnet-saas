@@ -109,6 +109,7 @@ export function EventConfigurationForm({
   onDirtyChange,
 }: EventConfigurationFormProps) {
   const pricingRef = useRef<PricingEditorHandle>(null);
+  const orgCurrency = getCachedOrganizationUsage()?.currency ?? "EUR";
 
   const [brandDraft, setBrandDraft] = useState(event.brandText ?? "");
   const [notifEmailDraft, setNotifEmailDraft] = useState(
@@ -415,6 +416,7 @@ export function EventConfigurationForm({
               embedded
               contextType="event"
               contextId={event.id}
+              currency={orgCurrency}
               initialPricing={event.pricing ?? []}
               initialMaxMagnetsPerOrder={event.maxMagnetsPerOrder ?? null}
               onFormChange={bumpPricingRevision}

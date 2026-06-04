@@ -22,6 +22,10 @@ model Organization {
   clerkSubscriptionId  String?
   /// Last synced Clerk User Plan slug (e.g. free_user, hobby, pro).
   clerkPlanSlug        String?
+  /// ISO 4217 magnet order currency; null until seller onboarding completes.
+  currency             String?
+  /// Set when currency is first saved in onboarding or account settings.
+  initialSetupAt       DateTime?
   orders               Order[]
   user                 User     @relation(fields: [id], references: [id], onDelete: Cascade)
 }

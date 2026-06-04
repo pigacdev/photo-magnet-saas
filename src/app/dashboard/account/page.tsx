@@ -8,6 +8,7 @@ import {
   type User,
   type OrganizationUsage,
 } from "@/lib/auth";
+import { getCurrencyLabel } from "@/lib/currency";
 import { UserProfileSummary } from "@/components/dashboard/UserProfileSummary";
 
 export default function AccountPage() {
@@ -65,6 +66,18 @@ export default function AccountPage() {
               {user.role === "ADMIN" ? "Admin" : "Staff"}
             </dd>
           </div>
+          {usage?.currency ? (
+            <div>
+              <dt className="text-muted-foreground">Order currency</dt>
+              <dd className="mt-0.5 font-medium text-foreground">
+                {getCurrencyLabel(usage.currency)}
+              </dd>
+              <dd className="mt-1 text-xs text-muted-foreground">
+                Set during initial setup. Used for magnet pricing, orders, and
+                analytics. Subscription billing stays in EUR.
+              </dd>
+            </div>
+          ) : null}
         </dl>
       </section>
 

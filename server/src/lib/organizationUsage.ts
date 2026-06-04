@@ -9,6 +9,8 @@ export type OrganizationUsagePayload = {
   orderLimit: number;
   currentPeriodEnd: string;
   clerkPlanSlug?: string | null;
+  currency: string | null;
+  initialSetupAt: string | null;
 };
 
 const orgSelect = {
@@ -17,6 +19,8 @@ const orgSelect = {
   orderLimit: true,
   currentPeriodEnd: true,
   clerkPlanSlug: true,
+  currency: true,
+  initialSetupAt: true,
 } as const;
 
 function baseUsage(org: {
@@ -25,6 +29,8 @@ function baseUsage(org: {
   orderLimit: number;
   currentPeriodEnd: Date;
   clerkPlanSlug?: string | null;
+  currency: string | null;
+  initialSetupAt: Date | null;
 }): OrganizationUsagePayload {
   return {
     plan: org.plan,
@@ -33,6 +39,8 @@ function baseUsage(org: {
     orderLimit: org.orderLimit,
     currentPeriodEnd: org.currentPeriodEnd.toISOString(),
     clerkPlanSlug: org.clerkPlanSlug,
+    currency: org.currency,
+    initialSetupAt: org.initialSetupAt?.toISOString() ?? null,
   };
 }
 

@@ -80,6 +80,10 @@ function BillingContent() {
         <p className="mt-1 text-sm text-muted-foreground">
           Free includes 10 orders per month. Paid plans raise or remove that cap.
         </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Subscription prices are billed in EUR. Your order currency (chosen at
+          setup) applies to customer magnet pricing only.
+        </p>
         <div className="mt-4 clerk-pricing-table">
           <PricingTable
             for="user"

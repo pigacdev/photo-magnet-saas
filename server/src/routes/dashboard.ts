@@ -142,6 +142,12 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
     orderImages: { select: { copies: true } },
   } as const;
 
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { currency: true },
+  });
+  const currency = org?.currency ?? "EUR";
+
   const [
     ordersThisMonth,
     revenueThisMonthAgg,
@@ -243,6 +249,7 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
   }
 
   res.json({
+    currency,
     ordersThisMonth,
     revenueThisMonth,
     ordersLastMonth,
