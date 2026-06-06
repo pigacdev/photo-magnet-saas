@@ -14,7 +14,8 @@
       { "slug": "email_notifications", "name": "Order email notifications" },
       { "slug": "support", "name": "Customer Support" },
       { "slug": "priority_support", "name": "Priority customer support" },
-      { "slug": "orders_export_csv", "name": "Orders CSV export" }
+      { "slug": "orders_export_csv", "name": "Orders CSV export" },
+      { "slug": "qr_ordering", "name": "QR code ordering" }
     ],
     "plans": [
       {
@@ -24,7 +25,7 @@
         "currency": "eur",
         "payer_type": "user",
         "is_recurring": false,
-        "features": ["print_ready_pdfs", "analytics_basic"]
+        "features": ["print_ready_pdfs", "analytics_basic", "qr_ordering"]
       },
       {
         "slug": "hobby",
@@ -39,6 +40,7 @@
           "calendar",
           "custom_branding",
           "email_notifications",
+          "qr_ordering",
           "support"
         ]
       },
@@ -57,6 +59,7 @@
           "email_notifications",
           "orders_export_csv",
           "priority_support",
+          "qr_ordering",
           "support"
         ]
       }

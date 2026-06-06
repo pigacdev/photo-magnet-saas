@@ -19,7 +19,7 @@ export type PlanEntitlements = {
   features: readonly string[];
 };
 
-const FREE_FEATURES = ["analytics_basic"] as const;
+const FREE_FEATURES = ["analytics_basic", "qr_ordering"] as const;
 
 const HOBBY_FEATURES = [
   "analytics_basic",
@@ -28,6 +28,7 @@ const HOBBY_FEATURES = [
   "calendar",
   "custom_branding",
   "email_notifications",
+  "qr_ordering",
   "support",
 ] as const;
 

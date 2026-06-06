@@ -9,6 +9,7 @@ export const BILLING_PLAN_COLUMNS: readonly BillingPlanColumn[] = [
     slug: "free_user",
     features: [
       "Print-ready PDFs",
+      "QR code ordering",
       "Basic analytics",
       "Up to 10 orders per billing period",
       "Up to 1 event per billing period",
