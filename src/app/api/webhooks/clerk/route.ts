@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (evt.type === "user.deleted") {
+    if (evt.type === "user.deleted" && evt.data.id) {
       await softDeleteSellerByClerkId(evt.data.id);
     }
 

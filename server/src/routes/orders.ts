@@ -38,6 +38,11 @@ import {
   ordersExportFilename,
 } from "../lib/ordersCsvExport";
 import {
+  assertOrganizationFeature,
+  FEATURE_REQUIRED,
+  featureRequiredMessage,
+} from "../lib/planFeatures";
+import {
   expandOrderImagesForPrintSheet,
   generatePrintSheet,
 } from "../lib/generatePrintSheet";
@@ -152,6 +157,22 @@ ordersRouter.get(
   requireRole("ADMIN", "STAFF"),
   async (req: Request, res: Response) => {
     const userId = req.user!.userId;
+
+    try {
+      await assertOrganizationFeature(userId, "orders_export_csv");
+    } catch (err) {
+      if (err instanceof Error && err.message === FEATURE_REQUIRED) {
+        res
+          .status(403)
+          .json({ error: featureRequiredMessage("orders_export_csv") });
+        return;
+      }
+      if (err instanceof Error && err.message === "Organization not found") {
+        res.status(404).json({ error: "Organization not found" });
+        return;
+      }
+      throw err;
+    }
 
     const parsed = parseSellerOrderListQuery(
       req.query as Record<string, unknown>,

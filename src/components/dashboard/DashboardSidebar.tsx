@@ -12,6 +12,7 @@ import {
 } from "./dashboardNav";
 import { DashboardNavIcon } from "./dashboardNavIcons";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
+import { usageHasFeature } from "@/lib/planFeatures";
 
 function LogoMark() {
   return (
@@ -69,7 +70,11 @@ export function DashboardSidebar({
 
       <div className="p-3">
         <nav className="flex flex-col gap-0.5">
-          {DASHBOARD_NAV_ITEMS.map((item) => {
+          {DASHBOARD_NAV_ITEMS.filter(
+            (item) =>
+              item.href !== "/dashboard/calendar" ||
+              usageHasFeature(usage, "calendar"),
+          ).map((item) => {
             const href =
               item.href === DASHBOARD_STOREFRONT_NAV_BASE
                 ? storefrontNavHref(storefront?.id ?? null)

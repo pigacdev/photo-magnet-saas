@@ -7,6 +7,15 @@ import {
   parseNotificationEmailInput,
   parseSendOrderEmailsInput,
 } from "../lib/parseOrderNotificationSettings";
+import { planHasFeature } from "../lib/planCatalog";
+import { featureRequiredMessage } from "../lib/planFeatures";
+async function sellerPlan(userId: string) {
+  const org = await prisma.organization.findUnique({
+    where: { id: userId },
+    select: { plan: true },
+  });
+  return org?.plan ?? "FREE";
+}
 
 export const storefrontsRouter = Router();
 
@@ -57,9 +66,18 @@ storefrontsRouter.post("/", async (req, res) => {
     maxMagnets = parsed.value;
   }
 
+  const createPlan = await sellerPlan(userId);
+
   const brandNorm = normalizeBrandTextInput(brandText);
   if (brandNorm.kind === "error") {
     res.status(400).json({ error: brandNorm.error });
+    return;
+  }
+  if (
+    brandNorm.kind !== "omit" &&
+    !planHasFeature(createPlan, "custom_branding")
+  ) {
+    res.status(403).json({ error: featureRequiredMessage("custom_branding") });
     return;
   }
   const brandCreate =
@@ -73,6 +91,15 @@ storefrontsRouter.post("/", async (req, res) => {
   const notifSend = parseSendOrderEmailsInput(sendOrderEmails);
   if (notifSend.kind === "error") {
     res.status(400).json({ error: notifSend.error });
+    return;
+  }
+  if (
+    (notifEmail.kind !== "omit" || notifSend.kind !== "omit") &&
+    !planHasFeature(createPlan, "email_notifications")
+  ) {
+    res.status(403).json({
+      error: featureRequiredMessage("email_notifications"),
+    });
     return;
   }
   const notifCreate = {
@@ -165,9 +192,18 @@ storefrontsRouter.patch("/:id", async (req, res) => {
     maxMagnetsUpdate = parsed.value;
   }
 
+  const patchPlan = await sellerPlan(userId);
+
   const brandNorm = normalizeBrandTextInput(brandText);
   if (brandNorm.kind === "error") {
     res.status(400).json({ error: brandNorm.error });
+    return;
+  }
+  if (
+    brandNorm.kind !== "omit" &&
+    !planHasFeature(patchPlan, "custom_branding")
+  ) {
+    res.status(403).json({ error: featureRequiredMessage("custom_branding") });
     return;
   }
   const brandPatch =
@@ -181,6 +217,15 @@ storefrontsRouter.patch("/:id", async (req, res) => {
   const notifSend = parseSendOrderEmailsInput(sendOrderEmails);
   if (notifSend.kind === "error") {
     res.status(400).json({ error: notifSend.error });
+    return;
+  }
+  if (
+    (notifEmail.kind !== "omit" || notifSend.kind !== "omit") &&
+    !planHasFeature(patchPlan, "email_notifications")
+  ) {
+    res.status(403).json({
+      error: featureRequiredMessage("email_notifications"),
+    });
     return;
   }
   const notifPatch = {

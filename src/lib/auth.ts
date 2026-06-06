@@ -12,6 +12,8 @@ export type OrganizationUsage = {
   planLabel?: string;
   ordersThisMonth: number;
   orderLimit: number;
+  eventsCreatedThisMonth: number;
+  eventLimit: number;
   currentPeriodEnd: string;
   clerkPlanSlug?: string | null;
   currency: string | null;

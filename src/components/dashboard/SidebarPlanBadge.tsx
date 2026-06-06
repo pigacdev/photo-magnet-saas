@@ -4,12 +4,15 @@ import Link from "next/link";
 import type { OrganizationUsage, User } from "@/lib/auth";
 import { planDisplayName } from "@/lib/planCatalog";
 import {
+  getEventUsageLevel,
   getPlanUsageLevel,
+  eventUsagePercentage,
+  showMonthlyEventUsageMeter,
   showMonthlyUsageMeter,
   usageBarFillClass,
   usagePercentage,
 } from "@/lib/planUsage";
-import { userInitials } from "./UserProfileSummary";
+import { DashboardUserAvatar } from "./DashboardUserAvatar";
 
 export type SidebarPlanBadgeProps = {
   user: User;
@@ -18,7 +21,14 @@ export type SidebarPlanBadgeProps = {
 
 export function SidebarPlanBadge({ user, usage }: SidebarPlanBadgeProps) {
   const displayName = user.name?.trim() || user.email;
-  const usageLevel = usage ? getPlanUsageLevel(usage) : "normal";
+  const orderLevel = usage ? getPlanUsageLevel(usage) : "normal";
+  const eventLevel = usage ? getEventUsageLevel(usage) : "normal";
+  const usageLevel =
+    orderLevel === "reached" || eventLevel === "reached"
+      ? "reached"
+      : orderLevel === "warning" || eventLevel === "warning"
+        ? "warning"
+        : "normal";
   const label = usage ? (usage.planLabel ?? planDisplayName(usage.plan)) : null;
 
   return (
@@ -33,12 +43,7 @@ export function SidebarPlanBadge({ user, usage }: SidebarPlanBadgeProps) {
       }`}
     >
       <div className="flex flex-col items-center text-center">
-        <div
-          className="flex size-11 shrink-0 items-center justify-center rounded-full bg-border text-sm font-semibold text-muted-foreground"
-          aria-hidden
-        >
-          {userInitials(user)}
-        </div>
+        <DashboardUserAvatar user={user} size="md" />
         <p className="mt-2 w-full truncate text-sm font-medium text-foreground">
           {displayName}
         </p>
@@ -59,26 +64,39 @@ export function SidebarPlanBadge({ user, usage }: SidebarPlanBadgeProps) {
               </span>
             </div>
 
-            {!showMonthlyUsageMeter(usage) ? (
-              <p className="mt-1.5 text-xs text-green-600 dark:text-green-400">
-                Unlimited orders
-              </p>
-            ) : (
+            {showMonthlyUsageMeter(usage) ? (
               <div className="mt-2 space-y-1.5">
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Monthly usage</span>
+                  <span>Orders</span>
                   <span className="tabular-nums">
                     {usage.ordersThisMonth} / {usage.orderLimit}
                   </span>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-border">
                   <div
-                    className={`h-1.5 rounded-full transition-all ${usageBarFillClass(usageLevel)}`}
+                    className={`h-1.5 rounded-full transition-all ${usageBarFillClass(orderLevel)}`}
                     style={{ width: `${usagePercentage(usage)}%` }}
                   />
                 </div>
               </div>
-            )}
+            ) : null}
+
+            {showMonthlyEventUsageMeter(usage) ? (
+              <div className="mt-2 space-y-1.5">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Events</span>
+                  <span className="tabular-nums">
+                    {usage.eventsCreatedThisMonth ?? 0} / {usage.eventLimit ?? 1}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-border">
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${usageBarFillClass(eventLevel)}`}
+                    style={{ width: `${eventUsagePercentage(usage)}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : (
           <p className="mt-2 text-xs text-muted-foreground">Loading plan…</p>

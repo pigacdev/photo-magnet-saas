@@ -28,6 +28,12 @@ import {
   orderContextHref,
   orderContextKindLabel,
 } from "@/lib/orderContextDisplay";
+import {
+  getCachedOrganizationUsage,
+  getMe,
+  subscribeOrganizationUsage,
+} from "@/lib/auth";
+import { usageHasFeature } from "@/lib/planFeatures";
 
 export type SellerOrderListItem = {
   id: string;
@@ -212,6 +218,16 @@ function OrdersListContent() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [contexts, setContexts] = useState<OrderContextsResponse | null>(null);
   const [contextsLoading, setContextsLoading] = useState(true);
+  const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
+
+  useEffect(() => {
+    void getMe().then(() => setUsage(getCachedOrganizationUsage()));
+    return subscribeOrganizationUsage(() => {
+      setUsage(getCachedOrganizationUsage());
+    });
+  }, []);
+
+  const canExportCsv = usageHasFeature(usage, "orders_export_csv");
 
   const searchFromUrl = searchParams.get("search") ?? "";
   const [searchDraft, setSearchDraft] = useState(searchFromUrl);
@@ -759,18 +775,27 @@ function OrdersListContent() {
         </label>
         <div className="flex w-full min-w-[140px] flex-col gap-1.5 sm:w-auto">
           <span className="text-xs font-medium text-muted-foreground">Export</span>
-          <button
-            type="button"
-            disabled={loading || exportLoading}
-            onClick={() => void downloadOrdersCsv()}
-            className="min-h-11 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {exportLoading
-              ? "Exporting…"
-              : loading
-                ? "Export CSV"
-                : `Export CSV (${pagination.total})`}
-          </button>
+          {canExportCsv ? (
+            <button
+              type="button"
+              disabled={loading || exportLoading}
+              onClick={() => void downloadOrdersCsv()}
+              className="min-h-11 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {exportLoading
+                ? "Exporting…"
+                : loading
+                  ? "Export CSV"
+                  : `Export CSV (${pagination.total})`}
+            </button>
+          ) : (
+            <Link
+              href="/dashboard/billing"
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-surface"
+            >
+              CSV export (Pro)
+            </Link>
+          )}
         </div>
       </div>
 

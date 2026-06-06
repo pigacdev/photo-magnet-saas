@@ -3,78 +3,126 @@ import type { Plan } from "@/generated/prisma/client";
 /** Clerk Dashboard User Plan slug → app limits. Keep slugs in sync with Billing → Plans. */
 export type PlanSlug = "free" | "free_user" | "hobby" | "pro";
 
-export type PlanLimitConfig = {
+export const FREE_PRINT_BRAND_TEXT = "Magnetoo Studio";
+
+/** Default print brand for paid plans when brandText is unset. */
+export const DEFAULT_PRINT_BRAND_TEXT = "@magnetooprints";
+
+/** Sentinel for unlimited orders / events per billing period. */
+export const UNLIMITED_ENTITLEMENT = 999_999;
+
+export type PlanEntitlements = {
   plan: Plan;
   orderLimit: number;
-  /** Display label in dashboard */
+  eventLimit: number;
   label: string;
+  features: readonly string[];
 };
 
-export const PLAN_LIMITS: Record<string, PlanLimitConfig> = {
-  free_user: { plan: "FREE", orderLimit: 10, label: "Free" },
-  free: { plan: "FREE", orderLimit: 10, label: "Free" },
-  hobby: { plan: "HOBBY", orderLimit: 100, label: "Hobby" },
-  pro: { plan: "PRO", orderLimit: 999_999, label: "Pro" },
-};
+const FREE_FEATURES = ["analytics_basic"] as const;
 
-/** Clerk feature slugs attached per plan in Dashboard (documentation + UI copy). */
-export const PLAN_FEATURE_SLUGS: Record<string, string[]> = {
-  free_user: [],
-  free: [],
-  hobby: ["custom_branding"],
-  pro: ["custom_branding", "priority_support"],
-};
+const HOBBY_FEATURES = [
+  "analytics_basic",
+  "analytics_advanced",
+  "analytics_event",
+  "calendar",
+  "custom_branding",
+  "email_notifications",
+  "support",
+] as const;
 
-export type PlanMarketingRow = {
-  slug: PlanSlug;
-  name: string;
-  priceLabel: string;
-  orderLimitLabel: string;
-  featureBullets: string[];
-};
+const PRO_FEATURES = [
+  ...HOBBY_FEATURES,
+  "priority_support",
+  "orders_export_csv",
+] as const;
 
-/** Compare-table copy; align with Clerk PricingTable / Dashboard. */
-export const PLAN_MARKETING: PlanMarketingRow[] = [
-  {
-    slug: "free",
-    name: "Free",
-    priceLabel: "€0",
-    orderLimitLabel: "10 orders / month",
-    featureBullets: ["1 storefront", "Events"],
+export const PLAN_ENTITLEMENTS: Record<string, PlanEntitlements> = {
+  free_user: {
+    plan: "FREE",
+    orderLimit: 10,
+    eventLimit: 1,
+    label: "Free",
+    features: FREE_FEATURES,
   },
-  {
-    slug: "hobby",
-    name: "Hobby",
-    priceLabel: "€9 / month",
-    orderLimitLabel: "100 orders / month",
-    featureBullets: ["Custom branding on print PDFs", "1 storefront", "Events"],
+  free: {
+    plan: "FREE",
+    orderLimit: 10,
+    eventLimit: 1,
+    label: "Free",
+    features: FREE_FEATURES,
   },
-  {
-    slug: "pro",
-    name: "Pro",
-    priceLabel: "€29 / month",
-    orderLimitLabel: "Unlimited orders",
-    featureBullets: [
-      "Unlimited orders",
-      "Priority support",
-      "Custom branding",
-      "1 storefront",
-      "Events",
-    ],
+  hobby: {
+    plan: "HOBBY",
+    orderLimit: 50,
+    eventLimit: 5,
+    label: "Hobby",
+    features: HOBBY_FEATURES,
   },
-];
+  pro: {
+    plan: "PRO",
+    orderLimit: UNLIMITED_ENTITLEMENT,
+    eventLimit: UNLIMITED_ENTITLEMENT,
+    label: "Pro",
+    features: PRO_FEATURES,
+  },
+};
+
+/** @deprecated Use PLAN_ENTITLEMENTS — kept for webhook sync fields. */
+export type PlanLimitConfig = Pick<
+  PlanEntitlements,
+  "plan" | "orderLimit" | "label"
+> & { orderLimit: number };
+
+export const PLAN_LIMITS: Record<string, PlanLimitConfig> = Object.fromEntries(
+  Object.entries(PLAN_ENTITLEMENTS).map(([slug, e]) => [
+    slug,
+    { plan: e.plan, orderLimit: e.orderLimit, label: e.label },
+  ]),
+);
+
+/** Clerk feature slugs per plan (mirror Dashboard attachments). */
+export const PLAN_FEATURE_SLUGS: Record<string, string[]> = Object.fromEntries(
+  Object.entries(PLAN_ENTITLEMENTS).map(([slug, e]) => [slug, [...e.features]]),
+);
 
 export function isFreeClerkPlanSlug(slug: string): boolean {
   const normalized = slug.toLowerCase();
   return normalized === "free" || normalized === "free_user";
 }
 
-export function resolvePlanLimits(clerkPlanSlug: string | null | undefined): PlanLimitConfig {
+export function resolvePlanEntitlements(
+  clerkPlanSlug: string | null | undefined,
+): PlanEntitlements {
   if (!clerkPlanSlug) {
-    return PLAN_LIMITS.free_user;
+    return PLAN_ENTITLEMENTS.free_user;
   }
   const normalized = clerkPlanSlug.toLowerCase();
-  return PLAN_LIMITS[normalized] ?? PLAN_LIMITS[clerkPlanSlug] ?? PLAN_LIMITS.free_user;
+  return (
+    PLAN_ENTITLEMENTS[normalized] ??
+    PLAN_ENTITLEMENTS[clerkPlanSlug] ??
+    PLAN_ENTITLEMENTS.free_user
+  );
+}
+
+export function resolvePlanLimits(clerkPlanSlug: string | null | undefined): PlanLimitConfig {
+  const e = resolvePlanEntitlements(clerkPlanSlug);
+  return { plan: e.plan, orderLimit: e.orderLimit, label: e.label };
+}
+
+export function entitlementsForPlan(plan: Plan): PlanEntitlements {
+  switch (plan) {
+    case "PRO":
+      return PLAN_ENTITLEMENTS.pro;
+    case "HOBBY":
+      return PLAN_ENTITLEMENTS.hobby;
+    default:
+      return PLAN_ENTITLEMENTS.free_user;
+  }
+}
+
+export function planHasFeature(plan: Plan, feature: string): boolean {
+  return entitlementsForPlan(plan).features.includes(feature);
 }
 
 export function isPaidPlan(plan: Plan): boolean {
@@ -82,7 +130,11 @@ export function isPaidPlan(plan: Plan): boolean {
 }
 
 export function hasUnlimitedOrders(orderLimit: number): boolean {
-  return orderLimit >= 999_999;
+  return orderLimit >= UNLIMITED_ENTITLEMENT;
+}
+
+export function hasUnlimitedEvents(eventLimit: number): boolean {
+  return eventLimit >= UNLIMITED_ENTITLEMENT;
 }
 
 export function planDisplayName(plan: Plan): string {

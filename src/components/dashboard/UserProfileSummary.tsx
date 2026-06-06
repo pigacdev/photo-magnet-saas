@@ -3,11 +3,15 @@
 import type { OrganizationUsage, User } from "@/lib/auth";
 import { planDisplayName } from "@/lib/planCatalog";
 import {
+  eventUsagePercentage,
+  getEventUsageLevel,
   getPlanUsageLevel,
+  showMonthlyEventUsageMeter,
   showMonthlyUsageMeter,
   usageBarFillClassCompact,
   usagePercentage,
 } from "@/lib/planUsage";
+import { DashboardUserAvatar } from "./DashboardUserAvatar";
 
 function formatPeriodDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -15,17 +19,6 @@ function formatPeriodDate(iso: string): string {
     day: "numeric",
     year: "numeric",
   });
-}
-
-function userInitials(user: User): string {
-  if (user.name?.trim()) {
-    const parts = user.name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  return user.email.slice(0, 2).toUpperCase();
 }
 
 export type UserProfileSummaryProps = {
@@ -44,6 +37,8 @@ export function UserProfileSummary({
 }: UserProfileSummaryProps) {
   const percentage = usage ? usagePercentage(usage) : 0;
   const usageLevel = usage ? getPlanUsageLevel(usage) : "normal";
+  const eventPct = usage ? eventUsagePercentage(usage) : 0;
+  const eventLevel = usage ? getEventUsageLevel(usage) : "normal";
   const isCompact = variant === "compact";
   const planLabel = usage
     ? (usage.planLabel ?? planDisplayName(usage.plan))
@@ -62,14 +57,7 @@ export function UserProfileSummary({
     <div className={isCompact ? "px-1 py-1" : "space-y-4"}>
       {showIdentity && (
         <div className={`flex items-center gap-3 ${isCompact ? "px-3 pb-3" : ""}`}>
-          <div
-            className={`flex shrink-0 items-center justify-center rounded-full bg-surface font-medium text-muted-foreground ${
-              isCompact ? "size-9 text-xs" : "size-11 text-sm"
-            }`}
-            aria-hidden
-          >
-            {userInitials(user)}
-          </div>
+          <DashboardUserAvatar user={user} size={isCompact ? "sm" : "md"} />
           <div className="min-w-0 flex-1">
             <p
               className={`truncate font-medium text-foreground ${
@@ -106,14 +94,10 @@ export function UserProfileSummary({
             </span>
           </div>
 
-          {!showMonthlyUsageMeter(usage) ? (
-            <p className={`text-green-600 ${isCompact ? "text-xs" : "text-sm"}`}>
-              Unlimited orders
-            </p>
-          ) : (
+          {showMonthlyUsageMeter(usage) ? (
             <div className="space-y-2">
               <div className={`flex justify-between text-muted-foreground ${isCompact ? "text-xs" : "text-sm"}`}>
-                <span>Monthly usage</span>
+                <span>Orders this month</span>
                 <span className="tabular-nums">
                   {usage.ordersThisMonth} / {usage.orderLimit}
                 </span>
@@ -124,17 +108,35 @@ export function UserProfileSummary({
                   style={{ width: `${percentage}%` }}
                 />
               </div>
-              {usageLevel === "warning" && (
-                <p className={`text-orange-600 ${isCompact ? "text-xs" : "text-sm"}`}>
-                  You&apos;re close to your monthly limit.
-                </p>
-              )}
-              {usageLevel === "reached" && (
-                <p className={`text-red-600 ${isCompact ? "text-xs" : "text-sm"}`}>
-                  Monthly limit reached.
-                </p>
-              )}
             </div>
+          ) : null}
+
+          {showMonthlyEventUsageMeter(usage) ? (
+            <div className="space-y-2">
+              <div className={`flex justify-between text-muted-foreground ${isCompact ? "text-xs" : "text-sm"}`}>
+                <span>Events created</span>
+                <span className="tabular-nums">
+                  {usage.eventsCreatedThisMonth ?? 0} / {usage.eventLimit ?? 1}
+                </span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-border">
+                <div
+                  className={`h-1.5 rounded-full transition-all ${usageBarFillClassCompact(eventLevel)}`}
+                  style={{ width: `${eventPct}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {(usageLevel === "warning" || eventLevel === "warning") && (
+            <p className={`text-orange-600 ${isCompact ? "text-xs" : "text-sm"}`}>
+              You&apos;re close to a monthly limit.
+            </p>
+          )}
+          {(usageLevel === "reached" || eventLevel === "reached") && (
+            <p className={`text-red-600 ${isCompact ? "text-xs" : "text-sm"}`}>
+              A monthly limit has been reached.
+            </p>
           )}
 
           {periodLabel() && (
@@ -154,4 +156,5 @@ export function UserProfileSummary({
   );
 }
 
-export { userInitials, formatPeriodDate };
+export { formatPeriodDate };
+export { userInitials } from "./DashboardUserAvatar";

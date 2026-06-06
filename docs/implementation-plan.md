@@ -399,20 +399,19 @@ IMPORTANT RULE:
 * 1 storefront per organization ✅
 * Events + storefront separation ✅
 
-### To implement
+### Plan limits (implemented)
 
-* Organization dashboard
-* Plan limits (future):
-
-  * Number of events
-  * Storage
+* **Orders / month** — `ordersThisMonth` / `orderLimit` (Free: 10; Hobby: 50; Pro: unlimited)
+* **Events created / month** — `eventsCreatedThisMonth` / `eventLimit` (Free: 1; Hobby: 5; Pro: unlimited)
+* **Magnet shapes** — all 4 presets on every plan (no tier limit)
+* **Free print branding** — hardcoded `Magnetoo Studio` on PDFs
 
 ### Billing (in progress)
 
-* **Clerk User Billing** — checkout via `<PricingTable />`, plan catalog in Clerk Dashboard (Free / Hobby / Pro)
-* **Clerk billing webhooks** — sync `Organization.plan`, `orderLimit`, `clerkPlanSlug` from subscription events
-* **Usage metering (app)** — `ordersThisMonth` / `orderLimit` (Free: 10/mo; Hobby: 100; Pro: unlimited) enforced in Express `saas.ts`
-* **Clerk Features** — boolean gates (e.g. `priority_support` on Pro) via `has({ feature })` in Next.js
+* **Clerk User Billing** — checkout via `<PricingTable />`; seed config in repo root `billing.json` (see `docs/CLERK-BILLING.md`)
+* **Clerk billing webhooks** — sync `Organization.plan`, `orderLimit`, `eventLimit`, `clerkPlanSlug`
+* **Feature gates (app)** — `planCatalog` + `planFeatures` (analytics tiers, calendar, branding, notifications, support, CSV export)
+* **Support** — Hobby+ tickets; Pro adds `PRIORITY` email subject prefix
 * Legacy Stripe seller webhooks retained only for downgrading orgs still on `stripeSubscriptionId`
 
 ### Access control
@@ -446,7 +445,7 @@ IMPORTANT RULE:
 
 ### Export
 
-* Orders → CSV
+* Orders → CSV (Pro plan; gated in API + dashboard)
 * Images → ZIP
 
 ### Cleanup

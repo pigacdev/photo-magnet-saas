@@ -1,0 +1,65 @@
+{
+  "billing": {
+    "enabled": true,
+    "user": {
+      "enabled": true
+    },
+    "features": [
+      { "slug": "print_ready_pdfs", "name": "Print-ready PDFs" },
+      { "slug": "analytics_basic", "name": "Basic analytics" },
+      { "slug": "analytics_advanced", "name": "Advanced analytics" },
+      { "slug": "analytics_event", "name": "Event analytics" },
+      { "slug": "calendar", "name": "Event calendar" },
+      { "slug": "custom_branding", "name": "Custom print branding" },
+      { "slug": "email_notifications", "name": "Order email notifications" },
+      { "slug": "support", "name": "Customer Support" },
+      { "slug": "priority_support", "name": "Priority customer support" },
+      { "slug": "orders_export_csv", "name": "Orders CSV export" }
+    ],
+    "plans": [
+      {
+        "slug": "free_user",
+        "name": "Free",
+        "amount": 0,
+        "currency": "eur",
+        "payer_type": "user",
+        "is_recurring": false,
+        "features": ["print_ready_pdfs", "analytics_basic"]
+      },
+      {
+        "slug": "hobby",
+        "name": "Hobby",
+        "amount": 900,
+        "currency": "eur",
+        "payer_type": "user",
+        "is_recurring": true,
+        "features": [
+          "analytics_advanced",
+          "analytics_event",
+          "calendar",
+          "custom_branding",
+          "email_notifications",
+          "support"
+        ]
+      },
+      {
+        "slug": "pro",
+        "name": "Pro",
+        "amount": 2900,
+        "currency": "eur",
+        "payer_type": "user",
+        "is_recurring": true,
+        "features": [
+          "analytics_advanced",
+          "analytics_event",
+          "calendar",
+          "custom_branding",
+          "email_notifications",
+          "orders_export_csv",
+          "priority_support",
+          "support"
+        ]
+      }
+    ]
+  }
+}

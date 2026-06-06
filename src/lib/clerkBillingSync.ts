@@ -2,7 +2,7 @@ import type { WebhookEvent } from "@clerk/backend/webhooks";
 import { prisma } from "./prisma";
 import {
   isFreeClerkPlanSlug,
-  resolvePlanLimits,
+  resolvePlanEntitlements,
 } from "./planCatalog";
 import { defaultBillingPeriodEnd } from "./billingPeriod";
 
@@ -149,12 +149,13 @@ async function applyPaidPlan(
   clerkSubscriptionId: string | null,
   period?: { currentPeriodStart?: Date; currentPeriodEnd?: Date },
 ): Promise<void> {
-  const limits = resolvePlanLimits(clerkPlanSlug);
+  const limits = resolvePlanEntitlements(clerkPlanSlug);
   await prisma.organization.update({
     where: { id: orgId },
     data: {
       plan: limits.plan,
       orderLimit: limits.orderLimit,
+      eventLimit: limits.eventLimit,
       clerkPlanSlug: clerkPlanSlug.toLowerCase(),
       clerkSubscriptionId,
       ...(period?.currentPeriodStart
@@ -168,12 +169,13 @@ async function applyPaidPlan(
 }
 
 async function revertToFreePlan(orgId: string): Promise<void> {
-  const limits = resolvePlanLimits("free_user");
+  const limits = resolvePlanEntitlements("free_user");
   await prisma.organization.update({
     where: { id: orgId },
     data: {
       plan: limits.plan,
       orderLimit: limits.orderLimit,
+      eventLimit: limits.eventLimit,
       clerkPlanSlug: "free_user",
       clerkSubscriptionId: null,
     },

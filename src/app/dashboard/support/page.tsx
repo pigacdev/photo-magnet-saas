@@ -9,6 +9,7 @@ import {
   type User,
   type OrganizationUsage,
 } from "@/lib/auth";
+import { usageHasFeature } from "@/lib/planFeatures";
 import {
   SupportTicketForm,
   type SupportTicketInitialContext,
@@ -67,7 +68,8 @@ function SupportPageContent() {
     return null;
   }
 
-  const isPro = usage?.plan === "PRO";
+  const hasSupport = usageHasFeature(usage, "support");
+  const isPriority = usageHasFeature(usage, "priority_support");
 
   return (
     <div className="dashboard-page mx-auto max-w-2xl">
@@ -75,26 +77,27 @@ function SupportPageContent() {
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Contact support
         </h1>
-        {isPro ? (
+        {hasSupport ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            Tell us what you need help with. Include as much detail as you can so
-            we can respond quickly.
+            {isPriority
+              ? "Pro priority support — your tickets are answered first. Include as much detail as you can."
+              : "Tell us what you need help with. Include as much detail as you can so we can respond quickly."}
           </p>
         ) : (
           <p className="mt-2 text-sm text-muted-foreground">
-            Priority support is included with the PRO plan.
+            Support tickets are available on the Hobby plan or higher.
           </p>
         )}
       </div>
 
-      {!isPro ? (
+      {!hasSupport ? (
         <section className="dashboard-card mt-6">
           <h2 className="text-sm font-semibold text-foreground">
-            Contact support is a PRO feature
+            Contact support requires a paid plan
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Upgrade to Pro to submit support tickets and get help from the
-            Magnetoo team.
+            Upgrade to Hobby or Pro to submit support tickets and get help from
+            the Magnetoo team.
           </p>
           <Link
             href="/dashboard/billing"

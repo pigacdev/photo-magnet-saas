@@ -17,7 +17,10 @@ import {
   type PricingRule,
 } from "@/components/PricingEditor";
 import { ShareLinkCard } from "@/components/dashboard/ShareLinkCard";
+import Link from "next/link";
 import { getCachedOrganizationUsage } from "@/lib/auth";
+import { FREE_PRINT_BRAND_TEXT } from "@/lib/planCatalog";
+import { usageHasFeature } from "@/lib/planFeatures";
 import { getPlanUsageLevel } from "@/lib/planUsage";
 
 type AllowedShape = {
@@ -96,7 +99,10 @@ export function StorefrontConfigurationForm({
   onDirtyChange,
 }: StorefrontConfigurationFormProps) {
   const pricingRef = useRef<PricingEditorHandle>(null);
-  const orgCurrency = getCachedOrganizationUsage()?.currency ?? "EUR";
+  const usage = getCachedOrganizationUsage();
+  const orgCurrency = usage?.currency ?? "EUR";
+  const canCustomBrand = usageHasFeature(usage, "custom_branding");
+  const canEmailNotif = usageHasFeature(usage, "email_notifications");
 
   const [brandDraft, setBrandDraft] = useState(storefront.brandText ?? "");
   const [notifEmailDraft, setNotifEmailDraft] = useState(
@@ -206,10 +212,14 @@ export function StorefrontConfigurationForm({
         {
           method: "PATCH",
           body: {
-            brandText: brandDraft.trim() === "" ? null : brandDraft.trim(),
-            sendOrderEmails: notifSendDraft,
-            notificationEmail:
-              notifEmailDraft.trim() === "" ? null : notifEmailDraft.trim(),
+            ...(canCustomBrand && {
+              brandText: brandDraft.trim() === "" ? null : brandDraft.trim(),
+            }),
+            ...(canEmailNotif && {
+              sendOrderEmails: notifSendDraft,
+              notificationEmail:
+                notifEmailDraft.trim() === "" ? null : notifEmailDraft.trim(),
+            }),
           },
         },
       );
@@ -251,7 +261,6 @@ export function StorefrontConfigurationForm({
 
   const ordersReady =
     storefront.configurationComplete === true && storefront.isOpen === true;
-  const usage = getCachedOrganizationUsage();
   const monthlyLimitReached =
     usage != null && getPlanUsageLevel(usage) === "reached";
 
@@ -274,58 +283,82 @@ export function StorefrontConfigurationForm({
         <section className="dashboard-card space-y-8">
           <div>
             <h2 className="text-sm font-semibold text-foreground">Print branding</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Shown on seller PDF print sheets. Max 40 characters. Empty uses
-              default <span className="font-mono">@magnetooprints</span>.
-            </p>
-            <label className="mt-4 flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Brand line</span>
-              <input
-                type="text"
-                value={brandDraft}
-                onChange={(e) => setBrandDraft(e.target.value.slice(0, 40))}
-                maxLength={40}
-                placeholder="@magnetooprints"
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
-              />
-            </label>
+            {canCustomBrand ? (
+              <>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Shown on seller PDF print sheets. Max 40 characters. Empty uses
+                  default <span className="font-mono">@magnetooprints</span>.
+                </p>
+                <label className="mt-4 flex flex-col gap-1">
+                  <span className="text-xs font-medium text-muted-foreground">Brand line</span>
+                  <input
+                    type="text"
+                    value={brandDraft}
+                    onChange={(e) => setBrandDraft(e.target.value.slice(0, 40))}
+                    maxLength={40}
+                    placeholder="@magnetooprints"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
+                  />
+                </label>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Free plan uses <span className="font-medium">{FREE_PRINT_BRAND_TEXT}</span> on
+                print PDFs.{" "}
+                <Link href="/dashboard/billing" className="text-primary hover:underline">
+                  Upgrade to Hobby
+                </Link>{" "}
+                for custom branding.
+              </p>
+            )}
           </div>
 
           <div className="border-t border-border pt-8">
             <h2 className="text-sm font-semibold text-foreground">Order notifications</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Email alerts when a customer places an order.
-            </p>
-            <label className="mt-4 flex cursor-pointer items-start gap-2">
-              <input
-                type="checkbox"
-                className="mt-0.5 rounded border-border text-primary focus:ring-primary"
-                checked={notifSendDraft}
-                onChange={(e) => setNotifSendDraft(e.target.checked)}
-              />
-              <span className="text-sm text-foreground">Send new-order emails</span>
-            </label>
-            <label className="mt-4 flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">
-                Notification email
-                {notifSendDraft ? " (required)" : ""}
-              </span>
-              <input
-                type="email"
-                value={notifEmailDraft}
-                onChange={(e) => setNotifEmailDraft(e.target.value)}
-                placeholder="seller@example.com"
-                autoComplete="email"
-                required={notifSendDraft}
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
-              />
-            </label>
+            {canEmailNotif ? (
+              <>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Email alerts when a customer places an order.
+                </p>
+                <label className="mt-4 flex cursor-pointer items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-border text-primary focus:ring-primary"
+                    checked={notifSendDraft}
+                    onChange={(e) => setNotifSendDraft(e.target.checked)}
+                  />
+                  <span className="text-sm text-foreground">Send new-order emails</span>
+                </label>
+                <label className="mt-4 flex flex-col gap-1">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Notification email
+                    {notifSendDraft ? " (required)" : ""}
+                  </span>
+                  <input
+                    type="email"
+                    value={notifEmailDraft}
+                    onChange={(e) => setNotifEmailDraft(e.target.value)}
+                    placeholder="seller@example.com"
+                    autoComplete="email"
+                    required={notifSendDraft}
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
+                  />
+                </label>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Email alerts are available on Hobby and Pro.{" "}
+                <Link href="/dashboard/billing" className="text-primary hover:underline">
+                  View plans
+                </Link>
+              </p>
+            )}
           </div>
 
           <div className="border-t border-border pt-8">
             <h2 className="text-sm font-semibold text-foreground">Shapes</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Magnet sizes available in this storefront.
+              All four magnet sizes are available on every plan.
             </p>
             <fieldset className="mt-4 space-y-2">
               {SHAPE_PRESETS.map((preset) => {

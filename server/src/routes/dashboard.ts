@@ -4,6 +4,7 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { aggregateSettledMonthMetrics } from "../lib/orderSettlement";
+import { planHasFeature } from "../lib/planCatalog";
 import { prisma } from "../lib/prisma";
 
 export const dashboardRouter = Router();
@@ -144,9 +145,11 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
 
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
-    select: { currency: true },
+    select: { currency: true, plan: true },
   });
   const currency = org?.currency ?? "EUR";
+  const advancedAnalytics =
+    org != null && planHasFeature(org.plan, "analytics_advanced");
 
   const [
     ordersThisMonth,
@@ -248,8 +251,20 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
     row.revenue = Math.round(row.revenue * 100) / 100;
   }
 
+  if (!advancedAnalytics) {
+    res.json({
+      currency,
+      scope: "basic" as const,
+      ordersThisMonth,
+      revenueThisMonth,
+      last7Days,
+    });
+    return;
+  }
+
   res.json({
     currency,
+    scope: "advanced" as const,
     ordersThisMonth,
     revenueThisMonth,
     ordersLastMonth,

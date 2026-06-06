@@ -14,6 +14,9 @@ model Organization {
   ordersThisMonth      Int      @default(0)
   /// FREE tier cap; PRO ignores (see `saas.ts`).
   orderLimit           Int      @default(10)
+  eventsCreatedThisMonth Int    @default(0)
+  /// Max events created per billing period; PRO uses high sentinel (see `saas.ts`).
+  eventLimit           Int      @default(1)
   currentPeriodStart   DateTime @default(now())
   currentPeriodEnd     DateTime
   stripeCustomerId     String?  @unique

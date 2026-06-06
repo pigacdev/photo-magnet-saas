@@ -1,7 +1,10 @@
 import { prisma } from "./prisma";
+import {
+  DEFAULT_PRINT_BRAND_TEXT,
+  FREE_PRINT_BRAND_TEXT,
+} from "../../../src/lib/planCatalog";
 
-/** Default label when Event/Storefront `brandText` is unset or empty. */
-export const DEFAULT_PRINT_BRAND_TEXT = "@magnetooprints";
+export { DEFAULT_PRINT_BRAND_TEXT, FREE_PRINT_BRAND_TEXT };
 
 /** Matches Prisma `VarChar(40)`; enforced on API save. */
 export const BRAND_TEXT_MAX_LEN = 40;
@@ -11,10 +14,29 @@ export type BrandTextInputResult =
   | { kind: "ok"; value: string | null }
   | { kind: "error"; error: string };
 
+async function sellerPlanForOrder(orderId: string): Promise<"FREE" | "HOBBY" | "PRO" | null> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { organizationId: true },
+  });
+  if (!order) return null;
+  const org = await prisma.organization.findUnique({
+    where: { id: order.organizationId },
+    select: { plan: true },
+  });
+  return org?.plan ?? null;
+}
+
 /**
  * Resolves printable brand line for an order from its storefront or event.
+ * Free plan always uses Magnetoo Studio regardless of saved brandText.
  */
 export async function getBrandTextForOrder(orderId: string): Promise<string> {
+  const plan = await sellerPlanForOrder(orderId);
+  if (plan === "FREE") {
+    return FREE_PRINT_BRAND_TEXT;
+  }
+
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     select: { contextType: true, contextId: true },
@@ -44,9 +66,6 @@ export async function getBrandTextForOrder(orderId: string): Promise<string> {
   return DEFAULT_PRINT_BRAND_TEXT;
 }
 
-/**
- * Parse create/PATCH `brandText`: omit if undefined; trim; reject if longer than DB limit.
- */
 export function normalizeBrandTextInput(raw: unknown): BrandTextInputResult {
   if (raw === undefined) return { kind: "omit" };
   if (raw === null) return { kind: "ok", value: null };

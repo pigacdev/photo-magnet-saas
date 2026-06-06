@@ -309,9 +309,14 @@ export async function sendNewOrderEmail(data: {
 export function buildSupportTicketSubject(
   contextSummary: string,
   sellerName: string | null,
+  options?: { priority?: boolean },
 ): string {
   const who = sellerName?.trim() || "Seller";
-  return `Support ticket — ${contextSummary} (${who})`;
+  const base = `Support ticket — ${contextSummary} (${who})`;
+  if (options?.priority) {
+    return `PRIORITY — ${base}`;
+  }
+  return base;
 }
 
 export function buildSupportTicketHtml(data: {
@@ -320,6 +325,7 @@ export function buildSupportTicketHtml(data: {
   contextSummary: string;
   message: string;
   submittedAt: Date;
+  priority?: boolean;
 }): string {
   const name = data.sellerName?.trim()
     ? escapeHtml(data.sellerName.trim())
@@ -334,8 +340,12 @@ export function buildSupportTicketHtml(data: {
 <body style="margin:0;padding:24px;background:#f9fafb;">
   <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
 
-    <h2 style="margin:0 0 4px;font-size:20px;font-weight:600;">New support ticket</h2>
-    <p style="color:#666;margin:0;font-size:14px;">Submitted via Magnetoo dashboard</p>
+    <h2 style="margin:0 0 4px;font-size:20px;font-weight:600;">${
+      data.priority ? "PRIORITY support ticket" : "New support ticket"
+    }</h2>
+    <p style="color:#666;margin:0;font-size:14px;">Submitted via Magnetoo dashboard${
+      data.priority ? " · Pro plan (answer first)" : ""
+    }</p>
 
     <div style="border:1px solid #eee;border-radius:8px;padding:16px;margin-top:16px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.04);">
 

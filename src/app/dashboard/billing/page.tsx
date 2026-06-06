@@ -12,6 +12,7 @@ import {
   type User,
   type OrganizationUsage,
 } from "@/lib/auth";
+import { BillingPlanFeatureLists } from "@/components/dashboard/BillingPlanFeatureLists";
 import { UserProfileSummary } from "@/components/dashboard/UserProfileSummary";
 
 function BillingContent() {
@@ -48,7 +49,8 @@ function BillingContent() {
       )}
       {reason === "limit" && (
         <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          Monthly order limit reached. Upgrade to keep accepting orders.
+          Monthly order or event limit reached. Upgrade to keep accepting orders or
+          create more events.
         </p>
       )}
 
@@ -78,23 +80,29 @@ function BillingContent() {
       <section className="mt-8">
         <h2 className="text-sm font-semibold text-foreground">Plans</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Free includes 10 orders per month. Paid plans raise or remove that cap.
+          Choose or change your plan below. Monthly usage meters appear in Current
+          plan when your subscription has limits.
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
           Subscription prices are billed in EUR. Your order currency (chosen at
           setup) applies to customer magnet pricing only.
         </p>
-        <div className="mt-4 clerk-pricing-table">
-          <PricingTable
-            for="user"
-            highlightedPlan="pro"
-            newSubscriptionRedirectUrl="/dashboard/billing?success=true"
-            appearance={{
-              elements: {
-                pricingTable: "magnetoo-clerk-pricing-table",
-              },
-            }}
-          />
+        <div className="billing-plans-layout mt-4">
+          <div className="clerk-pricing-table">
+            <PricingTable
+              for="user"
+              highlightedPlan="pro"
+              collapseFeatures={false}
+              newSubscriptionRedirectUrl="/dashboard/billing?success=true"
+              appearance={{
+                elements: {
+                  pricingTable: "magnetoo-clerk-pricing-table",
+                  pricingTableCardFeatures: "magnetoo-clerk-hide-features",
+                },
+              }}
+            />
+          </div>
+          <BillingPlanFeatureLists />
         </div>
       </section>
 

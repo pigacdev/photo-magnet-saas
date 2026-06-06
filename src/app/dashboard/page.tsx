@@ -21,6 +21,7 @@ import { PlanUsageAlertBanner } from "@/components/dashboard/PlanUsageAlertBanne
 import { storefrontNavHref } from "@/components/dashboard/dashboardNav";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
 import { useChartTheme } from "@/hooks/useChartTheme";
+import { usageHasFeature } from "@/lib/planFeatures";
 
 type Last7DayPoint = {
   date: string;
@@ -36,19 +37,20 @@ type ByMonthPoint = {
 };
 
 type DashboardStats = {
+  scope?: "basic" | "advanced";
   currency: string;
   ordersThisMonth: number;
   revenueThisMonth: number;
-  ordersLastMonth: number;
-  revenueLastMonth: number;
-  averageOrderValueThisMonth: number;
-  averageOrderValueLastMonth: number;
-  magnetsSoldThisMonth: number;
-  magnetsSoldLastMonth: number;
-  newOrders: number;
-  unpaidOrders: number;
+  ordersLastMonth?: number;
+  revenueLastMonth?: number;
+  averageOrderValueThisMonth?: number;
+  averageOrderValueLastMonth?: number;
+  magnetsSoldThisMonth?: number;
+  magnetsSoldLastMonth?: number;
+  newOrders?: number;
+  unpaidOrders?: number;
   last7Days: Last7DayPoint[];
-  byMonth: ByMonthPoint[];
+  byMonth?: ByMonthPoint[];
 };
 
 function DeltaVsLastMonthOrders({
@@ -197,12 +199,14 @@ function DashboardTrendsChart({
   last7Days,
   byMonth,
   currency,
+  showMonthToggle = true,
 }: {
   trendMode: "days" | "months";
   onTrendModeChange: (mode: "days" | "months") => void;
   last7Days: Last7DayPoint[];
   byMonth: ByMonthPoint[];
   currency: string;
+  showMonthToggle?: boolean;
 }) {
   const chartTheme = useChartTheme();
   const data: Array<Last7DayPoint | ByMonthPoint> =
@@ -219,30 +223,32 @@ function DashboardTrendsChart({
 
   return (
     <div className="w-full min-w-0 overflow-hidden rounded-lg border border-border bg-card p-4 shadow-sm">
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => onTrendModeChange("days")}
-          className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-            trendMode === "days"
-              ? "border-primary bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
-              : "border-border bg-background text-muted-foreground hover:bg-surface"
-          }`}
-        >
-          Last 7 days
-        </button>
-        <button
-          type="button"
-          onClick={() => onTrendModeChange("months")}
-          className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-            trendMode === "months"
-              ? "border-primary bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
-              : "border-border bg-background text-muted-foreground hover:bg-surface"
-          }`}
-        >
-          By month
-        </button>
-      </div>
+      {showMonthToggle ? (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onTrendModeChange("days")}
+            className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+              trendMode === "days"
+                ? "border-primary bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+                : "border-border bg-background text-muted-foreground hover:bg-surface"
+            }`}
+          >
+            Last 7 days
+          </button>
+          <button
+            type="button"
+            onClick={() => onTrendModeChange("months")}
+            className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+              trendMode === "months"
+                ? "border-primary bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+                : "border-border bg-background text-muted-foreground hover:bg-surface"
+            }`}
+          >
+            By month
+          </button>
+        </div>
+      ) : null}
       <h2 className="mt-4 text-sm font-semibold text-foreground">{title}</h2>
       <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
       <div className="mt-4 h-[280px] w-full min-h-[280px] min-w-0 max-w-full">
@@ -334,15 +340,16 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [trendMode, setTrendMode] = useState<"days" | "months">("days");
-  const [orgCurrency, setOrgCurrency] = useState<string | null>(
-    () => getCachedOrganizationUsage()?.currency ?? null,
-  );
+  const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
+  const orgCurrency = usage?.currency ?? stats?.currency ?? null;
 
   useEffect(() => {
     return subscribeOrganizationUsage(() => {
-      setOrgCurrency(getCachedOrganizationUsage()?.currency ?? null);
+      setUsage(getCachedOrganizationUsage());
     });
   }, []);
+
+  const advancedAnalytics = usageHasFeature(usage, "analytics_advanced");
 
   useEffect(() => {
     setStatsLoading(true);
@@ -352,7 +359,7 @@ export default function DashboardPage() {
       .finally(() => setStatsLoading(false));
   }, [orgCurrency]);
 
-  const displayCurrency = orgCurrency ?? stats?.currency ?? "EUR";
+  const displayCurrency = orgCurrency ?? "EUR";
 
   function formatKpiMoney(n: number) {
     return new Intl.NumberFormat(undefined, {
@@ -377,7 +384,10 @@ export default function DashboardPage() {
             label="Orders this month"
             value={statsLoading ? "…" : String(stats?.ordersThisMonth ?? "—")}
             delta={
-              stats != null && !statsLoading ? (
+              advancedAnalytics &&
+              stats != null &&
+              !statsLoading &&
+              stats.ordersLastMonth != null ? (
                 <DeltaVsLastMonthOrders
                   thisMonth={stats.ordersThisMonth}
                   lastMonth={stats.ordersLastMonth}
@@ -395,7 +405,10 @@ export default function DashboardPage() {
                   : "—"
             }
             delta={
-              stats != null && !statsLoading ? (
+              advancedAnalytics &&
+              stats != null &&
+              !statsLoading &&
+              stats.revenueLastMonth != null ? (
                 <DeltaVsLastMonthRevenue
                   thisMonth={stats.revenueThisMonth}
                   lastMonth={stats.revenueLastMonth}
@@ -404,69 +417,90 @@ export default function DashboardPage() {
               ) : undefined
             }
           />
-          <KpiCard
-            label="Average order value"
-            value={
-              statsLoading
-                ? "…"
-                : stats != null
-                  ? formatKpiMoney(stats.averageOrderValueThisMonth)
-                  : "—"
-            }
-            subtitle="Paid orders this month"
-            delta={
-              stats != null && !statsLoading ? (
-                <DeltaVsLastMonthRevenue
-                  thisMonth={stats.averageOrderValueThisMonth}
-                  lastMonth={stats.averageOrderValueLastMonth}
-                  formatMoney={formatKpiMoney}
-                />
-              ) : undefined
-            }
-          />
-          <KpiCard
-            label="Magnets sold"
-            value={
-              statsLoading ? "…" : String(stats?.magnetsSoldThisMonth ?? "—")
-            }
-            subtitle="This month"
-            delta={
-              stats != null && !statsLoading ? (
-                <DeltaVsLastMonthCount
-                  thisMonth={stats.magnetsSoldThisMonth}
-                  lastMonth={stats.magnetsSoldLastMonth}
-                />
-              ) : undefined
-            }
-          />
-          <KpiCard
-            label="New orders"
-            value={statsLoading ? "…" : String(stats?.newOrders ?? "—")}
-            subtitle="Needs first review"
-            href="/dashboard/orders?status=new"
-          />
-          <KpiCard
-            label="Unpaid orders"
-            value={statsLoading ? "…" : String(stats?.unpaidOrders ?? "—")}
-            subtitle="Awaiting payment"
-            href="/dashboard/orders?status=unpaid"
-          />
+          {advancedAnalytics ? (
+            <>
+              <KpiCard
+                label="Average order value"
+                value={
+                  statsLoading
+                    ? "…"
+                    : stats != null && stats.averageOrderValueThisMonth != null
+                      ? formatKpiMoney(stats.averageOrderValueThisMonth)
+                      : "—"
+                }
+                subtitle="Paid orders this month"
+                delta={
+                  stats != null &&
+                  !statsLoading &&
+                  stats.averageOrderValueLastMonth != null &&
+                  stats.averageOrderValueThisMonth != null ? (
+                    <DeltaVsLastMonthRevenue
+                      thisMonth={stats.averageOrderValueThisMonth}
+                      lastMonth={stats.averageOrderValueLastMonth}
+                      formatMoney={formatKpiMoney}
+                    />
+                  ) : undefined
+                }
+              />
+              <KpiCard
+                label="Magnets sold"
+                value={
+                  statsLoading
+                    ? "…"
+                    : String(stats?.magnetsSoldThisMonth ?? "—")
+                }
+                subtitle="This month"
+                delta={
+                  stats != null &&
+                  !statsLoading &&
+                  stats.magnetsSoldLastMonth != null &&
+                  stats.magnetsSoldThisMonth != null ? (
+                    <DeltaVsLastMonthCount
+                      thisMonth={stats.magnetsSoldThisMonth}
+                      lastMonth={stats.magnetsSoldLastMonth}
+                    />
+                  ) : undefined
+                }
+              />
+              <KpiCard
+                label="New orders"
+                value={statsLoading ? "…" : String(stats?.newOrders ?? "—")}
+                subtitle="Needs first review"
+                href="/dashboard/orders?status=new"
+              />
+              <KpiCard
+                label="Unpaid orders"
+                value={statsLoading ? "…" : String(stats?.unpaidOrders ?? "—")}
+                subtitle="Awaiting payment"
+                href="/dashboard/orders?status=unpaid"
+              />
+            </>
+          ) : null}
         </div>
 
-        {!statsLoading &&
-          stats &&
-          stats.last7Days.length > 0 &&
-          stats.byMonth.length > 0 && (
-            <div className="mt-8 min-w-0 w-full">
-              <DashboardTrendsChart
-                trendMode={trendMode}
-                onTrendModeChange={setTrendMode}
-                last7Days={stats.last7Days}
-                byMonth={stats.byMonth}
-                currency={displayCurrency}
-              />
-            </div>
-          )}
+        {!advancedAnalytics && !statsLoading ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Upgrade to Hobby for advanced analytics (trends, AOV, and more).{" "}
+            <Link href="/dashboard/billing" className="text-primary hover:underline">
+              View plans
+            </Link>
+          </p>
+        ) : null}
+
+        {!statsLoading && stats && stats.last7Days.length > 0 ? (
+          <div className="mt-8 min-w-0 w-full">
+            <DashboardTrendsChart
+              trendMode={advancedAnalytics ? trendMode : "days"}
+              onTrendModeChange={
+                advancedAnalytics ? setTrendMode : () => undefined
+              }
+              last7Days={stats.last7Days}
+              byMonth={stats.byMonth ?? []}
+              currency={displayCurrency}
+              showMonthToggle={advancedAnalytics}
+            />
+          </div>
+        ) : null}
 
       </div>
 

@@ -31,7 +31,7 @@ Seller tenant (1:1 with User; `id` = `user.id`). Billing limits + magnet order c
 
 - id (uuid, same as user id)
 - plan (`FREE`, `HOBBY`, `PRO`)
-- orders_this_month, order_limit, billing period fields
+- orders_this_month, order_limit, events_created_this_month, event_limit, billing period fields
 - clerk_plan_slug (nullable)
 - **currency** (ISO 4217 alpha-3, nullable until onboarding — magnet pricing/analytics only; independent of Clerk subscription EUR billing)
 - **initial_setup_at** (nullable — set when currency first saved)

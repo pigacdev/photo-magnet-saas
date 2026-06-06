@@ -1,16 +1,42 @@
 /**
- * Clerk <PricingTable /> uses a responsive grid with ~20rem min column width.
- * On max-w-3xl only two cards fit per row, so Pro wraps alone on row 2.
- * Force three columns and Free → Hobby → Pro order on desktop.
+ * Clerk <PricingTable /> truncates feature rows and shows "+ See all features" (opens a drawer).
+ * Taller cards cannot fix that — extra features are not in the DOM. We hide Clerk's list and render
+ * our own full feature columns in .billing-plan-features-grid (see BillingPlanFeatureLists).
  */
+.billing-plans-layout {
+  width: 100%;
+}
+
 .clerk-pricing-table {
   width: 100%;
 }
 
 .clerk-pricing-table .magnetoo-clerk-pricing-table {
-  --grid-min-size: 11rem;
+  --grid-min-size: 20rem;
   --grid-max-columns: 3;
   width: 100%;
+}
+
+/* Hide Clerk's truncated feature block (class from appearance + runtime fallbacks). */
+.clerk-pricing-table .magnetoo-clerk-hide-features,
+.clerk-pricing-table [class*="pricingTableCardFeatures"] {
+  display: none !important;
+}
+
+.billing-plan-features-grid {
+  display: grid;
+  width: 100%;
+  gap: 1rem;
+  margin-top: 0;
+}
+
+.billing-plan-features-col {
+  border: 1px solid var(--border);
+  border-top: none;
+  border-bottom-left-radius: 0.75rem;
+  border-bottom-right-radius: 0.75rem;
+  background: var(--card);
+  padding: 1rem 1.25rem 1.25rem;
 }
 
 @media (min-width: 640px) {
@@ -18,6 +44,12 @@
     display: grid !important;
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     grid-auto-flow: row;
+    align-items: stretch;
+  }
+
+  .billing-plan-features-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
     align-items: stretch;
   }
 
@@ -34,5 +66,15 @@
 
   .clerk-pricing-table .magnetoo-clerk-pricing-table [id*="pro"] {
     order: 3;
+  }
+
+  /* Connect our feature panel to the card above (same column gap as Clerk grid). */
+  .clerk-pricing-table .magnetoo-clerk-pricing-table > [id*="free_user"],
+  .clerk-pricing-table .magnetoo-clerk-pricing-table > [id*="-free"],
+  .clerk-pricing-table .magnetoo-clerk-pricing-table > [id$="free"],
+  .clerk-pricing-table .magnetoo-clerk-pricing-table > [id*="hobby"],
+  .clerk-pricing-table .magnetoo-clerk-pricing-table > [id*="pro"] {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
   }
 }

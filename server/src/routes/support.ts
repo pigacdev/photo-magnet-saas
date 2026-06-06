@@ -10,10 +10,11 @@ import { prisma } from "../lib/prisma";
 import { findSellerOrderByReference } from "../lib/sellerOrderLookup";
 import { normalizeOrderReference } from "../../../src/lib/orderReference";
 import {
-  assertProPlan,
-  PRO_FEATURE_REQUIRED,
+  assertHasSupport,
+  SUPPORT_FEATURE_REQUIRED,
   PRO_FEATURE_REQUIRED_MESSAGE,
 } from "../lib/saas";
+import { planHasFeature } from "../lib/planCatalog";
 
 export const supportRouter = Router();
 
@@ -72,10 +73,11 @@ async function resolveContextSummary(
 supportRouter.post("/tickets", async (req: Request, res: Response) => {
   const userId = req.user!.userId;
 
+  let sellerPlan: "FREE" | "HOBBY" | "PRO";
   try {
-    await assertProPlan(userId);
+    sellerPlan = await assertHasSupport(userId);
   } catch (err) {
-    if (err instanceof Error && err.message === PRO_FEATURE_REQUIRED) {
+    if (err instanceof Error && err.message === SUPPORT_FEATURE_REQUIRED) {
       res.status(403).json({ error: PRO_FEATURE_REQUIRED_MESSAGE });
       return;
     }
@@ -181,13 +183,17 @@ supportRouter.post("/tickets", async (req: Request, res: Response) => {
     return;
   }
 
-  const subject = buildSupportTicketSubject(contextSummary, user.name);
+  const priority = planHasFeature(sellerPlan, "priority_support");
+  const subject = buildSupportTicketSubject(contextSummary, user.name, {
+    priority,
+  });
   const html = buildSupportTicketHtml({
     sellerName: user.name,
     sellerEmail: user.email,
     contextSummary,
     message: messageRaw,
     submittedAt: new Date(),
+    priority,
   });
 
   await sendSupportTicketEmail({

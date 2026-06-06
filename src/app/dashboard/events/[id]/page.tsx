@@ -16,6 +16,12 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "@/lib/api";
+import {
+  getCachedOrganizationUsage,
+  getMe,
+  subscribeOrganizationUsage,
+} from "@/lib/auth";
+import { usageHasFeature } from "@/lib/planFeatures";
 import { EventConfigurationForm } from "@/components/dashboard/EventConfigurationForm";
 import { confirmUnsavedChanges } from "@/hooks/useUnsavedChangesWarning";
 import { chartTooltipStyle, useChartTheme } from "@/hooks/useChartTheme";
@@ -459,6 +465,16 @@ export default function EventDetailPage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [configDirty, setConfigDirty] = useState(false);
+  const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
+
+  useEffect(() => {
+    void getMe().then(() => setUsage(getCachedOrganizationUsage()));
+    return subscribeOrganizationUsage(() => {
+      setUsage(getCachedOrganizationUsage());
+    });
+  }, []);
+
+  const canEventAnalytics = usageHasFeature(usage, "analytics_event");
 
   const isEndedEvent = event?.status === "ended";
 
@@ -542,7 +558,7 @@ export default function EventDetailPage() {
       void loadAnalytics();
       return;
     }
-    if (activeTab === "analytics") {
+    if (activeTab === "analytics" && canEventAnalytics) {
       void loadAnalytics();
     }
   }, [
@@ -686,7 +702,17 @@ export default function EventDetailPage() {
   const tabIdle = `${tabBtn} border-border bg-background text-foreground hover:bg-surface`;
   const tabActive = `${tabBtn} border-primary bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300`;
 
-  const analyticsBlock = (
+  const analyticsBlock = !canEventAnalytics ? (
+    <div className="rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">
+      <p>Event analytics is available on the Hobby plan and above.</p>
+      <Link
+        href="/dashboard/billing"
+        className="mt-3 inline-block font-medium text-primary hover:underline"
+      >
+        View plans
+      </Link>
+    </div>
+  ) : (
     <>
       {analyticsLoading ? (
         <p className="text-sm text-muted-foreground">Loading analytics…</p>

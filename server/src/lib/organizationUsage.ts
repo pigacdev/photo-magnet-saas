@@ -7,6 +7,8 @@ export type OrganizationUsagePayload = {
   planLabel: string;
   ordersThisMonth: number;
   orderLimit: number;
+  eventsCreatedThisMonth: number;
+  eventLimit: number;
   currentPeriodEnd: string;
   clerkPlanSlug?: string | null;
   currency: string | null;
@@ -17,6 +19,8 @@ const orgSelect = {
   plan: true,
   ordersThisMonth: true,
   orderLimit: true,
+  eventsCreatedThisMonth: true,
+  eventLimit: true,
   currentPeriodEnd: true,
   clerkPlanSlug: true,
   currency: true,
@@ -27,6 +31,8 @@ function baseUsage(org: {
   plan: Plan;
   ordersThisMonth: number;
   orderLimit: number;
+  eventsCreatedThisMonth: number;
+  eventLimit: number;
   currentPeriodEnd: Date;
   clerkPlanSlug?: string | null;
   currency: string | null;
@@ -37,6 +43,8 @@ function baseUsage(org: {
     planLabel: planDisplayName(org.plan),
     ordersThisMonth: org.ordersThisMonth,
     orderLimit: org.orderLimit,
+    eventsCreatedThisMonth: org.eventsCreatedThisMonth,
+    eventLimit: org.eventLimit,
     currentPeriodEnd: org.currentPeriodEnd.toISOString(),
     clerkPlanSlug: org.clerkPlanSlug,
     currency: org.currency,
@@ -44,7 +52,6 @@ function baseUsage(org: {
   };
 }
 
-/** Build organization usage for auth responses (Clerk Billing synced via webhooks). */
 export async function buildOrganizationUsage(
   orgId: string,
 ): Promise<OrganizationUsagePayload | null> {

@@ -1,11 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { api } from "@/lib/api";
+import {
+  getCachedOrganizationUsage,
+  getMe,
+  subscribeOrganizationUsage,
+} from "@/lib/auth";
+import { hasUnlimitedEvents } from "@/lib/planCatalog";
 
 export default function NewEventPage() {
   const router = useRouter();
+  const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
+
+  useEffect(() => {
+    void getMe().then(() => setUsage(getCachedOrganizationUsage()));
+    return subscribeOrganizationUsage(() => {
+      setUsage(getCachedOrganizationUsage());
+    });
+  }, []);
+
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -60,6 +76,19 @@ export default function NewEventPage() {
           Set the name and schedule first. You will configure shapes, pricing, and
           other settings on the next screen.
         </p>
+        {usage && !hasUnlimitedEvents(usage.eventLimit) ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Events created this month:{" "}
+            <span className="font-medium tabular-nums text-foreground">
+              {usage.eventsCreatedThisMonth ?? 0} / {usage.eventLimit ?? 1}
+            </span>
+            .{" "}
+            <Link href="/dashboard/billing" className="text-primary hover:underline">
+              Upgrade
+            </Link>{" "}
+            for more.
+          </p>
+        ) : null}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

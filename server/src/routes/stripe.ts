@@ -8,7 +8,7 @@ import Stripe from "stripe";
 import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { getStripeOrNull } from "../lib/stripe";
-import { resolvePlanLimits } from "../lib/planCatalog";
+import { resolvePlanEntitlements } from "../lib/planCatalog";
 
 export const stripeRouter = Router();
 
@@ -78,15 +78,17 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
         return;
       }
 
-      const free = resolvePlanLimits("free_user");
+      const free = resolvePlanEntitlements("free_user");
       await prisma.organization.update({
         where: { id: org.id },
         data: {
           plan: free.plan,
           orderLimit: free.orderLimit,
+          eventLimit: free.eventLimit,
           clerkPlanSlug: "free_user",
           stripeSubscriptionId: null,
           ordersThisMonth: 0,
+          eventsCreatedThisMonth: 0,
         },
       });
 

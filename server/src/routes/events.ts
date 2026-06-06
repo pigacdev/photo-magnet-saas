@@ -9,11 +9,46 @@ import {
 } from "../lib/parseOrderNotificationSettings";
 import { getEventAnalyticsForSeller } from "../lib/eventAnalytics";
 import { streamEndedEventMediaZip } from "../lib/eventMediaZipExport";
-
+import {
+  assertCanCreateEvent,
+  EVENT_LIMIT_REACHED,
+  incrementEventUsage,
+  SELLER_EVENT_LIMIT_MESSAGE,
+} from "../lib/saas";
+import {
+  assertOrganizationFeature,
+  FEATURE_REQUIRED,
+  featureRequiredMessage,
+} from "../lib/planFeatures";
+import { planHasFeature } from "../lib/planCatalog";
 export const eventsRouter = Router();
+
+async function sellerPlan(userId: string) {
+  const org = await prisma.organization.findUnique({
+    where: { id: userId },
+    select: { plan: true },
+  });
+  return org?.plan ?? "FREE";
+}
 
 eventsRouter.post("/", async (req, res) => {
   const userId = req.user!.userId;
+
+  try {
+    await assertCanCreateEvent(userId);
+  } catch (err) {
+    if (err instanceof Error && err.message === EVENT_LIMIT_REACHED) {
+      res.status(403).json({ error: SELLER_EVENT_LIMIT_MESSAGE });
+      return;
+    }
+    if (err instanceof Error && err.message === "Organization not found") {
+      res.status(404).json({ error: "Organization not found" });
+      return;
+    }
+    throw err;
+  }
+
+  const plan = await sellerPlan(userId);
   const {
     name,
     startDate,
@@ -72,6 +107,24 @@ eventsRouter.post("/", async (req, res) => {
     )
   ) {
     res.status(400).json({ error: "All shapes must have widthMm and heightMm greater than 0" });
+    return;
+  }
+
+  if (!planHasFeature(plan, "custom_branding") && brandText !== undefined && brandText !== null) {
+    res.status(403).json({
+      error: featureRequiredMessage("custom_branding"),
+    });
+    return;
+  }
+
+  if (
+    !planHasFeature(plan, "email_notifications") &&
+    (notificationEmail !== undefined ||
+      sendOrderEmails !== undefined)
+  ) {
+    res.status(403).json({
+      error: featureRequiredMessage("email_notifications"),
+    });
     return;
   }
 
@@ -143,6 +196,8 @@ eventsRouter.post("/", async (req, res) => {
     orderBy: { displayOrder: "asc" },
   });
 
+  await incrementEventUsage(userId);
+
   res.status(201).json({
     event: { ...event, ...enrichEvent(event), shapes: allowedShapes },
   });
@@ -168,6 +223,16 @@ eventsRouter.get("/", async (req, res) => {
 eventsRouter.get("/:id/analytics", async (req, res) => {
   const userId = req.user!.userId;
   const { id } = req.params;
+
+  try {
+    await assertOrganizationFeature(userId, "analytics_event");
+  } catch (err) {
+    if (err instanceof Error && err.message === FEATURE_REQUIRED) {
+      res.status(403).json({ error: featureRequiredMessage("analytics_event") });
+      return;
+    }
+    throw err;
+  }
 
   const analytics = await getEventAnalyticsForSeller(id, userId);
   if (!analytics) {
@@ -272,9 +337,18 @@ eventsRouter.patch("/:id", async (req, res) => {
     maxMagnetsUpdate = parsed.value;
   }
 
+  const patchPlan = await sellerPlan(userId);
+
   const brandNorm = normalizeBrandTextInput(brandText);
   if (brandNorm.kind === "error") {
     res.status(400).json({ error: brandNorm.error });
+    return;
+  }
+  if (
+    brandNorm.kind !== "omit" &&
+    !planHasFeature(patchPlan, "custom_branding")
+  ) {
+    res.status(403).json({ error: featureRequiredMessage("custom_branding") });
     return;
   }
   const brandPatch =
@@ -288,6 +362,15 @@ eventsRouter.patch("/:id", async (req, res) => {
   const notifSend = parseSendOrderEmailsInput(sendOrderEmails);
   if (notifSend.kind === "error") {
     res.status(400).json({ error: notifSend.error });
+    return;
+  }
+  if (
+    (notifEmail.kind !== "omit" || notifSend.kind !== "omit") &&
+    !planHasFeature(patchPlan, "email_notifications")
+  ) {
+    res.status(403).json({
+      error: featureRequiredMessage("email_notifications"),
+    });
     return;
   }
   const notifPatch = {
