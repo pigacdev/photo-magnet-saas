@@ -5,6 +5,8 @@ import { syncOrganizationBillingFromClerk } from "@/lib/clerkBillingSync";
 import { prisma } from "@/lib/prisma";
 import { buildOrganizationUsage } from "../../../../../server/src/lib/organizationUsage";
 
+export const dynamic = "force-dynamic";
+
 function resolveClerkEmail(
   clerkUser: NonNullable<Awaited<ReturnType<typeof currentUser>>>,
 ): string | null {

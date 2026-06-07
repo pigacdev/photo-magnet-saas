@@ -1,6 +1,7 @@
 import type { Plan } from "../../../src/generated/prisma/client";
 import { prisma } from "./prisma";
 import { planDisplayName } from "./planCatalog";
+import { reconcileOrganizationEventUsage } from "./saas";
 
 export type OrganizationUsagePayload = {
   plan: Plan;
@@ -55,6 +56,13 @@ function baseUsage(org: {
 export async function buildOrganizationUsage(
   orgId: string,
 ): Promise<OrganizationUsagePayload | null> {
+  let eventsCreatedThisMonth = 0;
+  try {
+    eventsCreatedThisMonth = await reconcileOrganizationEventUsage(orgId);
+  } catch {
+    return null;
+  }
+
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
     select: orgSelect,
@@ -62,5 +70,8 @@ export async function buildOrganizationUsage(
 
   if (!org) return null;
 
-  return baseUsage(org);
+  return {
+    ...baseUsage(org),
+    eventsCreatedThisMonth,
+  };
 }

@@ -22,6 +22,7 @@ import {
   subscribeOrganizationUsage,
 } from "@/lib/auth";
 import { usageHasFeature } from "@/lib/planFeatures";
+import { DashboardCenteredNotice } from "@/components/dashboard/DashboardCenteredNotice";
 import { EventConfigurationForm } from "@/components/dashboard/EventConfigurationForm";
 import { confirmUnsavedChanges } from "@/hooks/useUnsavedChangesWarning";
 import { chartTooltipStyle, useChartTheme } from "@/hooks/useChartTheme";
@@ -688,12 +689,17 @@ export default function EventDetailPage() {
 
   if (error || !event) {
     return (
-      <div>
-        <p className="text-sm text-[#DC2626]">{error || "Event not found"}</p>
-        <Link href="/dashboard/events" className="mt-2 inline-block text-sm text-primary">
+      <DashboardCenteredNotice
+        title="This event no longer exists"
+        description="It may have been removed. Orders linked to it are still available in Orders."
+      >
+        <Link
+          href="/dashboard/events"
+          className="inline-block text-sm font-medium text-primary hover:underline"
+        >
           Back to events
         </Link>
-      </div>
+      </DashboardCenteredNotice>
     );
   }
 

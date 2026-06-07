@@ -7,18 +7,26 @@ import { api } from "@/lib/api";
 import {
   getCachedOrganizationUsage,
   getMe,
+  invalidateAuthCache,
   subscribeOrganizationUsage,
 } from "@/lib/auth";
 import { hasUnlimitedEvents } from "@/lib/planCatalog";
+import { getEventUsageLevel } from "@/lib/planUsage";
+import { EventLimitReachedNotice } from "@/components/dashboard/DashboardCenteredNotice";
 
 export default function NewEventPage() {
   const router = useRouter();
   const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
+  const [usageLoaded, setUsageLoaded] = useState(() => usage != null);
 
   useEffect(() => {
-    void getMe().then(() => setUsage(getCachedOrganizationUsage()));
+    void getMe().then(() => {
+      setUsage(getCachedOrganizationUsage());
+      setUsageLoaded(true);
+    });
     return subscribeOrganizationUsage(() => {
       setUsage(getCachedOrganizationUsage());
+      setUsageLoaded(true);
     });
   }, []);
 
@@ -27,6 +35,9 @@ export default function NewEventPage() {
   const [endDate, setEndDate] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const eventLimitReached =
+    usage != null && getEventUsageLevel(usage) === "reached";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,12 +69,24 @@ export default function NewEventPage() {
           endDate: new Date(endDate).toISOString(),
         },
       });
+      invalidateAuthCache();
+      await getMe();
       router.push(`/dashboard/events/${created.event.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create event");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (usageLoaded && eventLimitReached && usage) {
+    return (
+      <EventLimitReachedNotice
+        eventsCreated={usage.eventsCreatedThisMonth ?? 0}
+        eventLimit={usage.eventLimit ?? 1}
+        showBackLink
+      />
+    );
   }
 
   return (

@@ -13,30 +13,25 @@ function UsageAlert({
   isReached: boolean;
 }) {
   return (
-    <div className="relative mb-4" role="status">
-      <div
-        className={`absolute inset-0 animate-pulse rounded-lg border ${
+    <div
+      className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+        isReached
+          ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200"
+          : "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
+      }`}
+      role="status"
+    >
+      <p>{message}</p>
+      <Link
+        href="/dashboard/billing"
+        className={`mt-2 inline-block font-medium underline ${
           isReached
-            ? "border-red-200 bg-red-50"
-            : "border-amber-200 bg-amber-50"
-        }`}
-        aria-hidden
-      />
-      <div
-        className={`relative px-4 py-3 text-sm ${
-          isReached ? "text-red-800" : "text-amber-950"
+            ? "text-red-900 dark:text-red-200"
+            : "text-amber-950 dark:text-amber-100"
         }`}
       >
-        <p>{message}</p>
-        <Link
-          href="/dashboard/billing"
-          className={`mt-2 inline-block font-medium underline ${
-            isReached ? "text-red-900" : "text-amber-950"
-          }`}
-        >
-          View plans &amp; upgrade
-        </Link>
-      </div>
+        View plans &amp; upgrade
+      </Link>
     </div>
   );
 }

@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import {
+  getCachedOrganizationUsage,
+  getMe,
+  subscribeOrganizationUsage,
+} from "@/lib/auth";
+import { getEventUsageLevel } from "@/lib/planUsage";
+import { EventLimitReachedNotice } from "@/components/dashboard/DashboardCenteredNotice";
 
 type Event = {
   id: string;
@@ -39,12 +46,23 @@ export default function EventsPage() {
   const router = useRouter();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
 
   useEffect(() => {
     api<{ events: Event[] }>("/api/events")
       .then((data) => setEvents(data.events))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    void getMe().then(() => setUsage(getCachedOrganizationUsage()));
+    return subscribeOrganizationUsage(() => {
+      setUsage(getCachedOrganizationUsage());
+    });
+  }, []);
+
+  const eventLimitReached =
+    usage != null && getEventUsageLevel(usage) === "reached";
 
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString("en-US", {
@@ -60,23 +78,35 @@ export default function EventsPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Events
         </h1>
-        <Link
-          href="/dashboard/events/new"
-          className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8]"
-        >
-          Create event
-        </Link>
+        {!eventLimitReached ? (
+          <Link
+            href="/dashboard/events/new"
+            className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8]"
+          >
+            Create event
+          </Link>
+        ) : null}
       </div>
+
+      {eventLimitReached && usage ? (
+        <EventLimitReachedNotice
+          eventsCreated={usage.eventsCreatedThisMonth ?? 0}
+          eventLimit={usage.eventLimit ?? 1}
+          fillHeight={false}
+        />
+      ) : null}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : events.length === 0 ? (
-        <div className="py-8 text-center">
-          <p className="text-muted-foreground">No events yet.</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create your first event to start accepting orders.
-          </p>
-        </div>
+        eventLimitReached ? null : (
+          <div className="py-8 text-center">
+            <p className="text-muted-foreground">No events yet.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Create your first event to start accepting orders.
+            </p>
+          </div>
+        )
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-left text-sm">

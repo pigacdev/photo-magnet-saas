@@ -38,6 +38,53 @@ export function defaultBillingPeriodEnd(from: Date = new Date()): Date {
   return end;
 }
 
+/** Advance stored billing period forward until `now` is strictly before period end. */
+export function advanceBillingPeriodToContain(
+  periodStart: Date,
+  periodEnd: Date,
+  now: Date,
+): { currentPeriodStart: Date; currentPeriodEnd: Date } {
+  let start = new Date(periodStart);
+  let end = new Date(periodEnd);
+
+  for (let i = 0; i < 120 && end <= now; i++) {
+    start = new Date(end);
+    end = defaultBillingPeriodEnd(start);
+  }
+
+  return { currentPeriodStart: start, currentPeriodEnd: end };
+}
+
+function startOfLocalDay(d: Date): Date {
+  const day = new Date(d);
+  day.setHours(0, 0, 0, 0);
+  return day;
+}
+
+/**
+ * If period start was bumped to `now` during rollover, events created earlier the
+ * same day can fall in a dead zone. Extend the effective start to include them.
+ */
+export async function effectiveEventCountPeriodStart(
+  orgId: string,
+  periodStart: Date,
+): Promise<Date> {
+  const dayStart = startOfLocalDay(periodStart);
+  const stranded = await prisma.event.findFirst({
+    where: {
+      userId: orgId,
+      createdAt: {
+        gte: dayStart,
+        lt: periodStart,
+      },
+    },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true },
+  });
+
+  return stranded?.createdAt ?? periodStart;
+}
+
 export function usageWarningThreshold(limit: number): number {
   if (limit <= 0) return 0;
   return Math.ceil(limit * 0.7);
@@ -68,19 +115,101 @@ export function getOrganizationEventUsageLevel(org: {
 }
 
 async function refreshOrganizationPeriodIfExpired(orgId: string, now: Date): Promise<void> {
-  const newEnd = defaultBillingPeriodEnd(now);
-  await prisma.organization.updateMany({
-    where: {
-      id: orgId,
-      currentPeriodEnd: { lt: now },
-    },
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { currentPeriodStart: true, currentPeriodEnd: true },
+  });
+
+  if (!org) return;
+
+  const advanced = advanceBillingPeriodToContain(
+    org.currentPeriodStart,
+    org.currentPeriodEnd,
+    now,
+  );
+
+  const periodAdvanced =
+    advanced.currentPeriodStart.getTime() !== org.currentPeriodStart.getTime() ||
+    advanced.currentPeriodEnd.getTime() !== org.currentPeriodEnd.getTime();
+
+  if (!periodAdvanced) return;
+
+  await prisma.organization.update({
+    where: { id: orgId },
     data: {
       ordersThisMonth: 0,
       eventsCreatedThisMonth: 0,
-      currentPeriodStart: now,
-      currentPeriodEnd: newEnd,
+      currentPeriodStart: advanced.currentPeriodStart,
+      currentPeriodEnd: advanced.currentPeriodEnd,
     },
   });
+}
+
+export async function countEventsCreatedInBillingPeriod(
+  orgId: string,
+  periodStart: Date,
+  periodEnd: Date,
+): Promise<number> {
+  return prisma.event.count({
+    where: {
+      userId: orgId,
+      createdAt: {
+        gte: periodStart,
+        lt: periodEnd,
+      },
+    },
+  });
+}
+
+/**
+ * Align stored event usage with Event rows created in the current billing period.
+ * Fixes legacy orgs where `eventsCreatedThisMonth` stayed 0 after the limit column was added.
+ */
+export async function reconcileOrganizationEventUsage(orgId: string): Promise<number> {
+  const now = new Date();
+  await refreshOrganizationPeriodIfExpired(orgId, now);
+
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: {
+      eventsCreatedThisMonth: true,
+      currentPeriodStart: true,
+      currentPeriodEnd: true,
+    },
+  });
+
+  if (!org) throw new Error("Organization not found");
+
+  const effectiveStart = await effectiveEventCountPeriodStart(
+    orgId,
+    org.currentPeriodStart,
+  );
+
+  if (effectiveStart.getTime() < org.currentPeriodStart.getTime()) {
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { currentPeriodStart: effectiveStart },
+    });
+  }
+
+  const actualCount = await countEventsCreatedInBillingPeriod(
+    orgId,
+    effectiveStart,
+    org.currentPeriodEnd,
+  );
+
+  // Keep the higher of DB count vs stored counter. The counter increments on
+  // create; Clerk/local period boundaries can lag and exclude a just-created event.
+  const syncedCount = Math.max(actualCount, org.eventsCreatedThisMonth);
+
+  if (syncedCount !== org.eventsCreatedThisMonth) {
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { eventsCreatedThisMonth: syncedCount },
+    });
+  }
+
+  return syncedCount;
 }
 
 export async function assertCanCreateOrder(orgId: string): Promise<void> {
@@ -101,18 +230,18 @@ export async function assertCanCreateOrder(orgId: string): Promise<void> {
 }
 
 export async function assertCanCreateEvent(orgId: string): Promise<void> {
-  const now = new Date();
-  await refreshOrganizationPeriodIfExpired(orgId, now);
-
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
+    select: { eventLimit: true },
   });
 
   if (!org) throw new Error("Organization not found");
 
   if (hasUnlimitedEvents(org.eventLimit)) return;
 
-  if (org.eventsCreatedThisMonth >= org.eventLimit) {
+  const eventsCreatedThisMonth = await reconcileOrganizationEventUsage(orgId);
+
+  if (eventsCreatedThisMonth >= org.eventLimit) {
     throw new Error(EVENT_LIMIT_REACHED);
   }
 }
