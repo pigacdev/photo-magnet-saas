@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { useCopyLink } from "@/hooks/useCopyLink";
 
 export type ShareLinkCardProps = {
   label: string;
@@ -202,30 +203,18 @@ export function ShareLinkCard({
   ordersEnabled = true,
   monthlyLimitReached = false,
 }: ShareLinkCardProps) {
-  const [copied, setCopied] = useState(false);
   const [pngLoading, setPngLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const trimmed = publicUrl.trim();
-  const hasUrl = trimmed.length > 0;
+  const { copy, copied, canCopy, trimmed } = useCopyLink(publicUrl);
+  const hasUrl = canCopy;
   const prefix = variant === "event" ? "event" : "storefront";
   const title =
     variant === "event" ? "Event QR code" : "Storefront QR code";
   const fileSlug = safeFileSlug(entityName, entityId);
   const baseName = `${prefix}-qr-${fileSlug}`;
-
-  const copy = useCallback(async () => {
-    if (!hasUrl) return;
-    try {
-      await navigator.clipboard.writeText(trimmed);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard unavailable */
-    }
-  }, [hasUrl, trimmed]);
 
   const downloadPng = useCallback(async () => {
     if (!hasUrl) return;
@@ -283,7 +272,7 @@ export function ShareLinkCard({
       {!hasUrl ? (
         <p className="mt-3 text-sm text-muted-foreground">QR unavailable</p>
       ) : (
-        <div className="relative mt-3">
+        <div className="relative mt-4">
           <div
             className={
               monthlyLimitReached
@@ -291,37 +280,35 @@ export function ShareLinkCard({
                 : undefined
             }
           >
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
-              <div className="min-w-0 flex-1 space-y-2">
-                <p className="break-all text-sm font-medium text-foreground">
-                  {trimmed}
-                </p>
+            <div className="flex flex-col items-center">
+              <p className="text-center text-xs text-muted-foreground">
+                Scan or download a QR code for print materials.
+              </p>
+              <div className="mt-4 rounded-lg border border-border bg-card p-2">
+                <QRCodeCanvas
+                  ref={canvasRef}
+                  value={trimmed}
+                  size={QR_PX}
+                  level={QR_LEVEL}
+                  marginSize={QR_MARGIN_MODULES}
+                  title={`QR code for ${label}`}
+                />
+              </div>
+              <div className="mt-4 flex w-full max-w-[17.5rem] flex-col gap-2">
                 <button
                   type="button"
                   onClick={() => void copy()}
                   disabled={monthlyLimitReached}
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-background/80 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-[44px] rounded-lg bg-[#111827] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {copied ? "Copied!" : "Copy link"}
                 </button>
-              </div>
-              <div className="flex w-full max-w-[12.5rem] shrink-0 flex-col items-stretch sm:max-w-[11rem]">
-                <div className="mx-auto rounded-lg border border-border bg-card p-2">
-                  <QRCodeCanvas
-                    ref={canvasRef}
-                    value={trimmed}
-                    size={QR_PX}
-                    level={QR_LEVEL}
-                    marginSize={QR_MARGIN_MODULES}
-                    title={`QR code for ${label}`}
-                  />
-                </div>
-                <div className="mt-3 flex w-full flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     disabled={pngLoading || monthlyLimitReached}
                     onClick={() => void downloadPng()}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-background/80 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-background/80 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {pngLoading ? "Preparing…" : "Download PNG"}
                   </button>
@@ -331,16 +318,16 @@ export function ShareLinkCard({
                     onClick={() => {
                       void downloadPdf();
                     }}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-background/80 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-background/80 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {pdfLoading ? "Preparing…" : "Download PDF"}
                   </button>
-                  {pdfError ? (
-                    <p className="text-center text-xs leading-snug text-red-600" role="alert">
-                      {pdfError}
-                    </p>
-                  ) : null}
                 </div>
+                {pdfError ? (
+                  <p className="text-center text-xs leading-snug text-red-600" role="alert">
+                    {pdfError}
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>

@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import {
+  getCachedOrganizationUsage,
+  getMe,
+  subscribeOrganizationUsage,
+} from "@/lib/auth";
+import { getPlanUsageLevel } from "@/lib/planUsage";
+import { CustomerLinkBanner } from "@/components/dashboard/CustomerLinkBanner";
 import { StorefrontConfigurationForm } from "@/components/dashboard/StorefrontConfigurationForm";
 import type { PricingRule } from "@/components/PricingEditor";
 
@@ -36,6 +43,14 @@ export default function StorefrontDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [publicEntryUrl, setPublicEntryUrl] = useState("");
+  const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
+
+  useEffect(() => {
+    void getMe().then(() => setUsage(getCachedOrganizationUsage()));
+    return subscribeOrganizationUsage(() => {
+      setUsage(getCachedOrganizationUsage());
+    });
+  }, []);
 
   useEffect(() => {
     api<{ storefront: Storefront }>(`/api/storefronts/${params.id}`)
@@ -67,9 +82,22 @@ export default function StorefrontDetailPage() {
     );
   }
 
+  const ordersReady =
+    storefront.configurationComplete === true && storefront.isOpen === true;
+  const monthlyLimitReached =
+    usage != null && getPlanUsageLevel(usage) === "reached";
+
   return (
     <div className="dashboard-page">
       <div>
+        {ordersReady ? (
+          <CustomerLinkBanner
+            publicUrl={publicEntryUrl}
+            variant="storefront"
+            monthlyLimitReached={monthlyLimitReached}
+            className="mb-4"
+          />
+        ) : null}
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           {storefront.name}
         </h1>

@@ -23,9 +23,11 @@ import {
 } from "@/lib/auth";
 import { usageHasFeature } from "@/lib/planFeatures";
 import { DashboardCenteredNotice } from "@/components/dashboard/DashboardCenteredNotice";
+import { CustomerLinkBanner } from "@/components/dashboard/CustomerLinkBanner";
 import { EventConfigurationForm } from "@/components/dashboard/EventConfigurationForm";
 import { confirmUnsavedChanges } from "@/hooks/useUnsavedChangesWarning";
 import { chartTooltipStyle, useChartTheme } from "@/hooks/useChartTheme";
+import { getPlanUsageLevel } from "@/lib/planUsage";
 
 type AllowedShape = {
   id: string;
@@ -702,6 +704,11 @@ export default function EventDetailPage() {
   const tabIdle = `${tabBtn} border-border bg-background text-foreground hover:bg-surface`;
   const tabActive = `${tabBtn} border-primary bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300`;
 
+  const ordersReady =
+    event.configurationComplete === true && event.isOpen === true;
+  const monthlyLimitReached =
+    usage != null && getPlanUsageLevel(usage) === "reached";
+
   const analyticsBlock = !canEventAnalytics ? (
     <div className="rounded-lg border border-border bg-card px-4 py-6 text-sm text-muted-foreground">
       <p>Event analytics is available on the Hobby plan and above.</p>
@@ -854,6 +861,14 @@ export default function EventDetailPage() {
         >
           &larr; All events
         </Link>
+
+        {ordersReady ? (
+          <CustomerLinkBanner
+            publicUrl={publicEntryUrl}
+            variant="event"
+            monthlyLimitReached={monthlyLimitReached}
+          />
+        ) : null}
 
         <div className="mt-4 flex items-start justify-between">
           <div>
