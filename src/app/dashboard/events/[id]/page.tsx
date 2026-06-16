@@ -615,12 +615,6 @@ export default function EventDetailPage() {
     });
   }
 
-  async function handleDelete() {
-    if (!event) return;
-    await api(`/api/events/${event.id}`, { method: "DELETE" });
-    router.push("/dashboard/events");
-  }
-
   async function downloadEventArchive() {
     if (!eventId) return;
     if (
@@ -766,13 +760,6 @@ export default function EventDetailPage() {
                 </span>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => void handleDelete()}
-              className="shrink-0 rounded-lg border border-border px-3 py-2 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
-            >
-              Delete
-            </button>
           </div>
         </div>
 
@@ -888,13 +875,6 @@ export default function EventDetailPage() {
               className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface"
             >
               {event.isActive ? "Deactivate" : "Activate"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleDelete()}
-              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-[#DC2626] transition-colors hover:bg-red-50"
-            >
-              Delete
             </button>
           </div>
         </div>

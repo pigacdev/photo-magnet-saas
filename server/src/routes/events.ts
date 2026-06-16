@@ -21,6 +21,11 @@ import {
   featureRequiredMessage,
 } from "../lib/planFeatures";
 import { planHasFeature } from "../lib/planCatalog";
+import {
+  paginateSellerEvents,
+  parseSellerEventListQuery,
+  querySellerEvents,
+} from "../lib/sellerEventListQuery";
 export const eventsRouter = Router();
 
 async function sellerPlan(userId: string) {
@@ -206,17 +211,28 @@ eventsRouter.post("/", async (req, res) => {
 eventsRouter.get("/", async (req, res) => {
   const userId = req.user!.userId;
 
-  const events = await prisma.event.findMany({
-    where: { userId, deletedAt: null },
-    orderBy: { createdAt: "desc" },
+  const parsed = parseSellerEventListQuery(
+    req.query as Record<string, unknown>,
+  );
+  if (!parsed.ok) {
+    res.status(parsed.error.status).json({ error: parsed.error.error });
+    return;
+  }
+
+  const { page, pageSize, statusFilterTokens, ...queryParams } =
+    parsed.params;
+
+  const result = await querySellerEvents(userId, queryParams);
+  const { pageSlice, pagination } = paginateSellerEvents(
+    result.rows,
+    page,
+    pageSize,
+  );
+
+  res.json({
+    items: pageSlice.map((x) => x.payload),
+    pagination,
   });
-
-  const eventsWithStatus = events.map((e) => ({
-    ...e,
-    ...enrichEvent(e),
-  }));
-
-  res.json({ events: eventsWithStatus });
 });
 
 /** GET /api/events/:id/analytics — seller metrics for one event (orders in EVENT context). */

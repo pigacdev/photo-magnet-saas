@@ -31,8 +31,8 @@ export default function CalendarPage() {
       setLoading(false);
       return;
     }
-    api<{ events: CalendarEvent[] }>("/api/events")
-      .then((data) => setEvents(data.events))
+    api<{ items: CalendarEvent[] }>("/api/events?pageSize=100")
+      .then((data) => setEvents(data.items))
       .finally(() => setLoading(false));
   }, [canCalendar]);
 
