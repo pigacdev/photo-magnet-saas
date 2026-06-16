@@ -30,9 +30,11 @@ import { readCheckoutImageCopies } from "@/lib/checkoutImageCopiesStorage";
 import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
 import {
   buildStructuredShippingAddress,
+  formatShippingAddressLines,
   joinCustomerName,
   parseShippingAddressFromJson,
   splitCustomerName,
+  type StructuredShippingAddress,
 } from "@/lib/shippingAddress";
 import {
   normalizeLegacyShippingType,
@@ -75,6 +77,7 @@ type OrderCustomerLoad = {
   customerPhone: string | null;
   shippingType: string | null;
   shippingAddress: unknown | null;
+  storefrontPickupAddress?: StructuredShippingAddress | null;
   totalPrice: string;
   currency: string;
   imageCount: number;
@@ -116,6 +119,8 @@ function CustomerPageInner() {
   const [city, setCity] = useState("");
   const [postCode, setPostCode] = useState("");
   const [country, setCountry] = useState("");
+  const [storefrontPickupAddress, setStorefrontPickupAddress] =
+    useState<StructuredShippingAddress | null>(null);
   const [liveQueryForReviewBack, setLiveQueryForReviewBack] = useState("");
 
   useLayoutEffect(() => {
@@ -162,6 +167,7 @@ function CustomerPageInner() {
           if (cancelled) return;
           setOrderCtx(o);
           setSessionCtx(null);
+          setStorefrontPickupAddress(o.storefrontPickupAddress ?? null);
           prefillFromOrder(o);
         } catch (e) {
           if (!cancelled) {
@@ -228,6 +234,9 @@ function CustomerPageInner() {
           perItemSummary: isPer ? { totalMagnets, lineTotal } : null,
           bundleQuantity: isPer ? null : totalMagnets,
         });
+        setStorefrontPickupAddress(
+          sessionRes.storefront?.pickupAddress ?? null,
+        );
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -256,6 +265,11 @@ function CustomerPageInner() {
 
   const isSubmittedOrderEdit = Boolean(orderId && orderCtx);
   const isShipping = !isEvent && shippingType === "delivery";
+  const isPickup = !isEvent && shippingType === "pickup";
+  const pickupLocationLines = useMemo(
+    () => formatShippingAddressLines(storefrontPickupAddress),
+    [storefrontPickupAddress],
+  );
   const customerName = joinCustomerName(firstName, lastName);
 
   const buildStorefrontShippingPayload = useCallback(() => {
@@ -521,9 +535,27 @@ function CustomerPageInner() {
             </section>
           )}
 
+          {!isEvent && isPickup && (
+            <section className={orderCard}>
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Pickup location
+              </h2>
+              {pickupLocationLines.length > 0 ? (
+                <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">
+                  {pickupLocationLines.join("\n")}
+                </p>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  The seller will share pickup details with you after you place
+                  your order.
+                </p>
+              )}
+            </section>
+          )}
+
           <section className={orderCard}>
             <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {isEvent ? "Your details" : "Shipping details"}
+              {isEvent || isPickup ? "Your details" : "Shipping details"}
             </h2>
             <div className="mt-4 flex flex-col gap-4">
               <div className="grid gap-4 md:grid-cols-2">

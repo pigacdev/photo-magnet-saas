@@ -33,6 +33,13 @@ type Storefront = {
   configurationComplete?: boolean;
   createdAt: string;
   maxMagnetsPerOrder: number | null;
+  pickupAddress: {
+    street: string;
+    houseNumber: string;
+    city: string;
+    postCode: string;
+    country: string;
+  } | null;
   shapes: AllowedShape[];
   pricing: PricingRule[];
 };

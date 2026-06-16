@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { normalizeBrandTextInput } from "../lib/brandTextForOrder";
 import { enrichStorefront, isStorefrontConfigurationComplete } from "../lib/storefront";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
+import { parsePickupAddressInput } from "../lib/parsePickupAddressInput";
 import {
   parseNotificationEmailInput,
   parseSendOrderEmailsInput,
@@ -34,13 +35,14 @@ storefrontsRouter.get("/", async (req, res) => {
 
 storefrontsRouter.post("/", async (req, res) => {
   const userId = req.user!.userId;
-  const { name, maxMagnetsPerOrder, brandText, notificationEmail, sendOrderEmails } =
+  const { name, maxMagnetsPerOrder, brandText, notificationEmail, sendOrderEmails, pickupAddress } =
     req.body as {
       name?: unknown;
       maxMagnetsPerOrder?: unknown;
       brandText?: unknown;
       notificationEmail?: unknown;
       sendOrderEmails?: unknown;
+      pickupAddress?: unknown;
     };
 
   if (typeof name !== "string" || !name.trim()) {
@@ -107,6 +109,16 @@ storefrontsRouter.post("/", async (req, res) => {
     ...(notifSend.kind === "ok" && { sendOrderEmails: notifSend.value }),
   };
 
+  const pickupNorm = parsePickupAddressInput(pickupAddress);
+  if (pickupNorm.kind === "error") {
+    res.status(400).json({ error: pickupNorm.error });
+    return;
+  }
+  const pickupCreate =
+    pickupNorm.kind === "omit"
+      ? {}
+      : { pickupAddress: pickupNorm.value };
+
   const storefront = await prisma.storefront.create({
     data: {
       userId,
@@ -114,6 +126,7 @@ storefrontsRouter.post("/", async (req, res) => {
       ...(maxMagnets !== undefined && { maxMagnetsPerOrder: maxMagnets }),
       ...brandCreate,
       ...notifCreate,
+      ...pickupCreate,
     },
   });
 
@@ -164,6 +177,7 @@ storefrontsRouter.patch("/:id", async (req, res) => {
     brandText,
     notificationEmail,
     sendOrderEmails,
+    pickupAddress,
   } = req.body as {
     name?: unknown;
     isActive?: unknown;
@@ -171,6 +185,7 @@ storefrontsRouter.patch("/:id", async (req, res) => {
     brandText?: unknown;
     notificationEmail?: unknown;
     sendOrderEmails?: unknown;
+    pickupAddress?: unknown;
   };
 
   const existing = await prisma.storefront.findUnique({
@@ -233,6 +248,16 @@ storefrontsRouter.patch("/:id", async (req, res) => {
     ...(notifSend.kind === "ok" && { sendOrderEmails: notifSend.value }),
   };
 
+  const pickupNorm = parsePickupAddressInput(pickupAddress);
+  if (pickupNorm.kind === "error") {
+    res.status(400).json({ error: pickupNorm.error });
+    return;
+  }
+  const pickupPatch =
+    pickupNorm.kind === "omit"
+      ? {}
+      : { pickupAddress: pickupNorm.value };
+
   const storefront = await prisma.storefront.update({
     where: { id },
     data: {
@@ -241,6 +266,7 @@ storefrontsRouter.patch("/:id", async (req, res) => {
       ...(maxMagnetsUpdate !== undefined && { maxMagnetsPerOrder: maxMagnetsUpdate }),
       ...brandPatch,
       ...notifPatch,
+      ...pickupPatch,
     },
   });
 

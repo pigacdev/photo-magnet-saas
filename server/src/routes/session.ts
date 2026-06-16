@@ -23,6 +23,7 @@ import {
   validateStorefrontOrderContext,
 } from "../lib/sessionContextValidation";
 import { runStaleSessionCheckoutCleanup } from "../lib/sessionCheckoutCleanup";
+import { storedPickupAddressFromJson } from "../lib/parsePickupAddressInput";
 import { sessionImagesRouter } from "./sessionImages";
 import { sessionCheckoutRouter } from "./sessionCheckout";
 
@@ -351,10 +352,25 @@ sessionRouter.get("/", async (req, res) => {
     orderBy: { displayOrder: "asc" },
   });
 
+  let storefront: { pickupAddress: ReturnType<typeof storedPickupAddressFromJson> } | null =
+    null;
+  if (touched.contextType === "STOREFRONT") {
+    const sf = await prisma.storefront.findFirst({
+      where: { id: touched.contextId, deletedAt: null },
+      select: { pickupAddress: true },
+    });
+    storefront = {
+      pickupAddress: sf
+        ? storedPickupAddressFromJson(sf.pickupAddress)
+        : null,
+    };
+  }
+
   res.json({
     session: await buildOrderSessionResponse(touched),
     shapes: shapes.map(serializeCatalogShape),
     pricing: pricing.map(serializeCatalogPricing),
+    storefront,
   });
 });
 

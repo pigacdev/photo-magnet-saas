@@ -1,4 +1,6 @@
+import type { StructuredShippingAddress } from "../../../src/lib/shippingAddress";
 import { prisma } from "./prisma";
+import { storedPickupAddressFromJson } from "./parsePickupAddressInput";
 
 /**
  * Loads event/storefront display name and seller notification settings for an order.
@@ -10,6 +12,7 @@ export async function loadOrderNotificationContext(order: {
   contextName: string;
   sendOrderEmails: boolean;
   notificationEmail: string | null;
+  storefrontPickupAddress: StructuredShippingAddress | null;
 }> {
   if (order.contextType === "EVENT") {
     const ev = await prisma.event.findFirst({
@@ -25,12 +28,14 @@ export async function loadOrderNotificationContext(order: {
         contextName: "Event",
         sendOrderEmails: false,
         notificationEmail: null,
+        storefrontPickupAddress: null,
       };
     }
     return {
       contextName: ev.name,
       sendOrderEmails: ev.sendOrderEmails,
       notificationEmail: ev.notificationEmail?.trim() || null,
+      storefrontPickupAddress: null,
     };
   }
 
@@ -40,6 +45,7 @@ export async function loadOrderNotificationContext(order: {
       name: true,
       sendOrderEmails: true,
       notificationEmail: true,
+      pickupAddress: true,
     },
   });
   if (!sf) {
@@ -47,11 +53,13 @@ export async function loadOrderNotificationContext(order: {
       contextName: "Storefront",
       sendOrderEmails: false,
       notificationEmail: null,
+      storefrontPickupAddress: null,
     };
   }
   return {
     contextName: sf.name,
     sendOrderEmails: sf.sendOrderEmails,
     notificationEmail: sf.notificationEmail?.trim() || null,
+    storefrontPickupAddress: storedPickupAddressFromJson(sf.pickupAddress),
   };
 }

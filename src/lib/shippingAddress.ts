@@ -71,6 +71,32 @@ export function isStructuredShippingAddressComplete(
   );
 }
 
+const PICKUP_ADDRESS_PARTIAL_ERROR =
+  "Pickup address must include street, house number, city, post code, and country, or be left empty";
+
+/** Validates optional structured address (all empty or all complete). */
+export function validateOptionalStructuredAddress(
+  fields: StructuredShippingAddress,
+): string | null {
+  const built = buildStructuredShippingAddress(fields);
+  const hasAny =
+    built.street.length > 0 ||
+    built.houseNumber.length > 0 ||
+    built.city.length > 0 ||
+    built.postCode.length > 0 ||
+    built.country.length > 0;
+  if (!hasAny) return null;
+  if (isStructuredShippingAddressComplete(built)) return null;
+  return PICKUP_ADDRESS_PARTIAL_ERROR;
+}
+
+export function optionalStructuredAddressPayload(
+  fields: StructuredShippingAddress,
+): StructuredShippingAddress | null {
+  const built = buildStructuredShippingAddress(fields);
+  return isStructuredShippingAddressComplete(built) ? built : null;
+}
+
 export function parseShippingAddressFromJson(
   raw: unknown,
 ): ParsedShippingAddress {

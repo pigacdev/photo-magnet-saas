@@ -22,6 +22,13 @@ import { getCachedOrganizationUsage } from "@/lib/auth";
 import { FREE_PRINT_BRAND_TEXT } from "@/lib/planCatalog";
 import { usageHasFeature } from "@/lib/planFeatures";
 import { getPlanUsageLevel } from "@/lib/planUsage";
+import {
+  buildStructuredShippingAddress,
+  optionalStructuredAddressPayload,
+  parseShippingAddressFromJson,
+  validateOptionalStructuredAddress,
+  type StructuredShippingAddress,
+} from "@/lib/shippingAddress";
 
 type AllowedShape = {
   id: string;
@@ -41,6 +48,7 @@ export type StorefrontConfigurationStorefront = {
   isOpen: boolean;
   configurationComplete?: boolean;
   maxMagnetsPerOrder: number | null;
+  pickupAddress: StructuredShippingAddress | null;
   shapes: AllowedShape[];
   pricing: PricingRule[];
 };
@@ -58,6 +66,34 @@ function shapeKeySetsEqual(a: Set<string>, b: Set<string>): boolean {
     if (!b.has(key)) return false;
   }
   return true;
+}
+
+function pickupFieldsFromStorefront(
+  raw: unknown,
+): StructuredShippingAddress {
+  const parsed = parseShippingAddressFromJson(raw);
+  return parsed.kind === "structured"
+    ? parsed.structured
+    : {
+        street: "",
+        houseNumber: "",
+        city: "",
+        postCode: "",
+        country: "",
+      };
+}
+
+function pickupFieldsEqual(
+  a: StructuredShippingAddress,
+  b: StructuredShippingAddress,
+): boolean {
+  return (
+    a.street === b.street &&
+    a.houseNumber === b.houseNumber &&
+    a.city === b.city &&
+    a.postCode === b.postCode &&
+    a.country === b.country
+  );
 }
 
 async function syncStorefrontShapes(
@@ -111,6 +147,34 @@ export function StorefrontConfigurationForm({
   const [notifSendDraft, setNotifSendDraft] = useState(
     storefront.sendOrderEmails ?? false,
   );
+  const savedPickupFields = useMemo(
+    () => pickupFieldsFromStorefront(storefront.pickupAddress),
+    [storefront.pickupAddress],
+  );
+  const [pickupStreet, setPickupStreet] = useState(savedPickupFields.street);
+  const [pickupHouseNumber, setPickupHouseNumber] = useState(
+    savedPickupFields.houseNumber,
+  );
+  const [pickupCity, setPickupCity] = useState(savedPickupFields.city);
+  const [pickupPostCode, setPickupPostCode] = useState(savedPickupFields.postCode);
+  const [pickupCountry, setPickupCountry] = useState(savedPickupFields.country);
+  const pickupDraft = useMemo(
+    () =>
+      buildStructuredShippingAddress({
+        street: pickupStreet,
+        houseNumber: pickupHouseNumber,
+        city: pickupCity,
+        postCode: pickupPostCode,
+        country: pickupCountry,
+      }),
+    [pickupStreet, pickupHouseNumber, pickupCity, pickupPostCode, pickupCountry],
+  );
+  const pickupFieldsEmpty =
+    !pickupDraft.street &&
+    !pickupDraft.houseNumber &&
+    !pickupDraft.city &&
+    !pickupDraft.postCode &&
+    !pickupDraft.country;
   const [selectedShapeKeys, setSelectedShapeKeys] = useState<Set<string>>(
     () => new Set(storefront.shapes.map((s) => shapeRecordKey(s))),
   );
@@ -136,8 +200,16 @@ export function StorefrontConfigurationForm({
       (storefront.notificationEmail ?? "") !== notifEmailDraft.trim();
     const sendDirty =
       (storefront.sendOrderEmails ?? false) !== notifSendDraft;
+    const pickupDirty = !pickupFieldsEqual(savedPickupFields, pickupDraft);
     const pricingDirty = pricingRef.current?.isDirty() ?? false;
-    return shapesDirty || brandDirty || emailDirty || sendDirty || pricingDirty;
+    return (
+      shapesDirty ||
+      brandDirty ||
+      emailDirty ||
+      sendDirty ||
+      pickupDirty ||
+      pricingDirty
+    );
   }, [
     pricingRevision,
     savedShapeKeys,
@@ -145,6 +217,8 @@ export function StorefrontConfigurationForm({
     storefront.brandText,
     storefront.notificationEmail,
     storefront.sendOrderEmails,
+    savedPickupFields,
+    pickupDraft,
     brandDraft,
     notifEmailDraft,
     notifSendDraft,
@@ -160,12 +234,19 @@ export function StorefrontConfigurationForm({
     setBrandDraft(storefront.brandText ?? "");
     setNotifEmailDraft(storefront.notificationEmail ?? "");
     setNotifSendDraft(storefront.sendOrderEmails ?? false);
+    const pickup = pickupFieldsFromStorefront(storefront.pickupAddress);
+    setPickupStreet(pickup.street);
+    setPickupHouseNumber(pickup.houseNumber);
+    setPickupCity(pickup.city);
+    setPickupPostCode(pickup.postCode);
+    setPickupCountry(pickup.country);
     setSelectedShapeKeys(new Set(storefront.shapes.map((s) => shapeRecordKey(s))));
   }, [
     storefront.id,
     storefront.brandText,
     storefront.notificationEmail,
     storefront.sendOrderEmails,
+    storefront.pickupAddress,
     storefront.shapes,
   ]);
 
@@ -204,6 +285,12 @@ export function StorefrontConfigurationForm({
       return;
     }
 
+    const pickupError = validateOptionalStructuredAddress(pickupDraft);
+    if (pickupError) {
+      setFormError(pickupError);
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -220,6 +307,7 @@ export function StorefrontConfigurationForm({
               notificationEmail:
                 notifEmailDraft.trim() === "" ? null : notifEmailDraft.trim(),
             }),
+            pickupAddress: optionalStructuredAddressPayload(pickupDraft),
           },
         },
       );
@@ -356,6 +444,77 @@ export function StorefrontConfigurationForm({
           </div>
 
           <div className="border-t border-border pt-8">
+            <h2 className="text-sm font-semibold text-foreground">Pickup address</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Shown to customers who choose Pickup at checkout.
+            </p>
+            {pickupFieldsEmpty ? (
+              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                Customers who choose Pickup won&apos;t see a location until you add
+                one.
+              </p>
+            ) : null}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 sm:col-span-2">
+                <span className="text-xs font-medium text-muted-foreground">Street</span>
+                <input
+                  type="text"
+                  value={pickupStreet}
+                  onChange={(e) => setPickupStreet(e.target.value)}
+                  autoComplete="address-line1"
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">
+                  House number
+                </span>
+                <input
+                  type="text"
+                  value={pickupHouseNumber}
+                  onChange={(e) => setPickupHouseNumber(e.target.value)}
+                  autoComplete="off"
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">City</span>
+                <input
+                  type="text"
+                  value={pickupCity}
+                  onChange={(e) => setPickupCity(e.target.value)}
+                  autoComplete="address-level2"
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Post code
+                </span>
+                <input
+                  type="text"
+                  value={pickupPostCode}
+                  onChange={(e) => setPickupPostCode(e.target.value)}
+                  autoComplete="postal-code"
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Country
+                </span>
+                <input
+                  type="text"
+                  value={pickupCountry}
+                  onChange={(e) => setPickupCountry(e.target.value)}
+                  autoComplete="country-name"
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-8">
             <h2 className="text-sm font-semibold text-foreground">Shapes</h2>
             <p className="mt-1 text-xs text-muted-foreground">
               All four magnet sizes are available on every plan.
@@ -418,38 +577,40 @@ export function StorefrontConfigurationForm({
           </div>
         </section>
 
-        <section className="dashboard-card min-w-0">
-          <h2 className="text-sm font-semibold text-foreground">Pricing</h2>
-          <p className="mt-1 text-xs text-muted-foreground">
-            How customers are charged for their magnets.
-          </p>
-          <div className="mt-4 space-y-4">
-            {(storefront.pricing ?? []).length > 0 ? (
-              <PricingPreview pricing={storefront.pricing ?? []} />
-            ) : null}
-            <PricingEditor
-              ref={pricingRef}
-              embedded
-              contextType="storefront"
-              contextId={storefront.id}
-              currency={orgCurrency}
-              initialPricing={storefront.pricing ?? []}
-              initialMaxMagnetsPerOrder={storefront.maxMagnetsPerOrder ?? null}
-              onFormChange={bumpPricingRevision}
-            />
-          </div>
-        </section>
-      </div>
+        <div className="flex min-w-0 flex-col gap-6">
+          <section className="dashboard-card min-w-0">
+            <h2 className="text-sm font-semibold text-foreground">Pricing</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              How customers are charged for their magnets.
+            </p>
+            <div className="mt-4 space-y-4">
+              {(storefront.pricing ?? []).length > 0 ? (
+                <PricingPreview pricing={storefront.pricing ?? []} />
+              ) : null}
+              <PricingEditor
+                ref={pricingRef}
+                embedded
+                contextType="storefront"
+                contextId={storefront.id}
+                currency={orgCurrency}
+                initialPricing={storefront.pricing ?? []}
+                initialMaxMagnetsPerOrder={storefront.maxMagnetsPerOrder ?? null}
+                onFormChange={bumpPricingRevision}
+              />
+            </div>
+          </section>
 
-      <ShareLinkCard
-        label="Customer link"
-        publicUrl={publicEntryUrl}
-        variant="storefront"
-        entityName={storefront.name}
-        entityId={storefront.id}
-        ordersEnabled={ordersReady}
-        monthlyLimitReached={monthlyLimitReached}
-      />
+          <ShareLinkCard
+            label="Customer link"
+            publicUrl={publicEntryUrl}
+            variant="storefront"
+            entityName={storefront.name}
+            entityId={storefront.id}
+            ordersEnabled={ordersReady}
+            monthlyLimitReached={monthlyLimitReached}
+          />
+        </div>
+      </div>
 
       {formError ? (
         <p className="text-sm text-[#DC2626]" role="alert">

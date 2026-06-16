@@ -98,6 +98,8 @@ model Storefront {
   /// Seller receives new-order emails when `sendOrderEmails` is true.
   notificationEmail  String?
   sendOrderEmails    Boolean   @default(false)
+  /// Seller pickup location; same shape as delivery shippingAddress.
+  pickupAddress      Json?
   user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])

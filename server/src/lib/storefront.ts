@@ -1,7 +1,22 @@
+import type { StructuredShippingAddress } from "../../../src/lib/shippingAddress";
+import { storedPickupAddressFromJson } from "./parsePickupAddressInput";
+import { prisma } from "./prisma";
+
 type StorefrontRecord = {
   isActive: boolean;
   deletedAt: Date | null;
 };
+
+export async function loadStorefrontPickupAddress(
+  storefrontId: string,
+): Promise<StructuredShippingAddress | null> {
+  const sf = await prisma.storefront.findFirst({
+    where: { id: storefrontId, deletedAt: null },
+    select: { pickupAddress: true },
+  });
+  if (!sf) return null;
+  return storedPickupAddressFromJson(sf.pickupAddress);
+}
 
 export function isStorefrontOpen(storefront: StorefrontRecord): boolean {
   if (storefront.deletedAt !== null) return false;

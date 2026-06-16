@@ -33,7 +33,7 @@ export async function sendBuyerOrderConfirmationIfNeeded(
     return;
   }
 
-  const { contextName, notificationEmail } =
+  const { contextName, notificationEmail, storefrontPickupAddress } =
     await loadOrderNotificationContext(order);
 
   const firstShapeId = order.orderImages[0]?.shapeId;
@@ -65,6 +65,7 @@ export async function sendBuyerOrderConfirmationIfNeeded(
     },
     contextName,
     shapeLabelText,
+    { storefrontPickupAddress },
   );
 
   await sendEmail({

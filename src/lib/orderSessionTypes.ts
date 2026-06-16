@@ -42,6 +42,15 @@ export type GetSessionResponse = {
   session: OrderSessionPayload | null;
   shapes: CatalogShape[];
   pricing: CatalogPricing[];
+  storefront?: {
+    pickupAddress: {
+      street: string;
+      houseNumber: string;
+      city: string;
+      postCode: string;
+      country: string;
+    } | null;
+  } | null;
 };
 
 export type SessionImage = {

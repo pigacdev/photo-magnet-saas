@@ -58,6 +58,7 @@ import {
   resolveOrderContextName,
   resolveOrderContextNames,
 } from "../lib/orderContextDisplay";
+import { loadStorefrontPickupAddress } from "../lib/storefront";
 import {
   sendBuyerOrderConfirmationIfNeeded,
 } from "../lib/orderBuyerConfirmationEmail";
@@ -821,14 +822,16 @@ ordersRouter.patch("/:id/customer", async (req: Request, res: Response) => {
     });
 
     if (orderFull) {
-      const { contextName, sendOrderEmails, notificationEmail } =
+      const { contextName, sendOrderEmails, notificationEmail, storefrontPickupAddress } =
         await loadOrderNotificationContext(orderFull);
 
       if (sendOrderEmails && notificationEmail) {
         await sendNewOrderEmail({
           to: notificationEmail,
           subject: buildOrderEmailSubject(orderFull, contextName),
-          html: buildOrderEmailHtml(orderFull, contextName),
+          html: buildOrderEmailHtml(orderFull, contextName, {
+            storefrontPickupAddress,
+          }),
         });
       }
     }
@@ -984,13 +987,15 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
           include: { orderImages: true },
         });
         if (orderFull) {
-          const { contextName, sendOrderEmails, notificationEmail } =
+          const { contextName, sendOrderEmails, notificationEmail, storefrontPickupAddress } =
             await loadOrderNotificationContext(orderFull);
           if (sendOrderEmails && notificationEmail) {
             await sendNewOrderEmail({
               to: notificationEmail,
               subject: buildOrderEmailSubject(orderFull, contextName),
-              html: buildOrderEmailHtml(orderFull, contextName),
+              html: buildOrderEmailHtml(orderFull, contextName, {
+                storefrontPickupAddress,
+              }),
             });
           }
         }
@@ -1138,6 +1143,10 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
         orderRow.contextType,
         orderRow.contextId,
       );
+      const storefrontPickupAddress =
+        orderRow.contextType === "STOREFRONT"
+          ? await loadStorefrontPickupAddress(orderRow.contextId)
+          : null;
       res.json({
         orderId: orderRow.id,
         shortCode: orderRow.shortCode,
@@ -1156,6 +1165,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
         customerPhone: orderRow.customerPhone,
         shippingType: orderRow.shippingType,
         shippingAddress: orderRow.shippingAddress,
+        storefrontPickupAddress,
         printedAt: orderRow.printedAt?.toISOString() ?? null,
         shippedAt: orderRow.shippedAt?.toISOString() ?? null,
         images: orderRow.orderImages.map((img) => ({
@@ -1243,6 +1253,11 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
     }
   }
 
+  const storefrontPickupAddress =
+    order.contextType === "STOREFRONT"
+      ? await loadStorefrontPickupAddress(order.contextId)
+      : null;
+
   res.json({
     orderId: order.id,
     status: order.status,
@@ -1253,6 +1268,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
     customerPhone: order.customerPhone,
     shippingType: order.shippingType,
     shippingAddress: order.shippingAddress,
+    storefrontPickupAddress,
     totalPrice: order.totalPrice.toString(),
     currency: order.currency,
     imageCount: order.orderImages.length,

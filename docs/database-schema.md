@@ -59,6 +59,11 @@ Seller tenant (1:1 with User; `id` = `user.id`). Billing limits + magnet order c
 - user_id (FK → User)
 - name
 - is_active (boolean)
+- max_magnets_per_order (nullable)
+- brand_text (nullable, max 40 chars)
+- notification_email (nullable)
+- send_order_emails (boolean)
+- **pickup_address** (JSON, nullable — structured: street, house_number, city, post_code, country)
 - created_at
 - updated_at
 - deleted_at (nullable)

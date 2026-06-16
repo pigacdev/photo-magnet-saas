@@ -61,6 +61,23 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function formatStructuredAddressHtml(
+  address: {
+    street: string;
+    houseNumber: string;
+    city: string;
+    postCode: string;
+    country: string;
+  },
+): string {
+  const line1 = [address.street, address.houseNumber].filter(Boolean).join(" ");
+  const line2 = [address.postCode, address.city].filter(Boolean).join(" ");
+  const parts = [line1, line2, address.country].filter(Boolean).map((p) =>
+    escapeHtml(p),
+  );
+  return parts.length > 0 ? parts.join("<br/>") : "—";
+}
+
 function formatShippingAddressHtml(
   shippingAddress: Prisma.JsonValue | null,
 ): string {
@@ -120,6 +137,7 @@ function buildDashboardOrderUrl(orderId: string): string {
 export function buildOrderEmailHtml(
   order: OrderForEmail,
   contextName: string,
+  options?: { storefrontPickupAddress?: Prisma.JsonValue | null },
 ): string {
   const shortId = escapeHtml(order.id.slice(0, 6).toUpperCase());
   const ctx = escapeHtml(contextName);
@@ -140,6 +158,29 @@ export function buildOrderEmailHtml(
   const addressLine = showAddress
     ? `<p style="margin:8px 0;"><strong>Address:</strong><br/>${addrHtml}</p>`
     : "";
+
+  const isPickup = order.shippingType?.trim().toLowerCase() === "pickup";
+  const pickupAddr = options?.storefrontPickupAddress;
+  const pickupLine =
+    isPickup &&
+    pickupAddr != null &&
+    typeof pickupAddr === "object" &&
+    !Array.isArray(pickupAddr)
+      ? (() => {
+          const o = pickupAddr as Record<string, unknown>;
+          const html = formatStructuredAddressHtml({
+            street: typeof o.street === "string" ? o.street.trim() : "",
+            houseNumber:
+              typeof o.houseNumber === "string" ? o.houseNumber.trim() : "",
+            city: typeof o.city === "string" ? o.city.trim() : "",
+            postCode: typeof o.postCode === "string" ? o.postCode.trim() : "",
+            country: typeof o.country === "string" ? o.country.trim() : "",
+          });
+          return html !== "—"
+            ? `<p style="margin:8px 0;"><strong>Pickup location:</strong><br/>${html}</p>`
+            : "";
+        })()
+      : "";
 
   const images = String(order.orderImages.length);
   const total = formatMoney(order.totalPrice, order.currency);
@@ -162,6 +203,7 @@ export function buildOrderEmailHtml(
       ${shipLine}
 
       ${addressLine}
+      ${pickupLine}
 
       <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
 
@@ -202,6 +244,7 @@ export function buildBuyerConfirmationHtml(
   order: OrderForBuyerEmail,
   contextName: string,
   shapeLabelText: string,
+  options?: { storefrontPickupAddress?: Prisma.JsonValue | null },
 ): string {
   const shortId = escapeHtml(order.id.slice(0, 6).toUpperCase());
   const ctx = escapeHtml(contextName);
@@ -226,6 +269,30 @@ export function buildBuyerConfirmationHtml(
     ? `<p style="margin:8px 0;"><strong>Address:</strong><br/>${addrHtml}</p>`
     : "";
 
+  const isPickup = order.shippingType?.trim().toLowerCase() === "pickup";
+  const pickupAddr = options?.storefrontPickupAddress;
+  const pickupLine =
+    isPickup &&
+    order.contextType === "STOREFRONT" &&
+    pickupAddr != null &&
+    typeof pickupAddr === "object" &&
+    !Array.isArray(pickupAddr)
+      ? (() => {
+          const o = pickupAddr as Record<string, unknown>;
+          const html = formatStructuredAddressHtml({
+            street: typeof o.street === "string" ? o.street.trim() : "",
+            houseNumber:
+              typeof o.houseNumber === "string" ? o.houseNumber.trim() : "",
+            city: typeof o.city === "string" ? o.city.trim() : "",
+            postCode: typeof o.postCode === "string" ? o.postCode.trim() : "",
+            country: typeof o.country === "string" ? o.country.trim() : "",
+          });
+          return html !== "—"
+            ? `<p style="margin:8px 0;"><strong>Pickup location:</strong><br/>${html}</p>`
+            : "";
+        })()
+      : "";
+
   return `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:24px;background:#f9fafb;">
@@ -245,6 +312,7 @@ export function buildBuyerConfirmationHtml(
 
       ${shipLine}
       ${addressLine}
+      ${pickupLine}
 
       <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
 

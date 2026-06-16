@@ -50,6 +50,13 @@ type SellerOrderDetail = {
   customerPhone: string | null;
   shippingType: string | null;
   shippingAddress: unknown | null;
+  storefrontPickupAddress?: {
+    street: string;
+    houseNumber: string;
+    city: string;
+    postCode: string;
+    country: string;
+  } | null;
   printedAt: string | null;
   shippedAt: string | null;
   images: {
@@ -660,10 +667,22 @@ export default function OrderDetailPage() {
                     normalizeLegacyShippingType(order.shippingType) ===
                       "pickup" && (
                       <div>
-                        <dt className="text-xs text-muted-foreground">Address</dt>
-                        <dd className="text-sm text-muted-foreground">
-                          No delivery address (pickup).
-                        </dd>
+                        <dt className="text-xs text-muted-foreground">
+                          Pickup location
+                        </dt>
+                        {order.storefrontPickupAddress != null &&
+                        formatShippingAddressLines(order.storefrontPickupAddress)
+                          .length > 0 ? (
+                          <dd className="mt-1 whitespace-pre-wrap rounded-md bg-surface p-2 text-sm text-foreground">
+                            {formatShippingAddressLines(
+                              order.storefrontPickupAddress,
+                            ).join("\n")}
+                          </dd>
+                        ) : (
+                          <dd className="text-sm text-muted-foreground">
+                            No pickup address configured.
+                          </dd>
+                        )}
                       </div>
                     )}
                   {order.contextType === "STOREFRONT" &&
