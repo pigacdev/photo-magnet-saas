@@ -31,8 +31,9 @@ function throwIfNotOk(res: Response, data: unknown): void {
     (typeof d.message === "string" && d.message) ||
     (typeof d.error === "string" && d.error) ||
     "Something went wrong";
-  const err = new Error(msg) as Error & { code?: string };
+  const err = new Error(msg) as Error & { code?: string; status?: number };
   if (typeof d.code === "string") err.code = d.code;
+  err.status = res.status;
   throw err;
 }
 

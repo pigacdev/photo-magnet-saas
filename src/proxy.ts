@@ -12,6 +12,12 @@ const isPublicRoute = createRouteMatcher([
   "/event(.*)",
   "/store(.*)",
   "/api/webhooks(.*)",
+  // Buyer (anonymous) APIs — Express enforces session cookie where needed
+  "/api/public(.*)",
+  "/api/session(.*)",
+  "/api/orders/finalize",
+  "/api/orders/:orderId/customer",
+  "/api/orders/:orderId",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

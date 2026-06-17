@@ -35,7 +35,17 @@ export default function StoreEntryPage() {
   useEffect(() => {
     api<StoreEntryMeta>(`/api/public/entry/storefront/${id}`)
       .then((d) => setMeta(d))
-      .catch(() => setError("Store not found"))
+      .catch((e) => {
+        const status =
+          e instanceof Error && "status" in e
+            ? (e as Error & { status?: number }).status
+            : undefined;
+        setError(
+          status === 404
+            ? "Store not found"
+            : "Could not load store. Check your connection and try again.",
+        );
+      })
       .finally(() => setLoading(false));
   }, [id]);
 

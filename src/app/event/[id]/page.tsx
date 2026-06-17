@@ -35,7 +35,17 @@ export default function EventEntryPage() {
   useEffect(() => {
     api<EventEntryMeta>(`/api/public/entry/event/${id}`)
       .then((d) => setMeta(d))
-      .catch(() => setError("Event not found"))
+      .catch((e) => {
+        const status =
+          e instanceof Error && "status" in e
+            ? (e as Error & { status?: number }).status
+            : undefined;
+        setError(
+          status === 404
+            ? "Event not found"
+            : "Could not load event. Check your connection and try again.",
+        );
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
