@@ -896,6 +896,19 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
     return;
   }
 
+  if (
+    sessionRow.contextType === "STOREFRONT" &&
+    validated.data.shippingType === "pickup"
+  ) {
+    const pickupAddress = await loadStorefrontPickupAddress(
+      String(sessionRow.contextId),
+    );
+    if (!pickupAddress) {
+      res.status(400).json({ error: "Pickup is not available for this storefront" });
+      return;
+    }
+  }
+
   const now = new Date();
   const prep = await prepareOrderSessionCommit(sessionId, req.body, now, "NEW");
   if (prep.ok === "idempotent") {

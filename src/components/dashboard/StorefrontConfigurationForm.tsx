@@ -450,8 +450,8 @@ export function StorefrontConfigurationForm({
             </p>
             {pickupFieldsEmpty ? (
               <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-                Customers who choose Pickup won&apos;t see a location until you add
-                one.
+                Pickup won&apos;t be offered at checkout until you add a full
+                address.
               </p>
             ) : null}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">

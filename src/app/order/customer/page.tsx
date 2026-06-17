@@ -264,12 +264,21 @@ function CustomerPageInner() {
   );
 
   const isSubmittedOrderEdit = Boolean(orderId && orderCtx);
+  const pickupAvailable = storefrontPickupAddress != null;
   const isShipping = !isEvent && shippingType === "delivery";
   const isPickup = !isEvent && shippingType === "pickup";
   const pickupLocationLines = useMemo(
     () => formatShippingAddressLines(storefrontPickupAddress),
     [storefrontPickupAddress],
   );
+
+  useEffect(() => {
+    if (isEvent || pickupAvailable) return;
+    if (isSubmittedOrderEdit && shippingType === "pickup") return;
+    if (shippingType !== "delivery") {
+      setShippingType("delivery");
+    }
+  }, [isEvent, pickupAvailable, isSubmittedOrderEdit, shippingType]);
   const customerName = joinCustomerName(firstName, lastName);
 
   const buildStorefrontShippingPayload = useCallback(() => {
@@ -495,13 +504,15 @@ function CustomerPageInner() {
               ? "Fix typos in your name, phone, or address."
               : isEvent
                 ? "We use this for your order at the event."
-                : "Choose how you receive your order and enter your shipping details."
+                : pickupAvailable
+                  ? "Choose how you receive your order and enter your shipping details."
+                  : "Enter your shipping details."
           }
           step={{ current: 5, total: 5, label: "Details" }}
         />
 
         <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-6">
-          {!isEvent && (
+          {!isEvent && pickupAvailable && (
             <section>
               <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Preferred delivery type
@@ -535,21 +546,14 @@ function CustomerPageInner() {
             </section>
           )}
 
-          {!isEvent && isPickup && (
+          {!isEvent && isPickup && pickupAvailable && (
             <section className={orderCard}>
               <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Pickup location
               </h2>
-              {pickupLocationLines.length > 0 ? (
-                <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">
-                  {pickupLocationLines.join("\n")}
-                </p>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  The seller will share pickup details with you after you place
-                  your order.
-                </p>
-              )}
+              <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">
+                {pickupLocationLines.join("\n")}
+              </p>
             </section>
           )}
 
