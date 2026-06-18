@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { getEventConfigurationIssues } from "@/lib/eventConfiguration";
 import {
@@ -127,11 +127,7 @@ export function EventConfigurationForm({
   const [selectedShapeKeys, setSelectedShapeKeys] = useState<Set<string>>(
     () => new Set(event.shapes.map((s) => shapeRecordKey(s))),
   );
-  const [pricingRevision, setPricingRevision] = useState(0);
-  const bumpPricingRevision = useCallback(
-    () => setPricingRevision((n) => n + 1),
-    [],
-  );
+  const [pricingDirty, setPricingDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
@@ -142,16 +138,14 @@ export function EventConfigurationForm({
   );
 
   const isDirty = useMemo(() => {
-    void pricingRevision;
     const shapesDirty = !shapeKeySetsEqual(savedShapeKeys, selectedShapeKeys);
     const brandDirty = (event.brandText ?? "") !== brandDraft.trim();
     const emailDirty =
       (event.notificationEmail ?? "") !== notifEmailDraft.trim();
     const sendDirty = (event.sendOrderEmails ?? false) !== notifSendDraft;
-    const pricingDirty = pricingRef.current?.isDirty() ?? false;
     return shapesDirty || brandDirty || emailDirty || sendDirty || pricingDirty;
   }, [
-    pricingRevision,
+    pricingDirty,
     savedShapeKeys,
     selectedShapeKeys,
     event.brandText,
@@ -453,7 +447,7 @@ export function EventConfigurationForm({
               currency={orgCurrency}
               initialPricing={event.pricing ?? []}
               initialMaxMagnetsPerOrder={event.maxMagnetsPerOrder ?? null}
-              onFormChange={bumpPricingRevision}
+              onDirtyChange={setPricingDirty}
             />
           </div>
         </section>

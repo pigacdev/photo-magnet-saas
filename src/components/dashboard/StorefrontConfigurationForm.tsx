@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { getEventConfigurationIssues } from "@/lib/eventConfiguration";
 import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
@@ -178,11 +178,7 @@ export function StorefrontConfigurationForm({
   const [selectedShapeKeys, setSelectedShapeKeys] = useState<Set<string>>(
     () => new Set(storefront.shapes.map((s) => shapeRecordKey(s))),
   );
-  const [pricingRevision, setPricingRevision] = useState(0);
-  const bumpPricingRevision = useCallback(
-    () => setPricingRevision((n) => n + 1),
-    [],
-  );
+  const [pricingDirty, setPricingDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
@@ -193,7 +189,6 @@ export function StorefrontConfigurationForm({
   );
 
   const isDirty = useMemo(() => {
-    void pricingRevision;
     const shapesDirty = !shapeKeySetsEqual(savedShapeKeys, selectedShapeKeys);
     const brandDirty = (storefront.brandText ?? "") !== brandDraft.trim();
     const emailDirty =
@@ -201,7 +196,6 @@ export function StorefrontConfigurationForm({
     const sendDirty =
       (storefront.sendOrderEmails ?? false) !== notifSendDraft;
     const pickupDirty = !pickupFieldsEqual(savedPickupFields, pickupDraft);
-    const pricingDirty = pricingRef.current?.isDirty() ?? false;
     return (
       shapesDirty ||
       brandDirty ||
@@ -211,7 +205,7 @@ export function StorefrontConfigurationForm({
       pricingDirty
     );
   }, [
-    pricingRevision,
+    pricingDirty,
     savedShapeKeys,
     selectedShapeKeys,
     storefront.brandText,
@@ -595,7 +589,7 @@ export function StorefrontConfigurationForm({
                 currency={orgCurrency}
                 initialPricing={storefront.pricing ?? []}
                 initialMaxMagnetsPerOrder={storefront.maxMagnetsPerOrder ?? null}
-                onFormChange={bumpPricingRevision}
+                onDirtyChange={setPricingDirty}
               />
             </div>
           </section>

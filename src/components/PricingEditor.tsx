@@ -54,8 +54,8 @@ type PricingEditorProps = {
   ) => void;
   /** When true, hide save/clear buttons; parent submits via ref.validate(). */
   embedded?: boolean;
-  /** Called when embedded form fields change (for dirty tracking). */
-  onFormChange?: () => void;
+  /** Called when embedded dirty state changes (after state commits). */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 function pricingApiSegment(contextType: PricingContextType): string {
@@ -240,7 +240,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
       initialMaxMagnetsPerOrder = null,
       onUpdate,
       embedded = false,
-      onFormChange,
+      onDirtyChange,
     },
     ref,
   ) {
@@ -299,9 +299,26 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
       );
     }, [initialMaxMagnetsPerOrder, contextId]);
 
-    function notifyFormChange() {
-      onFormChange?.();
-    }
+    useEffect(() => {
+      if (!embedded || !onDirtyChange) return;
+      onDirtyChange(
+        isPricingEditorDirty(initialPricing, initialMaxMagnetsPerOrder, {
+          mode,
+          perItemPrice,
+          bundles,
+          maxMagnetsStr,
+        }),
+      );
+    }, [
+      embedded,
+      onDirtyChange,
+      initialPricing,
+      initialMaxMagnetsPerOrder,
+      mode,
+      perItemPrice,
+      bundles,
+      maxMagnetsStr,
+    ]);
 
     useImperativeHandle(ref, () => ({
       validate: () =>
@@ -323,20 +340,17 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
 
     function addBundle() {
       setBundles([...bundles, { quantity: "", price: "" }]);
-      notifyFormChange();
     }
 
     function removeBundle(i: number) {
       if (bundles.length <= 1) return;
       setBundles(bundles.filter((_, idx) => idx !== i));
-      notifyFormChange();
     }
 
     function updateBundle(i: number, field: "quantity" | "price", value: string) {
       const next = [...bundles];
       next[i] = { ...next[i], [field]: value };
       setBundles(next);
-      notifyFormChange();
     }
 
     async function handleSave() {
@@ -402,20 +416,14 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
           <div className="mt-2 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => {
-              setMode("PER_ITEM");
-              notifyFormChange();
-            }}
+            onClick={() => setMode("PER_ITEM")}
             className={mode === "PER_ITEM" ? modeActive : modeIdle}
           >
             Price per magnet
           </button>
           <button
             type="button"
-            onClick={() => {
-              setMode("BUNDLE");
-              notifyFormChange();
-            }}
+            onClick={() => setMode("BUNDLE")}
             className={mode === "BUNDLE" ? modeActive : modeIdle}
           >
             Bundles
@@ -439,10 +447,7 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
                   step="0.01"
                   min="0.01"
                   value={perItemPrice}
-                  onChange={(e) => {
-                    setPerItemPrice(e.target.value);
-                    notifyFormChange();
-                  }}
+                  onChange={(e) => setPerItemPrice(e.target.value)}
                   className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
                   placeholder="e.g. 4.00"
                 />
@@ -472,7 +477,6 @@ export const PricingEditor = forwardRef<PricingEditorHandle, PricingEditorProps>
                     const v = e.target.value;
                     if (v !== "" && !/^\d*$/.test(v)) return;
                     setMaxMagnetsStr(v);
-                    notifyFormChange();
                   }}
                   disabled={systemMaxMagnets === null}
                   className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:opacity-50"

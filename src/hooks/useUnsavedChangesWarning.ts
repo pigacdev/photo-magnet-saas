@@ -1,19 +1,25 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useOptionalUnsavedChangesConfirm } from "@/components/dashboard/UnsavedChangesProvider";
+import { UNSAVED_CHANGES_MESSAGE, allowPendingNavigation, shouldSkipBeforeUnload } from "@/lib/unsavedChanges";
 
-export const UNSAVED_CHANGES_MESSAGE =
-  "All unsaved changes will be lost. Leave this page?";
+export { UNSAVED_CHANGES_MESSAGE };
 
 /** Browser leave + same-origin link navigation guard. */
 export function useUnsavedChangesWarning(
   active: boolean,
   message: string = UNSAVED_CHANGES_MESSAGE,
 ) {
+  const router = useRouter();
+  const confirmCtx = useOptionalUnsavedChangesConfirm();
+
   useEffect(() => {
     if (!active) return;
 
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (shouldSkipBeforeUnload()) return;
       event.preventDefault();
       event.returnValue = message;
     };
@@ -46,10 +52,18 @@ export function useUnsavedChangesWarning(
         return;
       }
 
-      if (!window.confirm(message)) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
+      event.preventDefault();
+      event.stopPropagation();
+
+      void (async () => {
+        const confirmed = confirmCtx
+          ? await confirmCtx.confirmUnsavedChanges(message)
+          : window.confirm(message);
+        if (confirmed) {
+          allowPendingNavigation();
+          router.push(`${url.pathname}${url.search}${url.hash}`);
+        }
+      })();
     };
 
     window.addEventListener("beforeunload", onBeforeUnload);
@@ -59,11 +73,15 @@ export function useUnsavedChangesWarning(
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("click", onDocumentClick, true);
     };
-  }, [active, message]);
+  }, [active, message, confirmCtx, router]);
 }
 
-export function confirmUnsavedChanges(
+export async function confirmUnsavedChanges(
   message: string = UNSAVED_CHANGES_MESSAGE,
-): boolean {
+  confirmCtx?: { confirmUnsavedChanges: (message?: string) => Promise<boolean> } | null,
+): Promise<boolean> {
+  if (confirmCtx) {
+    return confirmCtx.confirmUnsavedChanges(message);
+  }
   return window.confirm(message);
 }

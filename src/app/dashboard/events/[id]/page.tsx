@@ -25,7 +25,7 @@ import { usageHasFeature } from "@/lib/planFeatures";
 import { DashboardCenteredNotice } from "@/components/dashboard/DashboardCenteredNotice";
 import { CustomerLinkBanner } from "@/components/dashboard/CustomerLinkBanner";
 import { EventConfigurationForm } from "@/components/dashboard/EventConfigurationForm";
-import { confirmUnsavedChanges } from "@/hooks/useUnsavedChangesWarning";
+import { useUnsavedChangesConfirm } from "@/components/dashboard/UnsavedChangesProvider";
 import { chartTooltipStyle, useChartTheme } from "@/hooks/useChartTheme";
 import { getPlanUsageLevel } from "@/lib/planUsage";
 
@@ -469,6 +469,7 @@ export default function EventDetailPage() {
   const [exportError, setExportError] = useState<string | null>(null);
   const [configDirty, setConfigDirty] = useState(false);
   const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
+  const { confirmUnsavedChanges } = useUnsavedChangesConfirm();
 
   useEffect(() => {
     void getMe().then(() => setUsage(getCachedOrganizationUsage()));
@@ -482,33 +483,33 @@ export default function EventDetailPage() {
   const isEndedEvent = event?.status === "ended";
 
   const switchTab = useCallback(
-    (tab: "configuration" | "analytics") => {
+    async (tab: "configuration" | "analytics") => {
       if (
         activeTab === "configuration" &&
         tab !== "configuration" &&
         configDirty &&
-        !confirmUnsavedChanges()
+        !(await confirmUnsavedChanges())
       ) {
         return;
       }
       setActiveTab(tab);
     },
-    [activeTab, configDirty],
+    [activeTab, configDirty, confirmUnsavedChanges],
   );
 
-  const navigateToOrders = useCallback(() => {
+  const navigateToOrders = useCallback(async () => {
     if (!eventId) return;
     if (
       activeTab === "configuration" &&
       configDirty &&
-      !confirmUnsavedChanges()
+      !(await confirmUnsavedChanges())
     ) {
       return;
     }
     router.push(
       `/dashboard/orders?contextType=EVENT&contextId=${encodeURIComponent(eventId)}`,
     );
-  }, [activeTab, configDirty, eventId, router]);
+  }, [activeTab, configDirty, confirmUnsavedChanges, eventId, router]);
 
   const loadAnalytics = useCallback(async () => {
     if (!eventId) return;

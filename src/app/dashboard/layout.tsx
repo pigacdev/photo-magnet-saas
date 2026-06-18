@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { OnboardingModal } from "@/components/dashboard/OnboardingModal";
+import { UnsavedChangesProvider } from "@/components/dashboard/UnsavedChangesProvider";
 
 export default function DashboardLayout({
   children,
@@ -94,9 +95,11 @@ export default function DashboardLayout({
 
   return (
     <>
-      <DashboardShell user={user} usage={usage}>
-        {children}
-      </DashboardShell>
+      <UnsavedChangesProvider>
+        <DashboardShell user={user} usage={usage}>
+          {children}
+        </DashboardShell>
+      </UnsavedChangesProvider>
       {needsOnboarding ? (
         <OnboardingModal onCompleted={handleOnboardingCompleted} />
       ) : null}
