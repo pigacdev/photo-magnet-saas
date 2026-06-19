@@ -244,7 +244,7 @@ export default function OrderPage() {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Shape
           </h2>
-          <div className="mt-3 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="mt-3 flex flex-col gap-3">
             {shapes.map((s) => {
               const selected = session.selectedShapeId === s.id;
               return (
@@ -255,7 +255,7 @@ export default function OrderPage() {
                   onClick={() => {
                     void selectShape(s);
                   }}
-                  className={`min-w-[112px] shrink-0 rounded-2xl border-2 px-4 py-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={`w-full rounded-2xl border-2 px-4 py-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     selected
                       ? "border-primary bg-background shadow-sm"
                       : "border-border bg-background active:bg-surface"
