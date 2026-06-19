@@ -7,7 +7,10 @@ export function BillingPlanFeatureLists() {
       aria-label="Plan features"
     >
       {BILLING_PLAN_COLUMNS.map((plan) => (
-        <div key={plan.slug} className="billing-plan-features-col">
+        <div
+          key={plan.slug}
+          className={`billing-plan-features-col billing-plan-features-col--${plan.slug}`}
+        >
           <ul className="space-y-2.5">
             {plan.features.map((feature) => (
               <li

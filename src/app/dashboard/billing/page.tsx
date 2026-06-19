@@ -97,6 +97,7 @@ function BillingContent() {
               appearance={{
                 elements: {
                   pricingTable: "magnetoo-clerk-pricing-table",
+                  pricingTableCard: "magnetoo-clerk-pricing-card",
                   pricingTableCardFeatures: "magnetoo-clerk-hide-features",
                 },
               }}
