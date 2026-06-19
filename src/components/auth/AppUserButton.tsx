@@ -4,9 +4,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { UserButton } from "@clerk/nextjs";
 import {
   getCachedOrganizationUsage,
+  getCachedUser,
+  getMe,
   subscribeOrganizationUsage,
 } from "@/lib/auth";
-import { UserProfileOrderCurrencyContent } from "@/components/auth/UserProfileOrderCurrencyContent";
+import { UserProfileDetailsContent } from "@/components/auth/UserProfileDetailsContent";
 
 function MenuIcon({ children }: { children: ReactNode }) {
   return (
@@ -34,11 +36,10 @@ function SupportIcon() {
   );
 }
 
-function CurrencyIcon() {
+function DetailsIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="9" />
-      <path strokeLinecap="round" d="M12 7v10M9 10h4a2 2 0 100 4h-2a2 2 0 110 4h4" />
+      <path strokeLinecap="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
     </svg>
   );
 }
@@ -51,10 +52,17 @@ export function AppUserButton({ showAppLinks = false }: AppUserButtonProps) {
   const [orderCurrency, setOrderCurrency] = useState<string | null>(
     () => getCachedOrganizationUsage()?.currency ?? null,
   );
+  const [accountId, setAccountId] = useState<string | null>(
+    () => getCachedUser()?.id ?? null,
+  );
 
   useEffect(() => {
+    if (!getCachedUser()) {
+      void getMe();
+    }
     return subscribeOrganizationUsage(() => {
       setOrderCurrency(getCachedOrganizationUsage()?.currency ?? null);
+      setAccountId(getCachedUser()?.id ?? null);
     });
   }, []);
 
@@ -91,19 +99,20 @@ export function AppUserButton({ showAppLinks = false }: AppUserButtonProps) {
       )}
       <UserButton.UserProfilePage label="account" />
       <UserButton.UserProfilePage label="billing" />
-      {orderCurrency ? (
-        <UserButton.UserProfilePage
-          label="Order currency"
-          url="order-currency"
-          labelIcon={
-            <MenuIcon>
-              <CurrencyIcon />
-            </MenuIcon>
-          }
-        >
-          <UserProfileOrderCurrencyContent currencyCode={orderCurrency} />
-        </UserButton.UserProfilePage>
-      ) : null}
+      <UserButton.UserProfilePage
+        label="Details"
+        url="details"
+        labelIcon={
+          <MenuIcon>
+            <DetailsIcon />
+          </MenuIcon>
+        }
+      >
+        <UserProfileDetailsContent
+          accountId={accountId}
+          currencyCode={orderCurrency}
+        />
+      </UserButton.UserProfilePage>
       <UserButton.UserProfilePage label="security" />
     </UserButton>
   );

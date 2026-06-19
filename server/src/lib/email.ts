@@ -390,6 +390,7 @@ export function buildSupportTicketSubject(
 export function buildSupportTicketHtml(data: {
   sellerName: string | null;
   sellerEmail: string;
+  accountId?: string;
   contextSummary: string;
   message: string;
   submittedAt: Date;
@@ -399,6 +400,7 @@ export function buildSupportTicketHtml(data: {
     ? escapeHtml(data.sellerName.trim())
     : "—";
   const email = escapeHtml(data.sellerEmail);
+  const accountId = data.accountId ? escapeHtml(data.accountId) : null;
   const context = escapeHtml(data.contextSummary);
   const body = escapeHtml(data.message).replace(/\n/g, "<br/>");
   const when = escapeHtml(data.submittedAt.toISOString());
@@ -419,6 +421,7 @@ export function buildSupportTicketHtml(data: {
 
       <p style="margin:8px 0;"><strong>Seller:</strong> ${name}</p>
       <p style="margin:8px 0;"><strong>Email:</strong> ${email}</p>
+      ${accountId ? `<p style="margin:8px 0;"><strong>Account ID:</strong> ${accountId}</p>` : ""}
       <p style="margin:8px 0;"><strong>Context:</strong> ${context}</p>
       <p style="margin:8px 0;"><strong>Submitted:</strong> ${when}</p>
 

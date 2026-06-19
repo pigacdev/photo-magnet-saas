@@ -190,6 +190,7 @@ supportRouter.post("/tickets", async (req: Request, res: Response) => {
   const html = buildSupportTicketHtml({
     sellerName: user.name,
     sellerEmail: user.email,
+    accountId: userId,
     contextSummary,
     message: messageRaw,
     submittedAt: new Date(),

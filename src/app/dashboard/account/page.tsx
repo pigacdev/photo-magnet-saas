@@ -9,6 +9,7 @@ import {
   type OrganizationUsage,
 } from "@/lib/auth";
 import { getCurrencyLabel } from "@/lib/currency";
+import { CopyableAccountId } from "@/components/dashboard/CopyableAccountId";
 import { UserProfileSummary } from "@/components/dashboard/UserProfileSummary";
 
 export default function AccountPage() {
@@ -60,6 +61,7 @@ export default function AccountPage() {
             <dt className="text-muted-foreground">Email</dt>
             <dd className="mt-0.5 font-medium text-foreground">{user.email}</dd>
           </div>
+          <CopyableAccountId accountId={user.id} variant="definition-list" />
           <div>
             <dt className="text-muted-foreground">Role</dt>
             <dd className="mt-0.5 font-medium text-foreground">

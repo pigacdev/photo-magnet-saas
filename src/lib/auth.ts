@@ -55,6 +55,10 @@ export function getCachedOrganizationUsage(): OrganizationUsage | null {
   return cachedOrganization ?? null;
 }
 
+export function getCachedUser(): User | null {
+  return cachedUser ?? null;
+}
+
 export async function getMe(): Promise<User | null> {
   if (cachedUser !== undefined) return cachedUser;
 
