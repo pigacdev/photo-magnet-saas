@@ -219,6 +219,13 @@ export default function OrderPage() {
   }
 
   const currency = pricing[0]?.currency ?? "EUR";
+  const perItemRow = pricing.find((p) => p.type === "per_item");
+  const priceSummaryLabel = primaryPerItem ? "Price per magnet" : "Total";
+  const priceSummaryAmount = primaryPerItem
+    ? perItemRow != null
+      ? Number(perItemRow.price)
+      : session.totalPrice
+    : session.totalPrice;
 
   return (
     <OrderShell contentWidth="medium" className="pb-10">
@@ -317,10 +324,10 @@ export default function OrderPage() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Total
+              {priceSummaryLabel}
             </p>
             <p className="text-2xl font-bold tabular-nums text-foreground">
-              {formatMoney(session.totalPrice, currency)}
+              {formatMoney(priceSummaryAmount, currency)}
             </p>
           </div>
           {saving && (
