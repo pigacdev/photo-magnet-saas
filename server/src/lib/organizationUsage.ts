@@ -59,7 +59,8 @@ export async function buildOrganizationUsage(
   let eventsCreatedThisMonth = 0;
   try {
     eventsCreatedThisMonth = await reconcileOrganizationEventUsage(orgId);
-  } catch {
+  } catch (err) {
+    console.error("[buildOrganizationUsage] reconcile failed", orgId, err);
     return null;
   }
 

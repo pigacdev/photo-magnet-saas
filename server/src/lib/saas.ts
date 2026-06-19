@@ -122,6 +122,13 @@ async function refreshOrganizationPeriodIfExpired(orgId: string, now: Date): Pro
 
   if (!org) return;
 
+  if (
+    !Number.isFinite(org.currentPeriodStart.getTime()) ||
+    !Number.isFinite(org.currentPeriodEnd.getTime())
+  ) {
+    return;
+  }
+
   const advanced = advanceBillingPeriodToContain(
     org.currentPeriodStart,
     org.currentPeriodEnd,
@@ -179,6 +186,24 @@ export async function reconcileOrganizationEventUsage(orgId: string): Promise<nu
   });
 
   if (!org) throw new Error("Organization not found");
+
+  if (
+    !Number.isFinite(org.currentPeriodStart.getTime()) ||
+    !Number.isFinite(org.currentPeriodEnd.getTime())
+  ) {
+    const start = new Date();
+    const end = defaultBillingPeriodEnd(start);
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: {
+        currentPeriodStart: start,
+        currentPeriodEnd: end,
+        ordersThisMonth: 0,
+        eventsCreatedThisMonth: 0,
+      },
+    });
+    return 0;
+  }
 
   const effectiveStart = await effectiveEventCountPeriodStart(
     orgId,

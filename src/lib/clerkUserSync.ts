@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { defaultBillingPeriodEnd } from "./billingPeriod";
 
 export type EnsureSellerUserInput = {
   clerkId: string;
@@ -17,10 +18,20 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-function defaultBillingPeriodEnd(from: Date = new Date()): Date {
-  const end = new Date(from);
-  end.setMonth(end.getMonth() + 1);
-  return end;
+/** Ensures the 1:1 Organization row exists for a seller user id. */
+export async function ensureSellerOrganization(userId: string): Promise<void> {
+  const existing = await prisma.organization.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+  if (existing) return;
+
+  await prisma.organization.create({
+    data: {
+      id: userId,
+      currentPeriodEnd: defaultBillingPeriodEnd(),
+    },
+  });
 }
 
 export function displayNameFromClerk(
@@ -49,12 +60,15 @@ export async function ensureSellerUser(
   });
   if (byClerkId) {
     if (name && byClerkId.name !== name) {
-      return prisma.user.update({
+      const updated = await prisma.user.update({
         where: { id: byClerkId.id },
         data: { name },
         select: { id: true, email: true, name: true, role: true },
       });
+      await ensureSellerOrganization(updated.id);
+      return updated;
     }
+    await ensureSellerOrganization(byClerkId.id);
     return byClerkId;
   }
 
@@ -64,7 +78,7 @@ export async function ensureSellerUser(
   });
 
   if (byEmail) {
-    return prisma.user.update({
+    const linked = await prisma.user.update({
       where: { id: byEmail.id },
       data: {
         clerkId: input.clerkId,
@@ -72,6 +86,8 @@ export async function ensureSellerUser(
       },
       select: { id: true, email: true, name: true, role: true },
     });
+    await ensureSellerOrganization(linked.id);
+    return linked;
   }
 
   const periodEnd = defaultBillingPeriodEnd();

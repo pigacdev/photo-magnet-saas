@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { resolveAuthUser } from "../lib/clerkSession";
 import { buildOrganizationUsage } from "../lib/organizationUsage";
 import { syncOrganizationBillingFromClerk } from "../../../src/lib/clerkBillingSync";
+import { ensureSellerOrganization } from "../../../src/lib/clerkUserSync";
 
 export const authRouter = Router();
 
@@ -23,6 +24,8 @@ authRouter.get("/me", async (req, res) => {
     res.status(401).json({ error: "User not found" });
     return;
   }
+
+  await ensureSellerOrganization(user.id);
 
   try {
     await syncOrganizationBillingFromClerk(

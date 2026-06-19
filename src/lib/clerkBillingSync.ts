@@ -1,10 +1,15 @@
 import type { WebhookEvent } from "@clerk/backend/webhooks";
 import { prisma } from "./prisma";
 import {
+  clerkBillingPeriodFields,
+  isActiveBillingItemStatus,
+  isValidBillingPeriodDate,
+  type ClerkBillingPeriodSource,
+} from "./clerkBillingPeriod";
+import {
   isFreeClerkPlanSlug,
   resolvePlanEntitlements,
 } from "./planCatalog";
-import { defaultBillingPeriodEnd } from "./billingPeriod";
 
 type BillingPayer = {
   user_id?: string;
@@ -18,9 +23,11 @@ type BillingPlanRef = {
 type SubscriptionItem = {
   plan?: BillingPlanRef;
   status?: string;
+  period_start?: number;
+  period_end?: number | null;
 };
 
-type SubscriptionPayload = {
+type SubscriptionPayload = SubscriptionItem & {
   id?: string;
   payer?: BillingPayer;
   items?: SubscriptionItem[];
@@ -29,17 +36,13 @@ type SubscriptionPayload = {
   current_period_end?: number;
 };
 
-type SubscriptionItemPayload = {
+type SubscriptionItemPayload = SubscriptionItem & {
   payer?: BillingPayer;
-  plan?: BillingPlanRef;
-  status?: string;
 };
 
-type ClerkBillingSubscriptionResponse = {
+type ClerkBillingSubscriptionResponse = ClerkBillingPeriodSource & {
   id?: string;
   status?: string;
-  current_period_start?: number;
-  current_period_end?: number;
   items?: SubscriptionItem[];
   subscription_items?: SubscriptionItem[];
 };
@@ -69,28 +72,6 @@ async function organizationIdForClerkUser(clerkUserId: string): Promise<string |
     select: { id: true },
   });
   return user?.id ?? null;
-}
-
-function periodDatesFromPayload(data: {
-  current_period_start?: number;
-  current_period_end?: number;
-}): {
-  currentPeriodStart?: Date;
-  currentPeriodEnd?: Date;
-} {
-  const startSec = data.current_period_start;
-  const endSec = data.current_period_end;
-  if (typeof startSec === "number" && typeof endSec === "number") {
-    return {
-      currentPeriodStart: new Date(startSec * 1000),
-      currentPeriodEnd: new Date(endSec * 1000),
-    };
-  }
-  const now = new Date();
-  return {
-    currentPeriodStart: now,
-    currentPeriodEnd: defaultBillingPeriodEnd(now),
-  };
 }
 
 function subscriptionItems(
@@ -125,10 +106,9 @@ export function pickPlanSlugFromSessionClaims(
 export function pickActivePlanSlugFromItems(
   items: SubscriptionItem[],
 ): string | null {
-  const activeItems = items.filter((item) => {
-    const status = item.status?.toLowerCase();
-    return !status || status === "active" || status === "upcoming";
-  });
+  const activeItems = items.filter((item) =>
+    isActiveBillingItemStatus(item.status),
+  );
 
   for (const item of activeItems) {
     const slug = item.plan?.slug;
@@ -141,6 +121,31 @@ export function pickActivePlanSlugFromItems(
   }
 
   return null;
+}
+
+function resolvePaidPlanSlug(
+  sub: ClerkBillingSubscriptionResponse,
+  sessionClaims?: Record<string, unknown> | null,
+): string | null {
+  const itemSlug = pickActivePlanSlugFromItems(subscriptionItems(sub));
+  if (itemSlug && !isFreeClerkPlanSlug(itemSlug)) return itemSlug;
+
+  if (sessionClaims) {
+    const claimSlug = pickPlanSlugFromSessionClaims(sessionClaims);
+    if (claimSlug && !isFreeClerkPlanSlug(claimSlug)) return claimSlug;
+  }
+
+  return itemSlug;
+}
+
+function periodFieldsFromSource(
+  source: ClerkBillingPeriodSource,
+  options?: { preferPaidPlan?: boolean },
+) {
+  return clerkBillingPeriodFields(source, {
+    ...options,
+    isFreePlanSlug: isFreeClerkPlanSlug,
+  });
 }
 
 async function applyPaidPlan(
@@ -158,17 +163,22 @@ async function applyPaidPlan(
       eventLimit: limits.eventLimit,
       clerkPlanSlug: clerkPlanSlug.toLowerCase(),
       clerkSubscriptionId,
-      ...(period?.currentPeriodStart
+      ...(period?.currentPeriodStart &&
+      isValidBillingPeriodDate(period.currentPeriodStart)
         ? { currentPeriodStart: period.currentPeriodStart }
         : {}),
-      ...(period?.currentPeriodEnd
+      ...(period?.currentPeriodEnd &&
+      isValidBillingPeriodDate(period.currentPeriodEnd)
         ? { currentPeriodEnd: period.currentPeriodEnd }
         : {}),
     },
   });
 }
 
-async function revertToFreePlan(orgId: string): Promise<void> {
+async function revertToFreePlan(
+  orgId: string,
+  period?: { currentPeriodStart?: Date; currentPeriodEnd?: Date },
+): Promise<void> {
   const limits = resolvePlanEntitlements("free_user");
   await prisma.organization.update({
     where: { id: orgId },
@@ -178,6 +188,14 @@ async function revertToFreePlan(orgId: string): Promise<void> {
       eventLimit: limits.eventLimit,
       clerkPlanSlug: "free_user",
       clerkSubscriptionId: null,
+      ...(period?.currentPeriodStart &&
+      isValidBillingPeriodDate(period.currentPeriodStart)
+        ? { currentPeriodStart: period.currentPeriodStart }
+        : {}),
+      ...(period?.currentPeriodEnd &&
+      isValidBillingPeriodDate(period.currentPeriodEnd)
+        ? { currentPeriodEnd: period.currentPeriodEnd }
+        : {}),
     },
   });
 }
@@ -234,23 +252,23 @@ export async function syncOrganizationBillingFromClerk(
 
   if (sub?.id) {
     const status = sub.status?.toLowerCase();
+    const period = periodFieldsFromSource(sub);
+
     if (status === "canceled" || status === "ended") {
-      await revertToFreePlan(orgId);
+      await revertToFreePlan(orgId, period);
       return;
     }
 
-    const slug = pickActivePlanSlugFromItems(subscriptionItems(sub));
+    const slug = resolvePaidPlanSlug(sub, sessionClaims);
     if (!slug || isFreeClerkPlanSlug(slug)) {
-      await revertToFreePlan(orgId);
+      await revertToFreePlan(
+        orgId,
+        periodFieldsFromSource(sub, { preferPaidPlan: false }),
+      );
       return;
     }
 
-    await applyPaidPlan(
-      orgId,
-      slug,
-      sub.id,
-      periodDatesFromPayload(sub),
-    );
+    await applyPaidPlan(orgId, slug, sub.id, period);
     return;
   }
 
@@ -279,22 +297,26 @@ export async function applyClerkBillingEvent(evt: WebhookEvent): Promise<void> {
       const slug = data.plan?.slug;
       if (!slug) return;
 
+      const period = periodFieldsFromSource(data, {
+        preferPaidPlan: !isFreeClerkPlanSlug(slug),
+      });
+
       const status = data.status?.toLowerCase();
       if (
         status === "canceled" ||
         status === "ended" ||
         status === "expired"
       ) {
-        await revertToFreePlan(orgId);
+        await revertToFreePlan(orgId, period);
         return;
       }
 
       if (isFreeClerkPlanSlug(slug)) {
-        await revertToFreePlan(orgId);
+        await revertToFreePlan(orgId, period);
         return;
       }
 
-      await applyPaidPlan(orgId, slug, null);
+      await applyPaidPlan(orgId, slug, null, period);
       return;
     }
 
@@ -310,7 +332,10 @@ export async function applyClerkBillingEvent(evt: WebhookEvent): Promise<void> {
     if (!slug) return;
 
     if (isFreeClerkPlanSlug(slug)) {
-      await revertToFreePlan(orgId);
+      await revertToFreePlan(
+        orgId,
+        periodFieldsFromSource(data, { preferPaidPlan: false }),
+      );
       return;
     }
 
@@ -318,7 +343,7 @@ export async function applyClerkBillingEvent(evt: WebhookEvent): Promise<void> {
       orgId,
       slug,
       data.id ?? null,
-      periodDatesFromPayload(data),
+      periodFieldsFromSource(data),
     );
     return;
   }
@@ -335,6 +360,9 @@ export async function applyClerkBillingEvent(evt: WebhookEvent): Promise<void> {
     const orgId = await organizationIdForClerkUser(clerkUserId);
     if (!orgId) return;
 
-    await revertToFreePlan(orgId);
+    await revertToFreePlan(
+      orgId,
+      periodFieldsFromSource(data, { preferPaidPlan: false }),
+    );
   }
 }

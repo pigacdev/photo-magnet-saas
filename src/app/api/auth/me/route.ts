@@ -1,6 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { ensureSellerUser } from "@/lib/clerkUserSync";
+import { ensureSellerUser, ensureSellerOrganization } from "@/lib/clerkUserSync";
 import { syncOrganizationBillingFromClerk } from "@/lib/clerkBillingSync";
 import { prisma } from "@/lib/prisma";
 import { buildOrganizationUsage } from "../../../../../server/src/lib/organizationUsage";
@@ -60,6 +60,8 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 401 });
     }
+
+    await ensureSellerOrganization(user.id);
 
     try {
       await syncOrganizationBillingFromClerk(
