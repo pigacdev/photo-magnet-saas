@@ -13,6 +13,10 @@ import {
 import { hasUnlimitedEvents } from "@/lib/planCatalog";
 import { getEventUsageLevel } from "@/lib/planUsage";
 import { EventLimitReachedNotice } from "@/components/dashboard/DashboardCenteredNotice";
+import {
+  toDatetimeLocalValue,
+  validateNewEventSchedule,
+} from "@/lib/eventSchedule";
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -35,6 +39,9 @@ export default function NewEventPage() {
   const [endDate, setEndDate] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const minScheduleDate = toDatetimeLocalValue(new Date());
+  const minEndDate =
+    startDate && startDate > minScheduleDate ? startDate : minScheduleDate;
 
   const eventLimitReached =
     usage != null && getEventUsageLevel(usage) === "reached";
@@ -53,8 +60,12 @@ export default function NewEventPage() {
       return;
     }
 
-    if (new Date(startDate) >= new Date(endDate)) {
-      setError("Start date must be before end date");
+    const scheduleValidation = validateNewEventSchedule(
+      new Date(startDate),
+      new Date(endDate),
+    );
+    if (!scheduleValidation.ok) {
+      setError(scheduleValidation.error);
       return;
     }
 
@@ -139,6 +150,7 @@ export default function NewEventPage() {
               id="startDate"
               type="datetime-local"
               required
+              min={minScheduleDate}
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
@@ -152,6 +164,7 @@ export default function NewEventPage() {
               id="endDate"
               type="datetime-local"
               required
+              min={minEndDate}
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"

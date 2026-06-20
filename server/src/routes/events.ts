@@ -1,7 +1,11 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { normalizeBrandTextInput } from "../lib/brandTextForOrder";
-import { enrichEvent, isEventConfigurationComplete } from "../lib/event";
+import {
+  enrichEvent,
+  isEventConfigurationComplete,
+  validateNewEventSchedule,
+} from "../lib/event";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
 import {
   parseNotificationEmailInput,
@@ -94,8 +98,9 @@ eventsRouter.post("/", async (req, res) => {
     return;
   }
 
-  if (start >= end) {
-    res.status(400).json({ error: "Start date must be before end date" });
+  const scheduleValidation = validateNewEventSchedule(start, end);
+  if (!scheduleValidation.ok) {
+    res.status(400).json({ error: scheduleValidation.error });
     return;
   }
 

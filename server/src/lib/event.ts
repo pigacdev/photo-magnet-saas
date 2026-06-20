@@ -30,6 +30,23 @@ export function enrichEvent(event: EventRecord) {
   };
 }
 
+export function validateNewEventSchedule(
+  start: Date,
+  end: Date,
+  now: Date = new Date(),
+): { ok: true } | { ok: false; error: string } {
+  if (start >= end) {
+    return { ok: false, error: "Start date must be before end date" };
+  }
+  if (start < now) {
+    return { ok: false, error: "Start date cannot be in the past" };
+  }
+  if (end <= now) {
+    return { ok: false, error: "End date must be in the future" };
+  }
+  return { ok: true };
+}
+
 export function getEventConfigurationIssues(
   shapeCount: number,
   pricingCount: number,
