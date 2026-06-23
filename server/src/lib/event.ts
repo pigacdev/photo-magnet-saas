@@ -1,3 +1,5 @@
+import { getEventMediaExportSchedule } from "./mediaRetention";
+
 type EventRecord = {
   isActive: boolean;
   startDate: Date;
@@ -24,9 +26,15 @@ export function isEventOpen(event: EventRecord): boolean {
 }
 
 export function enrichEvent(event: EventRecord) {
-  return {
+  const status = getEventStatus(event);
+  const base = {
     isOpen: isEventOpen(event),
-    status: getEventStatus(event),
+    status,
+  };
+  if (status !== "ended") return base;
+  return {
+    ...base,
+    ...getEventMediaExportSchedule({ endDate: event.endDate }),
   };
 }
 

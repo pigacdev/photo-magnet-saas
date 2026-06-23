@@ -108,3 +108,35 @@ export function isEventMediaExpired(
     event.endDate.getTime() + EVENT_MEDIA_RETENTION_HOURS_AFTER_END * MS_PER_HOUR;
   return now.getTime() >= cutoffMs;
 }
+
+export type EventMediaExportSchedule = {
+  mediaDeletionAt: string;
+  mediaExportAvailable: boolean;
+  mediaDeletionCountdownSeconds: number | null;
+};
+
+/** Retention window for ended-event ZIP export (all plans; not gated by analytics). */
+export function getEventMediaExportSchedule(
+  event: EventForMediaRetention,
+  now: Date = new Date(),
+): EventMediaExportSchedule {
+  const mediaDeletionAt = new Date(
+    event.endDate.getTime() + EVENT_MEDIA_RETENTION_HOURS_AFTER_END * MS_PER_HOUR,
+  );
+  const ended = now.getTime() > event.endDate.getTime();
+  const expired = now.getTime() >= mediaDeletionAt.getTime();
+  const mediaExportAvailable = ended && !expired;
+  let mediaDeletionCountdownSeconds: number | null = null;
+  if (mediaExportAvailable) {
+    mediaDeletionCountdownSeconds = Math.floor(
+      (mediaDeletionAt.getTime() - now.getTime()) / 1000,
+    );
+  } else if (ended && expired) {
+    mediaDeletionCountdownSeconds = 0;
+  }
+  return {
+    mediaDeletionAt: mediaDeletionAt.toISOString(),
+    mediaExportAvailable,
+    mediaDeletionCountdownSeconds,
+  };
+}

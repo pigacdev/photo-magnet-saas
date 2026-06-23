@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { api } from "@/lib/api";
+import { api, apiDownload } from "@/lib/api";
 import {
   getCachedOrganizationUsage,
   getMe,
@@ -23,6 +23,7 @@ import {
 } from "@/lib/auth";
 import { usageHasFeature } from "@/lib/planFeatures";
 import { DashboardCenteredNotice } from "@/components/dashboard/DashboardCenteredNotice";
+import { EventArchiveDownloadModal } from "@/components/dashboard/EventArchiveDownloadModal";
 import { CustomerLinkBanner } from "@/components/dashboard/CustomerLinkBanner";
 import { EventConfigurationForm } from "@/components/dashboard/EventConfigurationForm";
 import { useUnsavedChangesConfirm } from "@/components/dashboard/UnsavedChangesProvider";
@@ -59,6 +60,9 @@ type Event = {
   status: "upcoming" | "active" | "ended" | "inactive";
   configurationComplete?: boolean;
   maxMagnetsPerOrder: number | null;
+  mediaDeletionAt?: string;
+  mediaExportAvailable?: boolean;
+  mediaDeletionCountdownSeconds?: number | null;
   shapes: AllowedShape[];
   pricing: PricingRule[];
 };
@@ -467,6 +471,7 @@ export default function EventDetailPage() {
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [configDirty, setConfigDirty] = useState(false);
   const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
   const { confirmUnsavedChanges } = useUnsavedChangesConfirm();
@@ -559,7 +564,7 @@ export default function EventDetailPage() {
     if (!eventId || !event) return;
     if (analytics?.event.eventId === eventId) return;
     if (event.status === "ended") {
-      void loadAnalytics();
+      if (canEventAnalytics) void loadAnalytics();
       return;
     }
     if (activeTab === "analytics" && canEventAnalytics) {
@@ -571,38 +576,26 @@ export default function EventDetailPage() {
     activeTab,
     loadAnalytics,
     analytics?.event.eventId,
+    canEventAnalytics,
   ]);
 
   useEffect(() => {
-    if (!analytics?.event.isEnded) {
+    if (!isEndedEvent || !event?.mediaDeletionAt) {
       setCountdownSeconds(null);
       return;
     }
-    const raw = analytics.event.mediaDeletionCountdownSeconds;
-    const clamped = raw == null ? 0 : Math.max(0, raw);
-    setCountdownSeconds(clamped);
-    if (clamped <= 0) return;
 
-    const id = window.setInterval(() => {
-      setCountdownSeconds((prev) => {
-        if (prev == null || prev <= 0) {
-          window.clearInterval(id);
-          return 0;
-        }
-        const next = Math.max(0, prev - 1);
-        if (next <= 0) {
-          window.clearInterval(id);
-          return 0;
-        }
-        return next;
-      });
-    }, 1000);
+    const tick = () => {
+      const remaining = Math.floor(
+        (new Date(event.mediaDeletionAt!).getTime() - Date.now()) / 1000,
+      );
+      setCountdownSeconds(Math.max(0, remaining));
+    };
 
+    tick();
+    const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [
-    analytics?.event.isEnded,
-    analytics?.event.mediaDeletionCountdownSeconds,
-  ]);
+  }, [isEndedEvent, event?.mediaDeletionAt]);
 
   async function handleToggleActive() {
     if (!event) return;
@@ -619,58 +612,23 @@ export default function EventDetailPage() {
   }
 
   async function downloadEventArchive() {
-    if (!eventId) return;
-    if (
-      analytics?.event.isEnded &&
-      countdownSeconds != null &&
-      countdownSeconds <= 0
-    ) {
-      return;
-    }
-    const confirmed = window.confirm(
-      "This archive contains event order media currently still available. Media may be deleted after the scheduled cleanup time.",
-    );
-    if (!confirmed) return;
+    if (!eventId || event?.mediaExportAvailable === false) return;
 
     setExportLoading(true);
     setExportError(null);
     try {
-      const res = await fetch(
+      const { blob, filename } = await apiDownload(
         `/api/events/${encodeURIComponent(eventId)}/export.zip`,
-        {
-          credentials: "include",
-          cache: "no-store",
-        },
       );
-
-      if (!res.ok) {
-        let msg = "Could not download archive.";
-        try {
-          const ct = res.headers.get("Content-Type") ?? "";
-          if (ct.includes("application/json")) {
-            const j = (await res.json()) as { error?: string };
-            if (typeof j.error === "string") msg = j.error;
-          }
-        } catch {
-          /* keep default */
-        }
-        throw new Error(msg);
-      }
-
-      const blob = await res.blob();
-      let filename = "event-export.zip";
-      const cd = res.headers.get("Content-Disposition");
-      const m = /filename="([^"]+)"/i.exec(cd ?? "");
-      if (m?.[1]) filename = m[1];
-
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = filename;
+      a.download = filename ?? "event-export.zip";
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      setArchiveConfirmOpen(false);
     } catch (e) {
       setExportError(
         e instanceof Error ? e.message : "Could not download archive.",
@@ -678,6 +636,12 @@ export default function EventDetailPage() {
     } finally {
       setExportLoading(false);
     }
+  }
+
+  function openArchiveDownloadConfirm() {
+    if (!eventId || event?.mediaExportAvailable === false) return;
+    setExportError(null);
+    setArchiveConfirmOpen(true);
   }
 
   if (loading) {
@@ -737,14 +701,14 @@ export default function EventDetailPage() {
   );
 
   if (isEndedEvent) {
-    const delAt = analytics?.event.mediaDeletionAt;
-    const retentionReady = analytics && !analyticsLoading;
-    const countdownKnown = countdownSeconds != null;
+    const delAt = event.mediaDeletionAt;
+    const exportArchiveBlocked =
+      event.mediaExportAvailable === false || countdownSeconds === 0;
     const showCountdown =
-      retentionReady && countdownKnown && countdownSeconds > 0;
-    const showCleanupExpired =
-      retentionReady && delAt && countdownKnown && countdownSeconds <= 0;
-    const exportArchiveBlocked = showCleanupExpired;
+      !exportArchiveBlocked &&
+      countdownSeconds != null &&
+      countdownSeconds > 0;
+    const showCleanupExpired = exportArchiveBlocked;
 
     return (
       <div className="dashboard-page">
@@ -796,12 +760,6 @@ export default function EventDetailPage() {
               <span className="font-semibold">Scheduled media deletion: </span>
               <span className="tabular-nums">{formatDateShort(delAt)}</span>
             </p>
-          ) : analyticsLoading ? (
-            <p className="mt-4 text-sm text-amber-900">Loading retention schedule…</p>
-          ) : analyticsError ? (
-            <p className="mt-4 text-sm text-amber-900">
-              Could not load retention schedule. You can still try to download; the server enforces the deadline.
-            </p>
           ) : null}
           {showCountdown ? (
             <p className="mt-3 text-sm font-medium text-amber-950">
@@ -830,7 +788,7 @@ export default function EventDetailPage() {
               <button
                 type="button"
                 disabled={exportLoading}
-                onClick={() => void downloadEventArchive()}
+                onClick={openArchiveDownloadConfirm}
                 className="mt-4 min-h-[44px] rounded-lg bg-[#111827] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f2937] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {exportLoading ? "Preparing download…" : "Download event archive"}
@@ -849,6 +807,15 @@ export default function EventDetailPage() {
         </div>
 
         {analyticsBlock}
+
+        <EventArchiveDownloadModal
+          open={archiveConfirmOpen}
+          loading={exportLoading}
+          onClose={() => {
+            if (!exportLoading) setArchiveConfirmOpen(false);
+          }}
+          onConfirm={() => void downloadEventArchive()}
+        />
       </div>
     );
   }
