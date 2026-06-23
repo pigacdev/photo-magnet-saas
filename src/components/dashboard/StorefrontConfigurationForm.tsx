@@ -5,7 +5,8 @@ import { api } from "@/lib/api";
 import { getEventConfigurationIssues } from "@/lib/eventConfiguration";
 import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 import {
-  SHAPE_PRESETS,
+  getShapePresets,
+  SHAPE_PRESET_VALUES,
   shapePresetKey,
   shapeRecordKey,
 } from "@/lib/shapePresets";
@@ -18,7 +19,7 @@ import {
 } from "@/components/PricingEditor";
 import { ShareLinkCard } from "@/components/dashboard/ShareLinkCard";
 import Link from "next/link";
-import { getCachedOrganizationUsage } from "@/lib/auth";
+import { useOrganizationUsage } from "@/hooks/useOrganizationUsage";
 import { FREE_PRINT_BRAND_TEXT } from "@/lib/planCatalog";
 import { usageHasFeature } from "@/lib/planFeatures";
 import { getPlanUsageLevel } from "@/lib/planUsage";
@@ -108,10 +109,10 @@ async function syncStorefrontShapes(
   const toRemove = currentShapes.filter(
     (s) => !selectedKeys.has(shapeRecordKey(s)),
   );
-  const toAdd = SHAPE_PRESETS.filter(
-    (p) =>
-      selectedKeys.has(shapePresetKey(p.value)) &&
-      !currentByKey.has(shapePresetKey(p.value)),
+  const toAdd = SHAPE_PRESET_VALUES.filter(
+    (value) =>
+      selectedKeys.has(shapePresetKey(value)) &&
+      !currentByKey.has(shapePresetKey(value)),
   );
 
   for (const shape of toRemove) {
@@ -120,10 +121,10 @@ async function syncStorefrontShapes(
     });
   }
 
-  for (const preset of toAdd) {
+  for (const value of toAdd) {
     await api(`/api/storefronts/${storefrontId}/shapes`, {
       method: "POST",
-      body: preset.value,
+      body: value,
     });
   }
 }
@@ -135,8 +136,12 @@ export function StorefrontConfigurationForm({
   onDirtyChange,
 }: StorefrontConfigurationFormProps) {
   const pricingRef = useRef<PricingEditorHandle>(null);
-  const usage = getCachedOrganizationUsage();
+  const usage = useOrganizationUsage();
   const orgCurrency = usage?.currency ?? "EUR";
+  const shapePresets = useMemo(
+    () => getShapePresets(usage?.sizeUnit ?? "mm"),
+    [usage?.sizeUnit],
+  );
   const canCustomBrand = usageHasFeature(usage, "custom_branding");
   const canEmailNotif = usageHasFeature(usage, "email_notifications");
 
@@ -514,7 +519,7 @@ export function StorefrontConfigurationForm({
               All four magnet sizes are available on every plan.
             </p>
             <fieldset className="mt-4 space-y-2">
-              {SHAPE_PRESETS.map((preset) => {
+              {shapePresets.map((preset) => {
                 const key = shapePresetKey(preset.value);
                 const checked = selectedShapeKeys.has(key);
                 return (

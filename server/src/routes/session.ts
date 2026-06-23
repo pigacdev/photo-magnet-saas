@@ -24,6 +24,7 @@ import {
 } from "../lib/sessionContextValidation";
 import { runStaleSessionCheckoutCleanup } from "../lib/sessionCheckoutCleanup";
 import { storedPickupAddressFromJson } from "../lib/parsePickupAddressInput";
+import { getDisplayPreferencesForOrderContext } from "../lib/organizationDisplayPreferences";
 import { sessionImagesRouter } from "./sessionImages";
 import { sessionCheckoutRouter } from "./sessionCheckout";
 
@@ -371,6 +372,10 @@ sessionRouter.get("/", async (req, res) => {
     shapes: shapes.map(serializeCatalogShape),
     pricing: pricing.map(serializeCatalogPricing),
     storefront,
+    displayPreferences: await getDisplayPreferencesForOrderContext(
+      touched.contextType,
+      touched.contextId,
+    ),
   });
 });
 

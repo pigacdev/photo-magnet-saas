@@ -2,6 +2,11 @@ import type { AllowedShape } from "../../../src/generated/prisma/client";
 import { EVENT_MEDIA_RETENTION_HOURS_AFTER_END } from "../config/mediaRetention";
 import { isOrderSettled } from "./orderSettlement";
 import { getOrganizationCurrency } from "./organizationCurrency";
+import {
+  getOrganizationDisplayPreferences,
+  type SizeUnit,
+} from "./organizationDisplayPreferences";
+import { formatShapeLabel } from "./magnetSize";
 import { prisma } from "./prisma";
 
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -26,8 +31,11 @@ function customerIdentityKey(o: OrderRow): string {
   return `order:${o.id}`;
 }
 
-export function shapeLabel(shape: Pick<AllowedShape, "shapeType" | "widthMm" | "heightMm">): string {
-  return `${shape.shapeType} ${shape.widthMm}×${shape.heightMm} mm`;
+export function shapeLabel(
+  shape: Pick<AllowedShape, "shapeType" | "widthMm" | "heightMm">,
+  unit?: SizeUnit,
+): string {
+  return formatShapeLabel(shape, unit);
 }
 
 /** UTC calendar date YYYY-MM-DD. */
@@ -110,12 +118,13 @@ export type EventAnalyticsResponse = {
 
 function getShapeAggsMap(
   allowedShapes: AllowedShape[],
+  sizeUnit: SizeUnit,
 ): Map<string, ShapeAgg> {
   const map = new Map<string, ShapeAgg>();
   for (const s of allowedShapes) {
     map.set(s.id, {
       shapeId: s.id,
-      shapeName: shapeLabel(s),
+      shapeName: shapeLabel(s, sizeUnit),
       orderIds: new Set(),
       images: 0,
       copies: 0,
@@ -161,6 +170,7 @@ export async function getEventAnalyticsForSeller(
 
   const orgCurrency =
     (await getOrganizationCurrency(sellerUserId)) ?? "EUR";
+  const { sizeUnit } = await getOrganizationDisplayPreferences(sellerUserId);
 
   const allowedShapes = await prisma.allowedShape.findMany({
     where: { contextType: "EVENT", contextId: eventId },
@@ -208,7 +218,7 @@ export async function getEventAnalyticsForSeller(
   let totalCopies = 0;
   let currency = orgCurrency;
 
-  const shapeMap = getShapeAggsMap(allowedShapes);
+  const shapeMap = getShapeAggsMap(allowedShapes, sizeUnit);
 
   const paymentBuckets: Record<string, PaymentAgg> = {
     awaiting_payment: {

@@ -21,6 +21,7 @@ import {
   getMe,
   subscribeOrganizationUsage,
 } from "@/lib/auth";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/dateFormat";
 import { usageHasFeature } from "@/lib/planFeatures";
 import { DashboardCenteredNotice } from "@/components/dashboard/DashboardCenteredNotice";
 import { EventArchiveDownloadModal } from "@/components/dashboard/EventArchiveDownloadModal";
@@ -128,23 +129,6 @@ const STATUS_BADGE: Record<Event["status"], { label: string; className: string }
   },
 };
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatDateShort(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
 function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
@@ -189,6 +173,11 @@ function KpiCard({
   );
 }
 
+function ymdToLocalDate(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
   const { metrics, salesByShape, paymentBreakdown, ordersByDay } = data;
   const currency = metrics.currency || "EUR";
@@ -196,14 +185,15 @@ function EventAnalyticsPanel({ data }: { data: EventAnalytics }) {
   const tick = { fontSize: 11, fill: chartTheme.tick };
   const tickSm = { fontSize: 10, fill: chartTheme.tick };
   const tooltipStyle = chartTooltipStyle(chartTheme);
+  const dateFormat = getCachedOrganizationUsage()?.dateFormat;
 
   const ordersTimeData = useMemo(
     () =>
       ordersByDay.map((row) => ({
         ...row,
-        dateLabel: row.date,
+        dateLabel: formatDisplayDate(ymdToLocalDate(row.date), dateFormat),
       })),
-    [ordersByDay],
+    [ordersByDay, dateFormat],
   );
 
   const shapeChartData = useMemo(
@@ -738,8 +728,8 @@ export default function EventDetailPage() {
         <p className="text-sm text-muted-foreground">
           <span className="font-medium text-muted-foreground">This event has ended. </span>
           <span className="font-medium text-muted-foreground">Event ran: </span>
-          {formatDateShort(analytics?.event.startsAt ?? event.startDate)} —{" "}
-          {formatDateShort(analytics?.event.endsAt ?? event.endDate)}
+          {formatDisplayDateTime(analytics?.event.startsAt ?? event.startDate, usage?.dateFormat)} —{" "}
+          {formatDisplayDateTime(analytics?.event.endsAt ?? event.endDate, usage?.dateFormat)}
         </p>
 
         <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
@@ -758,7 +748,7 @@ export default function EventDetailPage() {
           {delAt ? (
             <p className="mt-4 text-sm text-amber-950">
               <span className="font-semibold">Scheduled media deletion: </span>
-              <span className="tabular-nums">{formatDateShort(delAt)}</span>
+              <span className="tabular-nums">{formatDisplayDateTime(delAt, usage?.dateFormat)}</span>
             </p>
           ) : null}
           {showCountdown ? (

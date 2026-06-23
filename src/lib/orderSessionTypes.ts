@@ -1,4 +1,9 @@
 /** Mirrors GET /api/session JSON (client-side). */
+export type DisplayPreferences = {
+  dateFormat: "DMY" | "MDY" | "YMD";
+  sizeUnit: "mm" | "cm" | "in";
+};
+
 export type OrderSessionPayload = {
   id: string;
   contextType: "event" | "storefront";
@@ -42,6 +47,7 @@ export type GetSessionResponse = {
   session: OrderSessionPayload | null;
   shapes: CatalogShape[];
   pricing: CatalogPricing[];
+  displayPreferences?: DisplayPreferences;
   storefront?: {
     pickupAddress: {
       street: string;

@@ -1,6 +1,8 @@
 "use client";
 
 import type { OrganizationUsage, User } from "@/lib/auth";
+import { getDisplayPreferences } from "@/lib/auth";
+import { formatDisplayDate } from "@/lib/dateFormat";
 import { planDisplayName } from "@/lib/planCatalog";
 import {
   eventUsagePercentage,
@@ -14,11 +16,7 @@ import {
 import { DashboardUserAvatar } from "./DashboardUserAvatar";
 
 function formatPeriodDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatDisplayDate(iso, getDisplayPreferences().dateFormat);
 }
 
 export type UserProfileSummaryProps = {

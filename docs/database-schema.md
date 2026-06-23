@@ -35,6 +35,8 @@ Seller tenant (1:1 with User; `id` = `user.id`). Billing limits + magnet order c
 - clerk_plan_slug (nullable)
 - **currency** (ISO 4217 alpha-3, nullable until onboarding — magnet pricing/analytics only; independent of Clerk subscription EUR billing)
 - **initial_setup_at** (nullable — set when currency first saved)
+- **date_format** (`DMY` | `MDY` | `YMD`, nullable — UI display only; does not affect stored dates)
+- **size_unit** (`mm` | `cm` | `in`, nullable — UI display only; shape dimensions remain stored in mm)
 - stripe_customer_id, clerk_subscription_id (nullable)
 
 ---

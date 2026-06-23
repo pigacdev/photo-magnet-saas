@@ -29,6 +29,10 @@ model Organization {
   currency             String?
   /// Set when currency is first saved in onboarding or account settings.
   initialSetupAt       DateTime?
+  /// UI date display preset: DMY | MDY | YMD (display only).
+  dateFormat           String?
+  /// UI magnet size unit: mm | cm | in (display only; storage stays mm).
+  sizeUnit             String?
   orders               Order[]
   user                 User     @relation(fields: [id], references: [id], onDelete: Cascade)
 }

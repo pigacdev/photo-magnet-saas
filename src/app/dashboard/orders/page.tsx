@@ -33,6 +33,7 @@ import {
   getMe,
   subscribeOrganizationUsage,
 } from "@/lib/auth";
+import { formatDisplayDateTime } from "@/lib/dateFormat";
 import { usageHasFeature } from "@/lib/planFeatures";
 
 export type SellerOrderListItem = {
@@ -427,10 +428,7 @@ function OrdersListContent() {
   }
 
   function formatDate(iso: string) {
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
+    return formatDisplayDateTime(iso, usage?.dateFormat);
   }
 
   const exportQueryString = useMemo(() => {

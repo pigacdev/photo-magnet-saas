@@ -9,9 +9,11 @@ import { OrderStepHeader } from "@/components/order/OrderStepHeader";
 import { orderBtnPrimary, orderLoadingScreen } from "@/components/order/orderUi";
 import { getSafeOrderReturnTo } from "@/lib/orderReturnTo";
 import { bestBundleId, shapeLabel } from "@/lib/orderSelectionUi";
+import { DEFAULT_SIZE_UNIT } from "@/lib/magnetSize";
 import type {
   CatalogPricing,
   CatalogShape,
+  DisplayPreferences,
   GetSessionResponse,
   OrderSessionPayload,
 } from "@/lib/orderSessionTypes";
@@ -53,6 +55,11 @@ export default function OrderPage() {
   const [session, setSession] = useState<OrderSessionPayload | null>(null);
   const [shapes, setShapes] = useState<CatalogShape[]>([]);
   const [pricing, setPricing] = useState<CatalogPricing[]>([]);
+  const [displayPreferences, setDisplayPreferences] =
+    useState<DisplayPreferences>({
+      dateFormat: "DMY",
+      sizeUnit: DEFAULT_SIZE_UNIT,
+    });
   const [loading, setLoading] = useState(true);
   const [entryHref, setEntryHref] = useState("/");
   const [patchError, setPatchError] = useState("");
@@ -158,6 +165,9 @@ export default function OrderPage() {
         setSession(d.session);
         setShapes(d.shapes);
         setPricing(d.pricing);
+        if (d.displayPreferences) {
+          setDisplayPreferences(d.displayPreferences);
+        }
       })
       .catch(() => {
         afterSessionLoss();
@@ -269,7 +279,7 @@ export default function OrderPage() {
                   }`}
                 >
                   <span className="block text-sm font-medium leading-snug text-foreground">
-                    {shapeLabel(s)}
+                    {shapeLabel(s, displayPreferences.sizeUnit)}
                   </span>
                 </button>
               );

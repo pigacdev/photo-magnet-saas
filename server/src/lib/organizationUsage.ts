@@ -2,6 +2,14 @@ import type { Plan } from "../../../src/generated/prisma/client";
 import { prisma } from "./prisma";
 import { planDisplayName } from "./planCatalog";
 import { reconcileOrganizationEventUsage } from "./saas";
+import {
+  DEFAULT_DATE_FORMAT,
+  DEFAULT_SIZE_UNIT,
+  normalizeDateFormat,
+  normalizeSizeUnit,
+  type DateFormat,
+  type SizeUnit,
+} from "./organizationDisplayPreferences";
 
 export type OrganizationUsagePayload = {
   plan: Plan;
@@ -14,6 +22,8 @@ export type OrganizationUsagePayload = {
   clerkPlanSlug?: string | null;
   currency: string | null;
   initialSetupAt: string | null;
+  dateFormat: DateFormat;
+  sizeUnit: SizeUnit;
 };
 
 const orgSelect = {
@@ -26,6 +36,8 @@ const orgSelect = {
   clerkPlanSlug: true,
   currency: true,
   initialSetupAt: true,
+  dateFormat: true,
+  sizeUnit: true,
 } as const;
 
 function baseUsage(org: {
@@ -38,6 +50,8 @@ function baseUsage(org: {
   clerkPlanSlug?: string | null;
   currency: string | null;
   initialSetupAt: Date | null;
+  dateFormat: string | null;
+  sizeUnit: string | null;
 }): OrganizationUsagePayload {
   return {
     plan: org.plan,
@@ -50,6 +64,8 @@ function baseUsage(org: {
     clerkPlanSlug: org.clerkPlanSlug,
     currency: org.currency,
     initialSetupAt: org.initialSetupAt?.toISOString() ?? null,
+    dateFormat: normalizeDateFormat(org.dateFormat) ?? DEFAULT_DATE_FORMAT,
+    sizeUnit: normalizeSizeUnit(org.sizeUnit) ?? DEFAULT_SIZE_UNIT,
   };
 }
 

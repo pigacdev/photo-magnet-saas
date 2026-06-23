@@ -16,6 +16,7 @@ import {
   getMe,
   subscribeOrganizationUsage,
 } from "@/lib/auth";
+import { formatDisplayDate } from "@/lib/dateFormat";
 import { getEventUsageLevel } from "@/lib/planUsage";
 import { EventLimitReachedNotice } from "@/components/dashboard/DashboardCenteredNotice";
 import {
@@ -144,14 +145,6 @@ function isoToDateInputValue(iso: string | null): string {
   const mo = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${mo}-${day}`;
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 function EventsListContent() {
@@ -613,10 +606,10 @@ function EventsListContent() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          {formatDate(event.startDate)}
+                          {formatDisplayDate(event.startDate, usage?.dateFormat)}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          {formatDate(event.endDate)}
+                          {formatDisplayDate(event.endDate, usage?.dateFormat)}
                         </td>
                       </tr>
                     );

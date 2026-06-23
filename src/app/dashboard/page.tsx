@@ -15,8 +15,10 @@ import {
 import { api } from "@/lib/api";
 import {
   getCachedOrganizationUsage,
+  getDisplayPreferences,
   subscribeOrganizationUsage,
 } from "@/lib/auth";
+import { formatDisplayMonthDay } from "@/lib/dateFormat";
 import { PlanUsageAlertBanner } from "@/components/dashboard/PlanUsageAlertBanner";
 import { storefrontNavHref } from "@/components/dashboard/dashboardNav";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
@@ -185,12 +187,9 @@ function KpiCard({
   );
 }
 
-function formatAxisDate(ymd: string) {
+function ymdToLocalDate(ymd: string): Date {
   const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
+  return new Date(y, m - 1, d);
 }
 
 function DashboardTrendsChart({
@@ -209,11 +208,14 @@ function DashboardTrendsChart({
   showMonthToggle?: boolean;
 }) {
   const chartTheme = useChartTheme();
+  const dateFormat = getDisplayPreferences().dateFormat;
   const data: Array<Last7DayPoint | ByMonthPoint> =
     trendMode === "days" ? last7Days : byMonth;
   const xDataKey = trendMode === "days" ? "date" : "label";
   const formatX = (v: string) =>
-    trendMode === "days" ? formatAxisDate(String(v)) : String(v);
+    trendMode === "days"
+      ? formatDisplayMonthDay(ymdToLocalDate(String(v)), dateFormat)
+      : String(v);
   const title =
     trendMode === "days" ? "Last 7 days" : "By month";
   const subtitle =

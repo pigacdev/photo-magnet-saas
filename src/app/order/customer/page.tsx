@@ -26,6 +26,7 @@ import {
   type PostOrderFinalizeResponse,
 } from "@/lib/orderSessionTypes";
 import { orderProductLineLabel } from "@/lib/orderSelectionUi";
+import { DEFAULT_SIZE_UNIT, type SizeUnit } from "@/lib/magnetSize";
 import { readCheckoutImageCopies } from "@/lib/checkoutImageCopiesStorage";
 import { sortMagnetImagesByPosition } from "@/lib/magnetImageSort";
 import {
@@ -107,6 +108,7 @@ function CustomerPageInner() {
   const [sessionCtx, setSessionCtx] = useState<SessionCheckoutSummary | null>(
     null,
   );
+  const [sizeUnit, setSizeUnit] = useState<SizeUnit>(DEFAULT_SIZE_UNIT);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -234,6 +236,9 @@ function CustomerPageInner() {
           perItemSummary: isPer ? { totalMagnets, lineTotal } : null,
           bundleQuantity: isPer ? null : totalMagnets,
         });
+        if (sessionRes.displayPreferences?.sizeUnit) {
+          setSizeUnit(sessionRes.displayPreferences.sizeUnit);
+        }
         setStorefrontPickupAddress(
           sessionRes.storefront?.pickupAddress ?? null,
         );
@@ -715,7 +720,11 @@ function CustomerPageInner() {
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted-foreground">Product</dt>
                   <dd className="text-right font-medium text-foreground">
-                    {orderProductLineLabel(summaryShape, summaryShape.quantity)}
+                    {orderProductLineLabel(
+                      summaryShape,
+                      summaryShape.quantity,
+                      sizeUnit,
+                    )}
                   </dd>
                 </div>
               )}

@@ -7,7 +7,8 @@ import {
   useUnsavedChangesWarning,
 } from "@/hooks/useUnsavedChangesWarning";
 import {
-  SHAPE_PRESETS,
+  getShapePresets,
+  SHAPE_PRESET_VALUES,
   shapePresetKey,
   shapeRecordKey,
 } from "@/lib/shapePresets";
@@ -20,7 +21,8 @@ import {
 } from "@/components/PricingEditor";
 import { ShareLinkCard } from "@/components/dashboard/ShareLinkCard";
 import Link from "next/link";
-import { getCachedOrganizationUsage } from "@/lib/auth";
+import { useOrganizationUsage } from "@/hooks/useOrganizationUsage";
+import { formatDisplayDateTime } from "@/lib/dateFormat";
 import { FREE_PRINT_BRAND_TEXT } from "@/lib/planCatalog";
 import { usageHasFeature } from "@/lib/planFeatures";
 import { getPlanUsageLevel } from "@/lib/planUsage";
@@ -65,16 +67,6 @@ function shapeKeySetsEqual(a: Set<string>, b: Set<string>): boolean {
   return true;
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 async function syncEventShapes(
   eventId: string,
   currentShapes: AllowedShape[],
@@ -87,20 +79,20 @@ async function syncEventShapes(
   const toRemove = currentShapes.filter(
     (s) => !selectedKeys.has(shapeRecordKey(s)),
   );
-  const toAdd = SHAPE_PRESETS.filter(
-    (p) =>
-      selectedKeys.has(shapePresetKey(p.value)) &&
-      !currentByKey.has(shapePresetKey(p.value)),
+  const toAdd = SHAPE_PRESET_VALUES.filter(
+    (value) =>
+      selectedKeys.has(shapePresetKey(value)) &&
+      !currentByKey.has(shapePresetKey(value)),
   );
 
   for (const shape of toRemove) {
     await api(`/api/events/${eventId}/shapes/${shape.id}`, { method: "DELETE" });
   }
 
-  for (const preset of toAdd) {
+  for (const value of toAdd) {
     await api(`/api/events/${eventId}/shapes`, {
       method: "POST",
-      body: preset.value,
+      body: value,
     });
   }
 }
@@ -112,8 +104,12 @@ export function EventConfigurationForm({
   onDirtyChange,
 }: EventConfigurationFormProps) {
   const pricingRef = useRef<PricingEditorHandle>(null);
-  const usage = getCachedOrganizationUsage();
+  const usage = useOrganizationUsage();
   const orgCurrency = usage?.currency ?? "EUR";
+  const shapePresets = useMemo(
+    () => getShapePresets(usage?.sizeUnit ?? "mm"),
+    [usage?.sizeUnit],
+  );
   const canCustomBrand = usageHasFeature(usage, "custom_branding");
   const canEmailNotif = usageHasFeature(usage, "email_notifications");
 
@@ -280,13 +276,13 @@ export function EventConfigurationForm({
               <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Start
               </dt>
-              <dd className="mt-1 text-sm text-foreground">{formatDate(event.startDate)}</dd>
+              <dd className="mt-1 text-sm text-foreground">{formatDisplayDateTime(event.startDate, usage?.dateFormat)}</dd>
             </div>
             <div className="rounded-lg border border-border bg-surface px-4 py-3">
               <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 End
               </dt>
-              <dd className="mt-1 text-sm text-foreground">{formatDate(event.endDate)}</dd>
+              <dd className="mt-1 text-sm text-foreground">{formatDisplayDateTime(event.endDate, usage?.dateFormat)}</dd>
             </div>
           </dl>
         </section>
@@ -374,7 +370,7 @@ export function EventConfigurationForm({
             All four magnet sizes are available on every plan.
           </p>
           <fieldset className="mt-4 space-y-2">
-            {SHAPE_PRESETS.map((preset) => {
+            {shapePresets.map((preset) => {
               const key = shapePresetKey(preset.value);
               const checked = selectedShapeKeys.has(key);
               return (

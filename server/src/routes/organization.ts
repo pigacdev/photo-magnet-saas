@@ -1,6 +1,12 @@
 import { Router } from "express";
 import { CURRENCY_OPTIONS } from "../lib/currency";
 import {
+  DATE_FORMAT_OPTIONS,
+  getOrganizationDisplayPreferences,
+  patchOrganizationDisplayPreferences,
+  SIZE_UNIT_OPTIONS,
+} from "../lib/organizationDisplayPreferences";
+import {
   organizationHasCommittedOrders,
   patchOrganizationCurrency,
 } from "../lib/organizationCurrency";
@@ -13,7 +19,7 @@ organizationRouter.get("/settings", async (req, res) => {
 
   const org = await prisma.organization.findUnique({
     where: { id: userId },
-    select: { currency: true, initialSetupAt: true },
+    select: { currency: true, initialSetupAt: true, dateFormat: true, sizeUnit: true },
   });
 
   if (!org) {
@@ -23,6 +29,7 @@ organizationRouter.get("/settings", async (req, res) => {
 
   const hasOrders = await organizationHasCommittedOrders(userId);
   const currencyLocked = org.currency != null;
+  const displayPreferences = await getOrganizationDisplayPreferences(userId);
 
   res.json({
     currency: org.currency,
@@ -30,35 +37,75 @@ organizationRouter.get("/settings", async (req, res) => {
     currencyLocked,
     hasOrders,
     supportedCurrencies: CURRENCY_OPTIONS,
+    dateFormat: displayPreferences.dateFormat,
+    sizeUnit: displayPreferences.sizeUnit,
+    supportedDateFormats: DATE_FORMAT_OPTIONS,
+    supportedSizeUnits: SIZE_UNIT_OPTIONS,
   });
 });
 
 organizationRouter.patch("/settings", async (req, res) => {
   const userId = req.user!.userId;
-  const { currency: rawCurrency } = req.body as { currency?: unknown };
+  const body = req.body as {
+    currency?: unknown;
+    dateFormat?: unknown;
+    sizeUnit?: unknown;
+  };
 
-  if (typeof rawCurrency !== "string" || !rawCurrency.trim()) {
-    res.status(400).json({ error: "currency is required" });
+  const hasCurrency = body.currency !== undefined;
+  const hasDisplayPrefs =
+    body.dateFormat !== undefined || body.sizeUnit !== undefined;
+
+  if (!hasCurrency && !hasDisplayPrefs) {
+    res.status(400).json({
+      error: "At least one of currency, dateFormat, or sizeUnit is required",
+    });
     return;
   }
 
-  const result = await patchOrganizationCurrency(userId, rawCurrency);
-  if (!result.ok) {
-    res.status(result.status).json({ error: result.error });
-    return;
+  if (hasCurrency) {
+    if (typeof body.currency !== "string" || !body.currency.trim()) {
+      res.status(400).json({ error: "currency is required" });
+      return;
+    }
+
+    const currencyResult = await patchOrganizationCurrency(userId, body.currency);
+    if (!currencyResult.ok) {
+      res.status(currencyResult.status).json({ error: currencyResult.error });
+      return;
+    }
+  }
+
+  if (hasDisplayPrefs) {
+    const displayResult = await patchOrganizationDisplayPreferences(userId, {
+      dateFormat: body.dateFormat,
+      sizeUnit: body.sizeUnit,
+    });
+    if (!displayResult.ok) {
+      res.status(displayResult.status).json({ error: displayResult.error });
+      return;
+    }
   }
 
   const org = await prisma.organization.findUnique({
     where: { id: userId },
-    select: { currency: true, initialSetupAt: true },
+    select: {
+      currency: true,
+      initialSetupAt: true,
+      dateFormat: true,
+      sizeUnit: true,
+    },
   });
 
   const hasOrders = await organizationHasCommittedOrders(userId);
+  const displayPreferences = await getOrganizationDisplayPreferences(userId);
 
   res.json({
-    currency: org?.currency ?? result.currency,
+    currency: org?.currency ?? null,
     initialSetupAt: org?.initialSetupAt?.toISOString() ?? null,
-    currencyLocked: (org?.currency ?? result.currency) != null,
+    currencyLocked: org?.currency != null,
     hasOrders,
+    dateFormat: displayPreferences.dateFormat,
+    sizeUnit: displayPreferences.sizeUnit,
   });
 });

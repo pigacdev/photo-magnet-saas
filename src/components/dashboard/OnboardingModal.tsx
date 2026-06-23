@@ -1,20 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { invalidateAuthCache } from "@/lib/auth";
 import { CURRENCY_OPTIONS } from "@/lib/currency";
+import {
+  DATE_FORMAT_OPTIONS,
+  formatDisplayDate,
+  type DateFormat,
+} from "@/lib/dateFormat";
+import {
+  formatMagnetDimensions,
+  SIZE_UNIT_OPTIONS,
+  type SizeUnit,
+} from "@/lib/magnetSize";
 
 type OnboardingModalProps = {
   onCompleted: () => void;
 };
 
-const ONBOARDING_STEPS = [{ id: "currency" as const }] as const;
+const ONBOARDING_STEPS = [{ id: "setup" as const }] as const;
+
+const PREVIEW_DATE = new Date(2026, 5, 20);
 
 export function OnboardingModal({ onCompleted }: OnboardingModalProps) {
   const [currency, setCurrency] = useState("EUR");
+  const [dateFormat, setDateFormat] = useState<DateFormat>("DMY");
+  const [sizeUnit, setSizeUnit] = useState<SizeUnit>("mm");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const sizePreview = useMemo(
+    () => formatMagnetDimensions(50, 50, sizeUnit),
+    [sizeUnit],
+  );
+
+  const datePreview = useMemo(
+    () => formatDisplayDate(PREVIEW_DATE, dateFormat),
+    [dateFormat],
+  );
 
   useEffect(() => {
     function blockEscape(e: KeyboardEvent) {
@@ -39,12 +63,12 @@ export function OnboardingModal({ onCompleted }: OnboardingModalProps) {
     try {
       await api("/api/organization/settings", {
         method: "PATCH",
-        body: { currency },
+        body: { currency, dateFormat, sizeUnit },
       });
       invalidateAuthCache();
       onCompleted();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save currency");
+      setError(err instanceof Error ? err.message : "Could not save settings");
     } finally {
       setLoading(false);
     }
@@ -70,9 +94,9 @@ export function OnboardingModal({ onCompleted }: OnboardingModalProps) {
           Welcome to Magnetoo
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Choose the currency for your magnet business. It applies to event and
-          storefront pricing, orders, and analytics. Subscription billing stays
-          in EUR.
+          Set up your shop preferences. Currency applies to pricing, orders, and
+          analytics. Date format and size unit affect display only. Subscription
+          billing stays in EUR.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -99,6 +123,57 @@ export function OnboardingModal({ onCompleted }: OnboardingModalProps) {
             <p className="mt-1.5 text-xs text-muted-foreground">
               This choice is permanent and applies to all magnet pricing and
               analytics.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="onboarding-date-format"
+              className="block text-sm font-medium text-foreground"
+            >
+              Date format
+            </label>
+            <select
+              id="onboarding-date-format"
+              value={dateFormat}
+              onChange={(e) => setDateFormat(e.target.value as DateFormat)}
+              disabled={loading}
+              className="mt-1.5 block w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+            >
+              {DATE_FORMAT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Preview: {datePreview}. Shown in tables and detail views only.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="onboarding-size-unit"
+              className="block text-sm font-medium text-foreground"
+            >
+              Magnet size unit
+            </label>
+            <select
+              id="onboarding-size-unit"
+              value={sizeUnit}
+              onChange={(e) => setSizeUnit(e.target.value as SizeUnit)}
+              disabled={loading}
+              className="mt-1.5 block w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+            >
+              {SIZE_UNIT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Preview: {sizePreview}. Display only; sizes are stored in mm for
+              printing.
             </p>
           </div>
 

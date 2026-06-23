@@ -1,14 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { UserButton } from "@clerk/nextjs";
-import {
-  getCachedOrganizationUsage,
-  getCachedUser,
-  getMe,
-  subscribeOrganizationUsage,
-} from "@/lib/auth";
-import { UserProfileDetailsContent } from "@/components/auth/UserProfileDetailsContent";
 
 function MenuIcon({ children }: { children: ReactNode }) {
   return (
@@ -36,10 +29,19 @@ function SupportIcon() {
   );
 }
 
-function DetailsIcon() {
+function SettingsIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 15a3 3 0 100-6 3 3 0 000 6z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"
+      />
     </svg>
   );
 }
@@ -49,23 +51,6 @@ export type AppUserButtonProps = {
 };
 
 export function AppUserButton({ showAppLinks = false }: AppUserButtonProps) {
-  const [orderCurrency, setOrderCurrency] = useState<string | null>(
-    () => getCachedOrganizationUsage()?.currency ?? null,
-  );
-  const [accountId, setAccountId] = useState<string | null>(
-    () => getCachedUser()?.id ?? null,
-  );
-
-  useEffect(() => {
-    if (!getCachedUser()) {
-      void getMe();
-    }
-    return subscribeOrganizationUsage(() => {
-      setOrderCurrency(getCachedOrganizationUsage()?.currency ?? null);
-      setAccountId(getCachedUser()?.id ?? null);
-    });
-  }, []);
-
   return (
     <UserButton>
       {showAppLinks ? (
@@ -89,6 +74,15 @@ export function AppUserButton({ showAppLinks = false }: AppUserButtonProps) {
             }
             href="/dashboard/support"
           />
+          <UserButton.Link
+            label="Settings"
+            labelIcon={
+              <MenuIcon>
+                <SettingsIcon />
+              </MenuIcon>
+            }
+            href="/dashboard/settings"
+          />
           <UserButton.Action label="signOut" />
         </UserButton.MenuItems>
       ) : (
@@ -99,20 +93,6 @@ export function AppUserButton({ showAppLinks = false }: AppUserButtonProps) {
       )}
       <UserButton.UserProfilePage label="account" />
       <UserButton.UserProfilePage label="billing" />
-      <UserButton.UserProfilePage
-        label="Details"
-        url="details"
-        labelIcon={
-          <MenuIcon>
-            <DetailsIcon />
-          </MenuIcon>
-        }
-      >
-        <UserProfileDetailsContent
-          accountId={accountId}
-          currencyCode={orderCurrency}
-        />
-      </UserButton.UserProfilePage>
       <UserButton.UserProfilePage label="security" />
     </UserButton>
   );

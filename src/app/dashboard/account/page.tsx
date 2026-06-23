@@ -8,8 +8,6 @@ import {
   type User,
   type OrganizationUsage,
 } from "@/lib/auth";
-import { getCurrencyLabel } from "@/lib/currency";
-import { CopyableAccountId } from "@/components/dashboard/CopyableAccountId";
 import { UserProfileSummary } from "@/components/dashboard/UserProfileSummary";
 
 export default function AccountPage() {
@@ -61,26 +59,18 @@ export default function AccountPage() {
             <dt className="text-muted-foreground">Email</dt>
             <dd className="mt-0.5 font-medium text-foreground">{user.email}</dd>
           </div>
-          <CopyableAccountId accountId={user.id} variant="definition-list" />
           <div>
             <dt className="text-muted-foreground">Role</dt>
             <dd className="mt-0.5 font-medium text-foreground">
               {user.role === "ADMIN" ? "Admin" : "Staff"}
             </dd>
           </div>
-          {usage?.currency ? (
-            <div>
-              <dt className="text-muted-foreground">Order currency</dt>
-              <dd className="mt-0.5 font-medium text-foreground">
-                {getCurrencyLabel(usage.currency)}
-              </dd>
-              <dd className="mt-1 text-xs text-muted-foreground">
-                Set during initial setup. Used for magnet pricing, orders, and
-                analytics. Subscription billing stays in EUR.
-              </dd>
-            </div>
-          ) : null}
         </dl>
+        <p className="mt-4 text-sm text-muted-foreground">
+          To change your name, email, or password, use{" "}
+          <span className="font-medium text-foreground">Manage account</span> in
+          the user menu.
+        </p>
       </section>
 
       <section className="dashboard-card">

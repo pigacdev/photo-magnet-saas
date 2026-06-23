@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getDisplayPreferences } from "@/lib/auth";
+import { formatDisplayDate } from "@/lib/dateFormat";
 import {
   type CalendarEvent,
   type CalendarEventStatus,
@@ -26,12 +28,9 @@ const STATUS_DOT: Record<CalendarEventStatus, string> = {
 };
 
 function formatTodayHeader(date: Date): string {
+  const { dateFormat } = getDisplayPreferences();
   const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
-  const rest = date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const rest = formatDisplayDate(date, dateFormat);
   return `${weekday} | ${rest}`;
 }
 
@@ -291,11 +290,12 @@ function MobileMonthList({
                 isToday ? "bg-primary text-white" : "bg-surface text-foreground"
               }`}
             >
-              {day.toLocaleDateString("en-US", {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-              })}
+              {(() => {
+                const weekday = day.toLocaleDateString("en-US", {
+                  weekday: "short",
+                });
+                return `${weekday}, ${formatDisplayDate(day, getDisplayPreferences().dateFormat)}`;
+              })()}
             </div>
             <ul className="divide-y divide-border">
               {dayEvents.map((event) => (

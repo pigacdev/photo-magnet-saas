@@ -10,6 +10,8 @@ import {
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { getDisplayPreferences } from "@/lib/auth";
+import { formatDisplayDateTime } from "@/lib/dateFormat";
 import { CustomerEditModal } from "@/components/dashboard/CustomerEditModal";
 import { CancelOrderModal } from "@/components/dashboard/CancelOrderModal";
 import { OrderStatusRow } from "@/lib/orderDetailClarity";
@@ -380,10 +382,7 @@ export default function OrderDetailPage() {
 
   /** Same pattern as Orders list “Created” column. */
   function formatDate(iso: string) {
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
+    return formatDisplayDateTime(iso, getDisplayPreferences().dateFormat);
   }
 
   const canPrintNow = Boolean(

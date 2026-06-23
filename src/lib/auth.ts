@@ -1,4 +1,12 @@
 import { api } from "./api";
+import {
+  DEFAULT_DATE_FORMAT,
+  type DateFormat,
+} from "./dateFormat";
+import {
+  DEFAULT_SIZE_UNIT,
+  type SizeUnit,
+} from "./magnetSize";
 
 export type User = {
   id: string;
@@ -18,7 +26,22 @@ export type OrganizationUsage = {
   clerkPlanSlug?: string | null;
   currency: string | null;
   initialSetupAt: string | null;
+  dateFormat: DateFormat;
+  sizeUnit: SizeUnit;
 };
+
+export type DisplayPreferences = {
+  dateFormat: DateFormat;
+  sizeUnit: SizeUnit;
+};
+
+export function getDisplayPreferences(): DisplayPreferences {
+  const u = getCachedOrganizationUsage();
+  return {
+    dateFormat: u?.dateFormat ?? DEFAULT_DATE_FORMAT,
+    sizeUnit: u?.sizeUnit ?? DEFAULT_SIZE_UNIT,
+  };
+}
 
 type AuthResponse = {
   user: User;
@@ -49,6 +72,15 @@ export function subscribeOrganizationUsage(listener: () => void): () => void {
 export function invalidateAuthCache(): void {
   cachedUser = undefined;
   cachedOrganization = undefined;
+}
+
+/** Merge fields into cached org usage and notify subscribers (no network round-trip). */
+export function mergeCachedOrganizationUsage(
+  patch: Partial<OrganizationUsage>,
+): void {
+  if (cachedOrganization == null) return;
+  cachedOrganization = { ...cachedOrganization, ...patch };
+  usageListeners.forEach((listener) => listener());
 }
 
 export function getCachedOrganizationUsage(): OrganizationUsage | null {

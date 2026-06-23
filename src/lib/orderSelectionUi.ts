@@ -1,4 +1,9 @@
 import type { CatalogPricing } from "@/lib/orderSessionTypes";
+import {
+  formatShapeLabel,
+  orderProductLineLabel as buildOrderProductLineLabel,
+  type SizeUnit,
+} from "@/lib/magnetSize";
 
 /** Lowest price per magnet among bundle tiers (for default selection). */
 export function bestBundleId(pricing: CatalogPricing[]): string | null {
@@ -19,32 +24,21 @@ export function bestBundleId(pricing: CatalogPricing[]): string | null {
   return best.id;
 }
 
-export function shapeLabel(shape: {
-  shapeType: string;
-  widthMm: number;
-  heightMm: number;
-}): string {
-  const t =
-    shape.shapeType.charAt(0) + shape.shapeType.slice(1).toLowerCase();
-  return `${t} ${shape.widthMm}×${shape.heightMm} mm`;
+export function shapeLabel(
+  shape: {
+    shapeType: string;
+    widthMm: number;
+    heightMm: number;
+  },
+  unit?: SizeUnit,
+): string {
+  return formatShapeLabel(shape, unit);
 }
 
-function mmToCmLabel(mm: number): string {
-  const cm = mm / 10;
-  return Number.isInteger(cm) ? String(cm) : cm.toFixed(1).replace(/\.0$/, "");
-}
-
-/** e.g. "5×5 cm Square Custom Photo Magnets · 12 magnets" */
 export function orderProductLineLabel(
   shape: { shapeType: string; widthMm: number; heightMm: number },
   quantity: number,
+  unit?: SizeUnit,
 ): string {
-  const w = mmToCmLabel(shape.widthMm);
-  const h = mmToCmLabel(shape.heightMm);
-  const t =
-    shape.shapeType.charAt(0) + shape.shapeType.slice(1).toLowerCase();
-  const size =
-    w === h ? `${w}×${h} cm` : `${w}×${h} cm`;
-  const magnetWord = quantity === 1 ? "magnet" : "magnets";
-  return `${size} ${t} Custom Photo Magnets · ${quantity} ${magnetWord}`;
+  return buildOrderProductLineLabel(shape, quantity, unit);
 }
