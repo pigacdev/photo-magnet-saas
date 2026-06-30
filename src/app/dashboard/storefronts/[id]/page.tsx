@@ -101,6 +101,8 @@ export default function StorefrontDetailPage() {
           <CustomerLinkBanner
             publicUrl={publicEntryUrl}
             variant="storefront"
+            entityName={storefront.name}
+            entityId={storefront.id}
             monthlyLimitReached={monthlyLimitReached}
             className="mb-4"
           />
@@ -123,7 +125,6 @@ export default function StorefrontDetailPage() {
 
       <StorefrontConfigurationForm
         storefront={storefront}
-        publicEntryUrl={publicEntryUrl}
         onSaved={(updated) => setStorefront(updated as Storefront)}
       />
     </div>

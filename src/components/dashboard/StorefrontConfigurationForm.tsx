@@ -17,12 +17,10 @@ import {
   type PricingEditorHandle,
   type PricingRule,
 } from "@/components/PricingEditor";
-import { ShareLinkCard } from "@/components/dashboard/ShareLinkCard";
 import Link from "next/link";
 import { useOrganizationUsage } from "@/hooks/useOrganizationUsage";
 import { FREE_PRINT_BRAND_TEXT } from "@/lib/planCatalog";
 import { usageHasFeature } from "@/lib/planFeatures";
-import { getPlanUsageLevel } from "@/lib/planUsage";
 import {
   buildStructuredShippingAddress,
   optionalStructuredAddressPayload,
@@ -56,7 +54,6 @@ export type StorefrontConfigurationStorefront = {
 
 type StorefrontConfigurationFormProps = {
   storefront: StorefrontConfigurationStorefront;
-  publicEntryUrl: string;
   onSaved: (storefront: StorefrontConfigurationStorefront) => void;
   onDirtyChange?: (dirty: boolean) => void;
 };
@@ -131,7 +128,6 @@ async function syncStorefrontShapes(
 
 export function StorefrontConfigurationForm({
   storefront,
-  publicEntryUrl,
   onSaved,
   onDirtyChange,
 }: StorefrontConfigurationFormProps) {
@@ -345,11 +341,6 @@ export function StorefrontConfigurationForm({
       setSaving(false);
     }
   }
-
-  const ordersReady =
-    storefront.configurationComplete === true && storefront.isOpen === true;
-  const monthlyLimitReached =
-    usage != null && getPlanUsageLevel(usage) === "reached";
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="space-y-8">
@@ -598,16 +589,6 @@ export function StorefrontConfigurationForm({
               />
             </div>
           </section>
-
-          <ShareLinkCard
-            label="Customer link"
-            publicUrl={publicEntryUrl}
-            variant="storefront"
-            entityName={storefront.name}
-            entityId={storefront.id}
-            ordersEnabled={ordersReady}
-            monthlyLimitReached={monthlyLimitReached}
-          />
         </div>
       </div>
 

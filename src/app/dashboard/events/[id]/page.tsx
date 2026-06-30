@@ -824,6 +824,8 @@ export default function EventDetailPage() {
           <CustomerLinkBanner
             publicUrl={publicEntryUrl}
             variant="event"
+            entityName={event.name}
+            entityId={event.id}
             monthlyLimitReached={monthlyLimitReached}
           />
         ) : null}
@@ -890,7 +892,6 @@ export default function EventDetailPage() {
       {activeTab === "configuration" ? (
         <EventConfigurationForm
           event={event}
-          publicEntryUrl={publicEntryUrl}
           onSaved={(updated) => setEvent(updated as Event)}
           onDirtyChange={setConfigDirty}
         />
