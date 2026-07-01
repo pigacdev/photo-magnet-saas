@@ -24,6 +24,7 @@ import { useOrganizationUsage } from "@/hooks/useOrganizationUsage";
 import { formatDisplayDateTime } from "@/lib/dateFormat";
 import { FREE_PRINT_BRAND_TEXT } from "@/lib/planCatalog";
 import { usageHasFeature } from "@/lib/planFeatures";
+import { EventBannerUpload } from "@/components/dashboard/EventBannerUpload";
 
 type AllowedShape = {
   id: string;
@@ -37,6 +38,7 @@ export type EventConfigurationEvent = {
   id: string;
   name: string;
   brandText: string | null;
+  bannerUrl: string | null;
   notificationEmail: string | null;
   sendOrderEmails: boolean;
   startDate: string;
@@ -276,6 +278,18 @@ export function EventConfigurationForm({
               <dd className="mt-1 text-sm text-foreground">{formatDisplayDateTime(event.endDate, usage?.dateFormat)}</dd>
             </div>
           </dl>
+        </section>
+
+        <section className="dashboard-card">
+          <h2 className="text-sm font-semibold text-foreground">Event banner</h2>
+          <EventBannerUpload
+            eventId={event.id}
+            bannerUrl={event.bannerUrl}
+            canUpload={canCustomBrand}
+            onBannerChange={(bannerUrl) => {
+              onSaved({ ...event, bannerUrl });
+            }}
+          />
         </section>
 
         <section className="dashboard-card">

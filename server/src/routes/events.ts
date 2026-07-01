@@ -1,6 +1,15 @@
 import { Router } from "express";
+import multer from "multer";
 import { prisma } from "../lib/prisma";
 import { normalizeBrandTextInput } from "../lib/brandTextForOrder";
+import {
+  deleteEventBannerObject,
+  EVENT_BANNER_MAX_BYTES,
+  isEventBannerMime,
+  prepareEventBannerBuffer,
+  putEventBannerObject,
+  withBannerCacheBust,
+} from "../lib/eventBannerStorage";
 import {
   enrichEvent,
   isEventConfigurationComplete,
@@ -32,12 +41,26 @@ import {
 } from "../lib/sellerEventListQuery";
 export const eventsRouter = Router();
 
+const bannerUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: EVENT_BANNER_MAX_BYTES },
+});
+
 async function sellerPlan(userId: string) {
   const org = await prisma.organization.findUnique({
     where: { id: userId },
     select: { plan: true },
   });
   return org?.plan ?? "FREE";
+}
+
+function eventForClient<T extends { bannerUrl: string | null; updatedAt: Date }>(
+  event: T,
+): T {
+  return {
+    ...event,
+    bannerUrl: withBannerCacheBust(event.bannerUrl, event.updatedAt),
+  };
 }
 
 eventsRouter.post("/", async (req, res) => {
@@ -298,7 +321,7 @@ eventsRouter.get("/:id", async (req, res) => {
 
   res.json({
     event: {
-      ...event,
+      ...eventForClient(event),
       ...enrichEvent(event),
       shapes,
       pricing,
@@ -424,13 +447,118 @@ eventsRouter.patch("/:id", async (req, res) => {
 
   res.json({
     event: {
-      ...event,
+      ...eventForClient(event),
       ...enrichEvent(event),
       shapes,
       pricing,
       configurationComplete: isEventConfigurationComplete(shapes.length, pricing.length),
     },
   });
+});
+
+eventsRouter.post("/:id/banner", (req, res, next) => {
+  bannerUpload.single("file")(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        res.status(400).json({ error: "Banner image must be 2 MB or smaller" });
+        return;
+      }
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err) {
+      next(err);
+      return;
+    }
+    void (async () => {
+      const userId = req.user!.userId;
+      const { id } = req.params;
+
+      const existing = await prisma.event.findUnique({
+        where: { id, userId, deletedAt: null },
+      });
+      if (!existing) {
+        res.status(404).json({ error: "Event not found" });
+        return;
+      }
+
+      const plan = await sellerPlan(userId);
+      if (!planHasFeature(plan, "custom_branding")) {
+        res.status(403).json({ error: featureRequiredMessage("custom_branding") });
+        return;
+      }
+
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ error: "No file uploaded" });
+        return;
+      }
+
+      if (!isEventBannerMime(file.mimetype)) {
+        res.status(400).json({ error: "Only JPG and PNG images are supported" });
+        return;
+      }
+
+      let prepared: { buffer: Buffer; mimeType: string };
+      try {
+        prepared = await prepareEventBannerBuffer(file.buffer, file.mimetype);
+      } catch (e) {
+        res.status(400).json({
+          error: e instanceof Error ? e.message : "Could not read image",
+        });
+        return;
+      }
+
+      if (existing.bannerUrl) {
+        await deleteEventBannerObject(existing.bannerUrl, id).catch(() => {});
+      }
+
+      const { bannerUrl } = await putEventBannerObject({
+        eventId: id,
+        buffer: prepared.buffer,
+        mimeType: prepared.mimeType,
+      });
+
+      const updated = await prisma.event.update({
+        where: { id },
+        data: { bannerUrl },
+      });
+
+      res.json({
+        bannerUrl: withBannerCacheBust(updated.bannerUrl, updated.updatedAt),
+      });
+    })().catch(next);
+  });
+});
+
+eventsRouter.delete("/:id/banner", async (req, res) => {
+  const userId = req.user!.userId;
+  const { id } = req.params;
+
+  const existing = await prisma.event.findUnique({
+    where: { id, userId, deletedAt: null },
+  });
+  if (!existing) {
+    res.status(404).json({ error: "Event not found" });
+    return;
+  }
+
+  const plan = await sellerPlan(userId);
+  if (!planHasFeature(plan, "custom_branding")) {
+    res.status(403).json({ error: featureRequiredMessage("custom_branding") });
+    return;
+  }
+
+  if (existing.bannerUrl) {
+    await deleteEventBannerObject(existing.bannerUrl, id).catch(() => {});
+  }
+
+  await prisma.event.update({
+    where: { id },
+    data: { bannerUrl: null },
+  });
+
+  res.json({ success: true });
 });
 
 eventsRouter.delete("/:id", async (req, res) => {

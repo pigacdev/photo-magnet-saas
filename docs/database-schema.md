@@ -49,6 +49,11 @@ Seller tenant (1:1 with User; `id` = `user.id`). Billing limits + magnet order c
 - start_date
 - end_date
 - is_active (boolean)
+- brand_text (nullable, max 40 chars)
+- banner_url (nullable — public entry page banner image URL)
+- notification_email (nullable)
+- send_order_emails (boolean)
+- max_magnets_per_order (nullable)
 - created_at
 - updated_at
 - deleted_at (nullable)

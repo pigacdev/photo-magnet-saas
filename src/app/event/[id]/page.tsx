@@ -10,6 +10,7 @@ import { orderBtnPrimary, orderLoadingScreen } from "@/components/order/orderUi"
 
 type EventEntryMeta = {
   name: string;
+  bannerUrl: string | null;
   canOrder: boolean;
   unavailableReason: string | null;
   unavailableCode?: string | null;
@@ -88,7 +89,12 @@ export default function EventEntryPage() {
   const canOrder = meta?.canOrder ?? false;
 
   return (
-    <OrderShell contentWidth="medium" className="pb-10 pt-4">
+    <OrderShell
+      contentWidth="medium"
+      className="pb-10"
+      bannerUrl={meta?.bannerUrl}
+      showFlowBanner={false}
+    >
       <div className="mx-auto flex w-full flex-1 flex-col">
         <h1 className="text-center text-2xl font-semibold tracking-tight text-foreground">
           {meta?.name}

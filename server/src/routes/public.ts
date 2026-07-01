@@ -13,6 +13,7 @@ import {
   canOrganizationAcceptOrders,
   ORDER_LIMIT_REACHED,
 } from "../lib/saas";
+import { withBannerCacheBust } from "../lib/eventBannerStorage";
 
 export const publicRouter = Router();
 
@@ -33,6 +34,7 @@ publicRouter.get("/entry/:contextType/:contextId", async (req, res) => {
     if (!currencyReady) {
       res.json({
         name: event.name,
+        bannerUrl: withBannerCacheBust(event.bannerUrl, event.updatedAt),
         canOrder: false,
         unavailableReason: SELLER_CURRENCY_NOT_CONFIGURED_MESSAGE,
         unavailableCode: SELLER_SETUP_INCOMPLETE_CODE,
@@ -53,6 +55,7 @@ publicRouter.get("/entry/:contextType/:contextId", async (req, res) => {
     if (!orderCheck.ok) {
       res.json({
         name: event.name,
+        bannerUrl: withBannerCacheBust(event.bannerUrl, event.updatedAt),
         canOrder: false,
         unavailableReason: orderCheck.reason,
         unavailableCode: null,
@@ -64,6 +67,7 @@ publicRouter.get("/entry/:contextType/:contextId", async (req, res) => {
     if (!orgLimit.ok) {
       res.json({
         name: event.name,
+        bannerUrl: withBannerCacheBust(event.bannerUrl, event.updatedAt),
         canOrder: false,
         unavailableReason: BUYER_EVENT_ORDER_LIMIT_MESSAGE,
         unavailableCode: ORDER_LIMIT_REACHED,
@@ -73,6 +77,7 @@ publicRouter.get("/entry/:contextType/:contextId", async (req, res) => {
 
     res.json({
       name: event.name,
+      bannerUrl: withBannerCacheBust(event.bannerUrl, event.updatedAt),
       canOrder: true,
       unavailableReason: null,
       unavailableCode: null,

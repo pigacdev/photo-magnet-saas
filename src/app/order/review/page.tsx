@@ -358,9 +358,9 @@ export default function OrderReviewPage() {
   if (loading) {
     return (
       <OrderShell
-        contentWidth="wide"
+        contentWidth="medium"
         bottomBar={
-          <OrderBottomBar contentWidth="wide">
+          <OrderBottomBar contentWidth="medium">
             <div className="mb-2 h-5 w-40 animate-pulse rounded bg-neutral-200" />
             <div className="h-12 w-full animate-pulse rounded-xl bg-neutral-200" />
           </OrderBottomBar>
@@ -396,7 +396,7 @@ export default function OrderReviewPage() {
   }
 
   const bottomBar = (
-    <OrderBottomBar contentWidth="wide">
+    <OrderBottomBar contentWidth="medium">
       {isPerItemPricing ? (
         <div className="text-center text-sm font-medium text-foreground">
           <p className="tabular-nums">
@@ -428,7 +428,7 @@ export default function OrderReviewPage() {
   );
 
   return (
-    <OrderShell contentWidth="wide" bottomBar={bottomBar}>
+    <OrderShell contentWidth="medium" bottomBar={bottomBar}>
       <OrderStepHeader
         title="Review your magnets"
         subtitle="This is what will be printed — adjust crops from here if needed."

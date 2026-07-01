@@ -1,4 +1,6 @@
+import { withBannerCacheBust } from "./eventBannerStorage";
 import { getEventMediaExportSchedule } from "./mediaRetention";
+import { prisma } from "./prisma";
 
 type EventRecord = {
   isActive: boolean;
@@ -94,4 +96,17 @@ export function canAcceptOrders(
     return { ok: false, reason: configIssues[0]! };
   }
   return { ok: true };
+}
+
+export async function getEventBannerForSession(
+  eventId: string,
+): Promise<{ bannerUrl: string | null } | null> {
+  const event = await prisma.event.findFirst({
+    where: { id: eventId, deletedAt: null },
+    select: { bannerUrl: true, updatedAt: true },
+  });
+  if (!event) return null;
+  return {
+    bannerUrl: withBannerCacheBust(event.bannerUrl, event.updatedAt),
+  };
 }

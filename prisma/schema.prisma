@@ -79,6 +79,8 @@ model Event {
   maxMagnetsPerOrder Int?
   /// Shown on seller print PDFs (magnets); max 40 chars.
   brandText          String?   @db.VarChar(40)
+  /// Public entry page banner; null = no banner.
+  bannerUrl          String?
   /// Seller receives new-order emails when `sendOrderEmails` is true.
   notificationEmail  String?
   sendOrderEmails    Boolean   @default(false)

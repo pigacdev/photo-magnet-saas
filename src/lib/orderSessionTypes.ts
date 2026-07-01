@@ -57,6 +57,9 @@ export type GetSessionResponse = {
       country: string;
     } | null;
   } | null;
+  event?: {
+    bannerUrl: string | null;
+  } | null;
 };
 
 export type SessionImage = {

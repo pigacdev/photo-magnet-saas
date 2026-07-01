@@ -25,6 +25,7 @@ import {
 import { runStaleSessionCheckoutCleanup } from "../lib/sessionCheckoutCleanup";
 import { storedPickupAddressFromJson } from "../lib/parsePickupAddressInput";
 import { getDisplayPreferencesForOrderContext } from "../lib/organizationDisplayPreferences";
+import { getEventBannerForSession } from "../lib/event";
 import { sessionImagesRouter } from "./sessionImages";
 import { sessionCheckoutRouter } from "./sessionCheckout";
 
@@ -355,6 +356,7 @@ sessionRouter.get("/", async (req, res) => {
 
   let storefront: { pickupAddress: ReturnType<typeof storedPickupAddressFromJson> } | null =
     null;
+  let event: { bannerUrl: string | null } | null = null;
   if (touched.contextType === "STOREFRONT") {
     const sf = await prisma.storefront.findFirst({
       where: { id: touched.contextId, deletedAt: null },
@@ -365,6 +367,8 @@ sessionRouter.get("/", async (req, res) => {
         ? storedPickupAddressFromJson(sf.pickupAddress)
         : null,
     };
+  } else if (touched.contextType === "EVENT") {
+    event = await getEventBannerForSession(touched.contextId);
   }
 
   res.json({
@@ -372,6 +376,7 @@ sessionRouter.get("/", async (req, res) => {
     shapes: shapes.map(serializeCatalogShape),
     pricing: pricing.map(serializeCatalogPricing),
     storefront,
+    event,
     displayPreferences: await getDisplayPreferencesForOrderContext(
       touched.contextType,
       touched.contextId,

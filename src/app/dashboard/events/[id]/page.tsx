@@ -52,6 +52,7 @@ type Event = {
   id: string;
   name: string;
   brandText: string | null;
+  bannerUrl: string | null;
   notificationEmail: string | null;
   sendOrderEmails: boolean;
   startDate: string;
