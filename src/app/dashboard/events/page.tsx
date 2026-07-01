@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   Suspense,
   useCallback,
   useEffect,
@@ -17,8 +18,10 @@ import {
   subscribeOrganizationUsage,
 } from "@/lib/auth";
 import { formatDisplayDate } from "@/lib/dateFormat";
-import { getEventUsageLevel } from "@/lib/planUsage";
+import { getEventUsageLevel, getPlanUsageLevel } from "@/lib/planUsage";
 import { EventLimitReachedNotice } from "@/components/dashboard/DashboardCenteredNotice";
+import { CustomerLinkQrCompact } from "@/components/dashboard/CustomerLinkQrCompact";
+import { useCopyLink } from "@/hooks/useCopyLink";
 import {
   EVENT_STATUS_FILTER_OPTIONS,
   eventStatusFilterSelectionLabels,
@@ -33,6 +36,7 @@ type Event = {
   endDate: string;
   isActive: boolean;
   isOpen: boolean;
+  configurationComplete: boolean;
   status: "upcoming" | "active" | "ended" | "inactive";
   createdAt: string;
 };
@@ -147,6 +151,40 @@ function isoToDateInputValue(iso: string | null): string {
   return `${y}-${mo}-${day}`;
 }
 
+function publicEntryUrl(origin: string, eventId: string): string {
+  return origin ? `${origin}/event/${eventId}` : "";
+}
+
+function EventRowCopyLink({
+  publicUrl,
+  eventName,
+  disabled,
+}: {
+  publicUrl: string;
+  eventName: string;
+  disabled: boolean;
+}) {
+  const { copy, copied, canCopy } = useCopyLink(publicUrl);
+
+  if (!canCopy || disabled) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label={`Copy customer event order link for ${eventName}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        void copy();
+      }}
+      className="rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-100 dark:border-green-900 dark:bg-green-950/40 dark:text-green-400 dark:hover:bg-green-950/60"
+    >
+      {copied ? "Copied!" : "Copy link"}
+    </button>
+  );
+}
+
 function EventsListContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -162,6 +200,10 @@ function EventsListContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
+  const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [origin, setOrigin] = useState("");
 
   const searchFromUrl = searchParams.get("search") ?? "";
   const [searchDraft, setSearchDraft] = useState(searchFromUrl);
@@ -174,6 +216,22 @@ function EventsListContent() {
       setUsage(getCachedOrganizationUsage());
     });
   }, []);
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const toggleExpanded = useCallback((eventId: string) => {
+    setExpandedEventIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(eventId)) next.delete(eventId);
+      else next.add(eventId);
+      return next;
+    });
+  }, []);
+
+  const monthlyLimitReached =
+    usage != null && getPlanUsageLevel(usage) === "reached";
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -569,10 +627,16 @@ function EventsListContent() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-surface">
                 <tr>
+                  <th className="w-10 px-2 py-3">
+                    <span className="sr-only">Expand</span>
+                  </th>
                   <th className="px-4 py-3 font-medium text-muted-foreground">Name</th>
                   <th className="px-4 py-3 font-medium text-muted-foreground">Status</th>
                   <th className="px-4 py-3 font-medium text-muted-foreground">Start</th>
                   <th className="px-4 py-3 font-medium text-muted-foreground">End</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                    Link
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -580,38 +644,107 @@ function EventsListContent() {
                   .filter((event) => event.id)
                   .map((event) => {
                     const href = `/dashboard/events/${event.id}`;
+                    const expanded = expandedEventIds.has(event.id);
+                    const ordersReady =
+                      event.configurationComplete === true &&
+                      event.isOpen === true;
+                    const entryUrl = publicEntryUrl(origin, event.id);
+
                     return (
-                      <tr
-                        key={event.id}
-                        role="link"
-                        tabIndex={0}
-                        aria-label={`Open event ${event.name}`}
-                        className="cursor-pointer hover:bg-surface focus-visible:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        onClick={() => router.push(href)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            router.push(href);
-                          }
-                        }}
-                      >
-                        <td className="px-4 py-3">
-                          <span className="font-medium text-foreground">{event.name}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[event.status].className}`}
+                      <Fragment key={event.id}>
+                        <tr
+                          role="link"
+                          tabIndex={0}
+                          aria-label={`Open event ${event.name}`}
+                          className="cursor-pointer hover:bg-surface focus-visible:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                          onClick={() => router.push(href)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              router.push(href);
+                            }
+                          }}
+                        >
+                          <td
+                            className="w-10 px-2 py-3"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            {STATUS_BADGE[event.status].label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {formatDisplayDate(event.startDate, usage?.dateFormat)}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {formatDisplayDate(event.endDate, usage?.dateFormat)}
-                        </td>
-                      </tr>
+                            <button
+                              type="button"
+                              aria-expanded={expanded}
+                              aria-controls={`event-qr-${event.id}`}
+                              aria-label={`Show QR code for ${event.name}`}
+                              onClick={() => toggleExpanded(event.id)}
+                              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            >
+                              <span
+                                className={`inline-block transition-transform ${expanded ? "rotate-90" : ""}`}
+                                aria-hidden
+                              >
+                                ▸
+                              </span>
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-medium text-foreground">{event.name}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[event.status].className}`}
+                            >
+                              {STATUS_BADGE[event.status].label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {formatDisplayDate(event.startDate, usage?.dateFormat)}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {formatDisplayDate(event.endDate, usage?.dateFormat)}
+                          </td>
+                          <td
+                            className="px-4 py-3 text-right"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <EventRowCopyLink
+                              publicUrl={entryUrl}
+                              eventName={event.name}
+                              disabled={!ordersReady || monthlyLimitReached}
+                            />
+                          </td>
+                        </tr>
+                        {expanded ? (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-3">
+                              <div
+                                id={`event-qr-${event.id}`}
+                                className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 dark:border-green-900 dark:bg-green-950/20"
+                              >
+                                {ordersReady ? (
+                                  <CustomerLinkQrCompact
+                                    publicUrl={entryUrl}
+                                    variant="event"
+                                    entityName={event.name}
+                                    entityId={event.id}
+                                    monthlyLimitReached={monthlyLimitReached}
+                                  />
+                                ) : (
+                                  <p className="text-sm text-green-800/90 dark:text-green-300/90">
+                                    Complete event setup and open the event to get
+                                    your customer QR code.{" "}
+                                    <Link
+                                      href={href}
+                                      className="font-medium text-green-800 underline dark:text-green-300"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      Open event
+                                    </Link>
+                                  </p>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
                     );
                   })}
               </tbody>

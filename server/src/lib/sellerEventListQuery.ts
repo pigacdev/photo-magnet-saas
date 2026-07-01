@@ -2,6 +2,7 @@ import type { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "./prisma";
 import {
   enrichEvent,
+  isEventConfigurationComplete,
   type EventStatus,
 } from "./event";
 import {
@@ -51,6 +52,7 @@ export type SellerEventListItemPayload = {
   isActive: boolean;
   isOpen: boolean;
   status: EventStatus;
+  configurationComplete: boolean;
   createdAt: string;
 };
 
@@ -192,7 +194,49 @@ export function parseSellerEventListQuery(
   };
 }
 
-function mapEventRows(events: EventListRow[]): SellerEventListMappedRow[] {
+async function loadEventConfigurationCompleteById(
+  eventIds: string[],
+): Promise<Map<string, boolean>> {
+  const result = new Map<string, boolean>();
+  if (eventIds.length === 0) return result;
+
+  const [shapeGroups, pricingGroups] = await Promise.all([
+    prisma.allowedShape.groupBy({
+      by: ["contextId"],
+      where: { contextType: "EVENT", contextId: { in: eventIds } },
+      _count: { _all: true },
+    }),
+    prisma.pricing.groupBy({
+      by: ["contextId"],
+      where: {
+        contextType: "EVENT",
+        contextId: { in: eventIds },
+        deletedAt: null,
+      },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const shapeCountById = new Map(
+    shapeGroups.map((g) => [g.contextId, g._count._all]),
+  );
+  const pricingCountById = new Map(
+    pricingGroups.map((g) => [g.contextId, g._count._all]),
+  );
+
+  for (const id of eventIds) {
+    const shapeCount = shapeCountById.get(id) ?? 0;
+    const pricingCount = pricingCountById.get(id) ?? 0;
+    result.set(id, isEventConfigurationComplete(shapeCount, pricingCount));
+  }
+
+  return result;
+}
+
+function mapEventRows(
+  events: EventListRow[],
+  configurationCompleteById: Map<string, boolean>,
+): SellerEventListMappedRow[] {
   return events.map((e) => {
     const enriched = enrichEvent(e);
     return {
@@ -205,6 +249,7 @@ function mapEventRows(events: EventListRow[]): SellerEventListMappedRow[] {
         isActive: e.isActive,
         isOpen: enriched.isOpen,
         status: enriched.status,
+        configurationComplete: configurationCompleteById.get(e.id) ?? false,
         createdAt: e.createdAt.toISOString(),
       },
     };
@@ -284,7 +329,11 @@ export async function querySellerEvents(
     },
   });
 
-  let mapped = mapEventRows(events);
+  const configurationCompleteById = await loadEventConfigurationCompleteById(
+    events.map((e) => e.id),
+  );
+
+  let mapped = mapEventRows(events, configurationCompleteById);
 
   if (params.expandedStatusFilter != null) {
     mapped = mapped.filter((x) =>
