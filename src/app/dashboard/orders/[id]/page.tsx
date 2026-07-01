@@ -410,6 +410,8 @@ export default function OrderDetailPage() {
   const hasOrderPrinted = Boolean(order?.printedAt);
   const showPrintOrder = showPrintOrderSlot;
   const showMarkPrinted = Boolean(canPrintNow && !hasOrderPrinted);
+  const orderStatusActionButtonClass =
+    "min-h-[44px] rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface disabled:opacity-50 sm:min-w-[160px]";
   const hasCustomerInfo = Boolean(
     order &&
       (order.customerName ||
@@ -493,7 +495,7 @@ export default function OrderDetailPage() {
                       type="button"
                       disabled={actionBusy !== null}
                       onClick={() => handleStatusAction(next)}
-                      className="min-h-[44px] rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface disabled:opacity-50 sm:min-w-[160px]"
+                      className={orderStatusActionButtonClass}
                     >
                       {actionBusy === "status"
                         ? "Updating…"
@@ -534,7 +536,7 @@ export default function OrderDetailPage() {
 
             {(showPrintOrder || showMarkPrinted || hasOrderPrinted) && (
               <div className="mt-6 flex flex-col gap-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start">
                   {showPrintOrder && (
                     <div className="flex flex-col items-start gap-1.5">
                       <button
@@ -560,7 +562,7 @@ export default function OrderDetailPage() {
                       type="button"
                       disabled={actionBusy !== null}
                       onClick={() => void markPrinted()}
-                      className="min-h-[48px] rounded-lg border border-border bg-background px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50 sm:min-w-[180px]"
+                      className={orderStatusActionButtonClass}
                     >
                       {actionBusy === "markPrinted"
                         ? "Updating…"
