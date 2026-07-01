@@ -70,11 +70,15 @@ export function DashboardSidebar({
 
       <div className="p-3">
         <nav className="flex flex-col gap-0.5">
-          {DASHBOARD_NAV_ITEMS.filter(
-            (item) =>
-              item.href !== "/dashboard/calendar" ||
-              usageHasFeature(usage, "calendar"),
-          ).map((item) => {
+          {DASHBOARD_NAV_ITEMS.filter((item) => {
+            if (item.href === "/dashboard/calendar") {
+              return usageHasFeature(usage, "calendar");
+            }
+            if (item.href === "/dashboard/customers") {
+              return usageHasFeature(usage, "customers");
+            }
+            return true;
+          }).map((item) => {
             const href =
               item.href === DASHBOARD_STOREFRONT_NAV_BASE
                 ? storefrontNavHref(storefront?.id ?? null)

@@ -1,6 +1,7 @@
 export type DashboardNavIconName =
   | "home"
   | "orders"
+  | "customers"
   | "events"
   | "storefront"
   | "calendar";
@@ -47,6 +48,28 @@ export function DashboardNavIcon({
             d="M6 3.5h8l1.5 2H4.5L6 3.5zM5 7h10v9.5a1.5 1.5 0 0 1-1.5 1.5H6.5A1.5 1.5 0 0 1 5 16.5V7z"
           />
           <path strokeLinecap="round" d="M8 10h4M8 13h4" />
+        </svg>
+      );
+    case "customers":
+      return (
+        <svg
+          className={className}
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          aria-hidden
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M10 10.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4.5 16.5v-.75a4.25 4.25 0 0 1 4.25-4.25h2.5A4.25 4.25 0 0 1 15.5 15.75v.75"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M14.5 9.25a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5zM5.5 9.25a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5zM3 16.5v-.5a3.25 3.25 0 0 1 3.25-3.25M16 16.5v-.5a3.25 3.25 0 0 0-3.25-3.25"
+          />
         </svg>
       );
     case "events":

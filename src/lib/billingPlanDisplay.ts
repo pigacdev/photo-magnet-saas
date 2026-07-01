@@ -37,6 +37,7 @@ export const BILLING_PLAN_COLUMNS: readonly BillingPlanColumn[] = [
     features: [
       "Everything in Hobby",
       "Priority customer support",
+      "Customer management",
       "Orders CSV export",
       "Unlimited orders per billing period",
       "Unlimited events per billing period",

@@ -14,6 +14,7 @@ import { publicRouter } from "./routes/public";
 import { sessionRouter } from "./routes/session";
 import { systemRouter } from "./routes/system";
 import { ordersRouter } from "./routes/orders";
+import { customersRouter } from "./routes/customers";
 import { dashboardRouter } from "./routes/dashboard";
 import { organizationRouter } from "./routes/organization";
 import { supportRouter } from "./routes/support";
@@ -60,6 +61,12 @@ app.use("/api/orders", ordersRouter);
 app.use("/api/stripe", stripeRouter);
 
 // --- Protected routes ---
+app.use(
+  "/api/customers",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  customersRouter,
+);
 app.use(
   "/api/admin",
   authenticate,

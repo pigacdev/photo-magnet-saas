@@ -34,7 +34,28 @@ model Organization {
   /// UI magnet size unit: mm | cm | in (display only; storage stays mm).
   sizeUnit             String?
   orders               Order[]
+  customers            Customer[]
   user                 User     @relation(fields: [id], references: [id], onDelete: Cascade)
+}
+
+/// Seller CRM customer; linked from orders at commit. Soft-deleted rows hidden from list.
+model Customer {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  email          String?
+  phone          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orders       Order[]
+
+  @@index([organizationId])
+  @@index([organizationId, deletedAt])
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
 }
 
 /// Stripe webhook idempotency: one row per processed `evt_...` id.
@@ -233,6 +254,8 @@ model Order {
   buyerConfirmationEmailSentAt DateTime?
   customerName            String?
   customerPhone           String?
+  /// CRM link at order commit; optional after customer soft-delete.
+  customerId              String?
   /// Seller marks production done. Reprints do not change this.
   printedAt               DateTime?
   /// Order left for shipping / mail. Event pickup may use a different field later.
@@ -246,12 +269,14 @@ model Order {
   /// Future: 6-char A–Z0–9 display id for UI and print (generated when implemented).
   shortCode               String?           @unique
   organization            Organization      @relation(fields: [organizationId], references: [id])
+  customer                Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
   orderImages             OrderImage[]
   committedFromSession    OrderSession?
 
   @@index([organizationId])
   @@index([contextType, contextId])
   @@index([status])
+  @@index([customerId])
 }
 
 /// Immutable print snapshot copied from SessionImage at commit time.

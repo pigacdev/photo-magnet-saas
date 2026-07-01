@@ -36,6 +36,7 @@ const PRO_FEATURES = [
   ...HOBBY_FEATURES,
   "priority_support",
   "orders_export_csv",
+  "customers",
 ] as const;
 
 export const PLAN_ENTITLEMENTS: Record<string, PlanEntitlements> = {

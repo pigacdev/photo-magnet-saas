@@ -103,6 +103,23 @@ Seller tenant (1:1 with User; `id` = `user.id`). Billing limits + magnet order c
 
 ---
 
+## Customer
+
+Seller CRM record for buyers (Pro plan feature). Created or updated at order commit from checkout Step 5 (Details). Scoped to Organization.
+
+- id (uuid)
+- organization_id (FK → Organization)
+- name
+- email (nullable)
+- phone (nullable)
+- created_at — set to earliest linked order at backfill; new customers at first order
+- updated_at
+- deleted_at (nullable — soft delete; hidden from Customers page; does not alter order snapshots)
+
+👉 Matching rule within org: email (case-insensitive) first, then normalized phone.
+
+---
+
 # 3. Orders
 
 ---
@@ -110,22 +127,24 @@ Seller tenant (1:1 with User; `id` = `user.id`). Billing limits + magnet order c
 ## Order
 
 - id (uuid)
-- order_number (unique, human-readable)
-- customer_name
-- payment_status (`pending`, `paid`, `cash`, `failed`)
+- organization_id (FK → Organization)
+- **customer_id** (nullable FK → Customer — CRM link at commit; `ON DELETE SET NULL`)
+- customer_name, customer_email, customer_phone — **immutable snapshot** at order commit
+- status (order workflow: NEW, CONFIRMED, …)
 - total_price
 - **currency** (ISO 4217 snapshot at order commit)
 - context_type (`event` | `storefront`)
 - context_id
+- shipping_type, shipping_address (storefront)
 - created_at
 - updated_at
-- deleted_at (nullable)
 
 ---
 
 👉 Notes:
 
-- `cash` only allowed if context = event
+- Order buyer fields are snapshots; editing on order detail updates the order row only
+- Deleting a Customer soft-deletes the CRM row; linked orders keep their snapshot fields
 - No FK constraint on context_id (polymorphic relation)
 
 ---

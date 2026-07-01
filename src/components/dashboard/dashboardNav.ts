@@ -10,6 +10,7 @@ export const DASHBOARD_NAV_ITEMS: ReadonlyArray<{
   { href: "/dashboard/events", label: "Events", icon: "events" },
   { href: "/dashboard/storefronts", label: "Storefront", icon: "storefront" },
   { href: "/dashboard/calendar", label: "Calendar", icon: "calendar" },
+  { href: "/dashboard/customers", label: "Customers", icon: "customers" },
 ];
 
 export const DASHBOARD_STOREFRONT_NAV_BASE = "/dashboard/storefronts";

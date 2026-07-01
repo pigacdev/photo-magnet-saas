@@ -42,6 +42,9 @@ export function featureRequiredMessage(feature: string): string {
   if (feature === "orders_export_csv") {
     return "Orders CSV export is available on the Pro plan.";
   }
+  if (feature === "customers") {
+    return "Customer management is available on the Pro plan.";
+  }
   if (feature === "analytics_event") {
     return "Event analytics is available on the Hobby plan or higher.";
   }

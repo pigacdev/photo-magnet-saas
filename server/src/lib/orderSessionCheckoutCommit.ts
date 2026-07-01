@@ -5,6 +5,7 @@
 import { randomUUID } from "node:crypto";
 import type { OrderStatus } from "../../../src/generated/prisma/client";
 import { Prisma } from "../../../src/generated/prisma/client";
+import { upsertCustomerForOrder } from "./customerUpsert";
 import { prisma } from "./prisma";
 import { SESSION_IMAGE_LIST_ORDER_BY } from "./magnetImageOrderBy";
 import {
@@ -475,6 +476,15 @@ export async function runOrderCommitTransaction(
 
     const orderId = randomUUID();
 
+    let customerId: string | null = null;
+    if (customer?.customerName?.trim()) {
+      customerId = await upsertCustomerForOrder(tx, String(organizationId), {
+        name: customer.customerName,
+        email: customer.customerEmail,
+        phone: customer.customerPhone,
+      });
+    }
+
     const orderCreate: Prisma.OrderCreateInput = {
       id: orderId,
       organization: { connect: { id: String(organizationId) } },
@@ -497,6 +507,7 @@ export async function runOrderCommitTransaction(
             ? Prisma.JsonNull
             : (customer.shippingAddress as Prisma.InputJsonValue),
       eventPaymentPreference: customer?.eventPaymentPreference ?? null,
+      ...(customerId ? { customer: { connect: { id: customerId } } } : {}),
     };
     await tx.order.create({ data: orderCreate });
 

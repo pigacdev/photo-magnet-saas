@@ -15,6 +15,7 @@
       { "slug": "support", "name": "Customer Support" },
       { "slug": "priority_support", "name": "Priority customer support" },
       { "slug": "orders_export_csv", "name": "Orders CSV export" },
+      { "slug": "customers", "name": "Customer management" },
       { "slug": "qr_ordering", "name": "QR code ordering" }
     ],
     "plans": [
@@ -58,6 +59,7 @@
           "custom_branding",
           "email_notifications",
           "orders_export_csv",
+          "customers",
           "priority_support",
           "qr_ordering",
           "support"
