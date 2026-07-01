@@ -25,6 +25,7 @@ import { formatDisplayDate, formatDisplayDateTime } from "@/lib/dateFormat";
 import { usageHasFeature } from "@/lib/planFeatures";
 import { DashboardCenteredNotice } from "@/components/dashboard/DashboardCenteredNotice";
 import { EventArchiveDownloadModal } from "@/components/dashboard/EventArchiveDownloadModal";
+import { EventDeactivateModal } from "@/components/dashboard/EventDeactivateModal";
 import { CustomerLinkBanner } from "@/components/dashboard/CustomerLinkBanner";
 import { EventConfigurationForm } from "@/components/dashboard/EventConfigurationForm";
 import { useUnsavedChangesConfirm } from "@/components/dashboard/UnsavedChangesProvider";
@@ -463,6 +464,8 @@ export default function EventDetailPage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
+  const [toggleActiveLoading, setToggleActiveLoading] = useState(false);
   const [configDirty, setConfigDirty] = useState(false);
   const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
   const { confirmUnsavedChanges } = useUnsavedChangesConfirm();
@@ -588,18 +591,33 @@ export default function EventDetailPage() {
     return () => window.clearInterval(id);
   }, [isEndedEvent, event?.mediaDeletionAt]);
 
-  async function handleToggleActive() {
+  async function setEventActive(isActive: boolean) {
     if (!event) return;
-    const updated = await api<{ event: Event }>(`/api/events/${event.id}`, {
-      method: "PATCH",
-      body: { isActive: !event.isActive },
-    });
-    setEvent({
-      ...event,
-      ...updated.event,
-      shapes: updated.event.shapes ?? event.shapes,
-      pricing: updated.event.pricing ?? event.pricing,
-    });
+    setToggleActiveLoading(true);
+    try {
+      const updated = await api<{ event: Event }>(`/api/events/${event.id}`, {
+        method: "PATCH",
+        body: { isActive },
+      });
+      setEvent({
+        ...event,
+        ...updated.event,
+        shapes: updated.event.shapes ?? event.shapes,
+        pricing: updated.event.pricing ?? event.pricing,
+      });
+      setDeactivateConfirmOpen(false);
+    } finally {
+      setToggleActiveLoading(false);
+    }
+  }
+
+  function handleToggleActiveClick() {
+    if (!event) return;
+    if (event.isActive) {
+      setDeactivateConfirmOpen(true);
+      return;
+    }
+    void setEventActive(true);
   }
 
   async function downloadEventArchive() {
@@ -847,10 +865,21 @@ export default function EventDetailPage() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={handleToggleActive}
-              className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface"
+              disabled={toggleActiveLoading}
+              onClick={handleToggleActiveClick}
+              className={
+                event.isActive
+                  ? "rounded-lg bg-[#DC2626] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#B91C1C] disabled:opacity-50"
+                  : "rounded-lg bg-[#16A34A] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#15803D] disabled:opacity-50"
+              }
             >
-              {event.isActive ? "Deactivate" : "Activate"}
+              {toggleActiveLoading
+                ? event.isActive
+                  ? "Deactivating…"
+                  : "Activating…"
+                : event.isActive
+                  ? "Deactivate"
+                  : "Activate"}
             </button>
           </div>
         </div>
@@ -899,6 +928,15 @@ export default function EventDetailPage() {
       ) : (
         analyticsBlock
       )}
+
+      <EventDeactivateModal
+        open={deactivateConfirmOpen}
+        loading={toggleActiveLoading}
+        onClose={() => {
+          if (!toggleActiveLoading) setDeactivateConfirmOpen(false);
+        }}
+        onConfirm={() => void setEventActive(false)}
+      />
     </div>
   );
 }

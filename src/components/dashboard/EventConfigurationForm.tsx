@@ -258,7 +258,7 @@ export function EventConfigurationForm({
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
+      <div className="grid gap-6 lg:grid-cols-3 [&>section]:h-full">
         <section className="dashboard-card">
           <h2 className="text-sm font-semibold text-foreground">Schedule</h2>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -366,9 +366,7 @@ export function EventConfigurationForm({
             </p>
           </section>
         )}
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
         <section className="dashboard-card">
           <h2 className="text-sm font-semibold text-foreground">Shapes</h2>
           <p className="mt-1 text-xs text-muted-foreground">
