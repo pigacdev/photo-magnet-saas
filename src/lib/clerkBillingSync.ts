@@ -10,6 +10,7 @@ import {
   isFreeClerkPlanSlug,
   resolvePlanEntitlements,
 } from "./planCatalog";
+import { maybeApplyUsagePeriodAnchor } from "./usagePeriodAnchor";
 
 type BillingPayer = {
   user_id?: string;
@@ -152,7 +153,10 @@ async function applyPaidPlan(
   orgId: string,
   clerkPlanSlug: string,
   clerkSubscriptionId: string | null,
-  period?: { currentPeriodStart?: Date; currentPeriodEnd?: Date },
+  subscriptionPeriod?: {
+    currentPeriodStart?: Date;
+    currentPeriodEnd?: Date;
+  },
 ): Promise<void> {
   const limits = resolvePlanEntitlements(clerkPlanSlug);
   await prisma.organization.update({
@@ -163,22 +167,23 @@ async function applyPaidPlan(
       eventLimit: limits.eventLimit,
       clerkPlanSlug: clerkPlanSlug.toLowerCase(),
       clerkSubscriptionId,
-      ...(period?.currentPeriodStart &&
-      isValidBillingPeriodDate(period.currentPeriodStart)
-        ? { currentPeriodStart: period.currentPeriodStart }
+      ...(subscriptionPeriod?.currentPeriodStart &&
+      isValidBillingPeriodDate(subscriptionPeriod.currentPeriodStart)
+        ? { subscriptionPeriodStart: subscriptionPeriod.currentPeriodStart }
         : {}),
-      ...(period?.currentPeriodEnd &&
-      isValidBillingPeriodDate(period.currentPeriodEnd)
-        ? { currentPeriodEnd: period.currentPeriodEnd }
+      ...(subscriptionPeriod?.currentPeriodEnd &&
+      isValidBillingPeriodDate(subscriptionPeriod.currentPeriodEnd)
+        ? { subscriptionPeriodEnd: subscriptionPeriod.currentPeriodEnd }
         : {}),
     },
   });
+  await maybeApplyUsagePeriodAnchor(
+    orgId,
+    subscriptionPeriod?.currentPeriodStart,
+  );
 }
 
-async function revertToFreePlan(
-  orgId: string,
-  period?: { currentPeriodStart?: Date; currentPeriodEnd?: Date },
-): Promise<void> {
+async function revertToFreePlan(orgId: string): Promise<void> {
   const limits = resolvePlanEntitlements("free_user");
   await prisma.organization.update({
     where: { id: orgId },
@@ -188,14 +193,8 @@ async function revertToFreePlan(
       eventLimit: limits.eventLimit,
       clerkPlanSlug: "free_user",
       clerkSubscriptionId: null,
-      ...(period?.currentPeriodStart &&
-      isValidBillingPeriodDate(period.currentPeriodStart)
-        ? { currentPeriodStart: period.currentPeriodStart }
-        : {}),
-      ...(period?.currentPeriodEnd &&
-      isValidBillingPeriodDate(period.currentPeriodEnd)
-        ? { currentPeriodEnd: period.currentPeriodEnd }
-        : {}),
+      subscriptionPeriodStart: null,
+      subscriptionPeriodEnd: null,
     },
   });
 }
@@ -255,16 +254,13 @@ export async function syncOrganizationBillingFromClerk(
     const period = periodFieldsFromSource(sub);
 
     if (status === "canceled" || status === "ended") {
-      await revertToFreePlan(orgId, period);
+      await revertToFreePlan(orgId);
       return;
     }
 
     const slug = resolvePaidPlanSlug(sub, sessionClaims);
     if (!slug || isFreeClerkPlanSlug(slug)) {
-      await revertToFreePlan(
-        orgId,
-        periodFieldsFromSource(sub, { preferPaidPlan: false }),
-      );
+      await revertToFreePlan(orgId);
       return;
     }
 
@@ -307,12 +303,12 @@ export async function applyClerkBillingEvent(evt: WebhookEvent): Promise<void> {
         status === "ended" ||
         status === "expired"
       ) {
-        await revertToFreePlan(orgId, period);
+        await revertToFreePlan(orgId);
         return;
       }
 
       if (isFreeClerkPlanSlug(slug)) {
-        await revertToFreePlan(orgId, period);
+        await revertToFreePlan(orgId);
         return;
       }
 
@@ -332,19 +328,12 @@ export async function applyClerkBillingEvent(evt: WebhookEvent): Promise<void> {
     if (!slug) return;
 
     if (isFreeClerkPlanSlug(slug)) {
-      await revertToFreePlan(
-        orgId,
-        periodFieldsFromSource(data, { preferPaidPlan: false }),
-      );
+      await revertToFreePlan(orgId);
       return;
     }
 
-    await applyPaidPlan(
-      orgId,
-      slug,
-      data.id ?? null,
-      periodFieldsFromSource(data),
-    );
+    const period = periodFieldsFromSource(data);
+    await applyPaidPlan(orgId, slug, data.id ?? null, period);
     return;
   }
 
@@ -360,9 +349,6 @@ export async function applyClerkBillingEvent(evt: WebhookEvent): Promise<void> {
     const orgId = await organizationIdForClerkUser(clerkUserId);
     if (!orgId) return;
 
-    await revertToFreePlan(
-      orgId,
-      periodFieldsFromSource(data, { preferPaidPlan: false }),
-    );
+    await revertToFreePlan(orgId);
   }
 }

@@ -42,14 +42,21 @@ export function UserProfileSummary({
     ? (usage.planLabel ?? planDisplayName(usage.plan))
     : null;
 
-  function periodLabel(): string | null {
+  function usageResetLabel(): string | null {
     if (!usage?.currentPeriodEnd) return null;
     const date = formatPeriodDate(usage.currentPeriodEnd);
-    if (usage.plan === "PRO" || usage.plan === "HOBBY") {
-      return `Usage resets ${date}`;
-    }
-    return `Usage resets ${date}`;
+    return `Usage limits reset ${date}`;
   }
+
+  function subscriptionRenewLabel(): string | null {
+    if (!usage?.subscriptionRenewsAt) return null;
+    if (usage.plan !== "PRO" && usage.plan !== "HOBBY") return null;
+    const date = formatPeriodDate(usage.subscriptionRenewsAt);
+    return `Plan renews ${date}`;
+  }
+
+  const usageResetText = usageResetLabel();
+  const subscriptionRenewText = subscriptionRenewLabel();
 
   return (
     <div className={isCompact ? "px-1 py-1" : "space-y-4"}>
@@ -137,10 +144,13 @@ export function UserProfileSummary({
             </p>
           )}
 
-          {periodLabel() && (
-            <p className={`text-muted-foreground ${isCompact ? "text-xs" : "text-sm"}`}>
-              {periodLabel()}
-            </p>
+          {(usageResetText || subscriptionRenewText) && (
+            <div
+              className={`space-y-0.5 text-muted-foreground ${isCompact ? "text-xs" : "text-sm"}`}
+            >
+              {usageResetText && <p>{usageResetText}</p>}
+              {subscriptionRenewText && <p>{subscriptionRenewText}</p>}
+            </div>
           )}
 
           {!isCompact && (usage.plan === "PRO" || usage.plan === "HOBBY") && (

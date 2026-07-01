@@ -23,6 +23,8 @@ export type OrganizationUsage = {
   eventsCreatedThisMonth: number;
   eventLimit: number;
   currentPeriodEnd: string;
+  /** Clerk subscription payment renewal (ISO); null on Free or when not synced. */
+  subscriptionRenewsAt: string | null;
   clerkPlanSlug?: string | null;
   currency: string | null;
   initialSetupAt: string | null;

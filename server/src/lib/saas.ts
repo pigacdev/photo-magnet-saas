@@ -1,4 +1,8 @@
 import type { Plan } from "../../../src/generated/prisma/client";
+import {
+  defaultBillingPeriodEnd,
+  resolveUsagePeriodWindow,
+} from "../../../src/lib/billingPeriod";
 import { prisma } from "./prisma";
 import {
   hasUnlimitedEvents,
@@ -31,29 +35,7 @@ export const SUPPORT_FEATURE_REQUIRED = "SUPPORT_FEATURE_REQUIRED";
 
 export type OrganizationUsageLevel = "normal" | "warning" | "reached";
 
-/** Next monthly billing boundary from `from` (default: now + 1 calendar month). */
-export function defaultBillingPeriodEnd(from: Date = new Date()): Date {
-  const end = new Date(from);
-  end.setMonth(end.getMonth() + 1);
-  return end;
-}
-
-/** Advance stored billing period forward until `now` is strictly before period end. */
-export function advanceBillingPeriodToContain(
-  periodStart: Date,
-  periodEnd: Date,
-  now: Date,
-): { currentPeriodStart: Date; currentPeriodEnd: Date } {
-  let start = new Date(periodStart);
-  let end = new Date(periodEnd);
-
-  for (let i = 0; i < 120 && end <= now; i++) {
-    start = new Date(end);
-    end = defaultBillingPeriodEnd(start);
-  }
-
-  return { currentPeriodStart: start, currentPeriodEnd: end };
-}
+export { advanceBillingPeriodToContain } from "../../../src/lib/billingPeriod";
 
 function startOfLocalDay(d: Date): Date {
   const day = new Date(d);
@@ -129,23 +111,26 @@ async function refreshOrganizationPeriodIfExpired(orgId: string, now: Date): Pro
     return;
   }
 
-  const advanced = advanceBillingPeriodToContain(
+  const advanced = resolveUsagePeriodWindow(
     org.currentPeriodStart,
     org.currentPeriodEnd,
     now,
   );
 
-  const periodAdvanced =
-    advanced.currentPeriodStart.getTime() !== org.currentPeriodStart.getTime() ||
+  const shouldResetCounters =
+    advanced.currentPeriodStart.getTime() !== org.currentPeriodStart.getTime();
+  const periodChanged =
+    shouldResetCounters ||
     advanced.currentPeriodEnd.getTime() !== org.currentPeriodEnd.getTime();
 
-  if (!periodAdvanced) return;
+  if (!periodChanged) return;
 
   await prisma.organization.update({
     where: { id: orgId },
     data: {
-      ordersThisMonth: 0,
-      eventsCreatedThisMonth: 0,
+      ...(shouldResetCounters
+        ? { ordersThisMonth: 0, eventsCreatedThisMonth: 0 }
+        : {}),
       currentPeriodStart: advanced.currentPeriodStart,
       currentPeriodEnd: advanced.currentPeriodEnd,
     },

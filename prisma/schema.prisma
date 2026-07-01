@@ -19,6 +19,9 @@ model Organization {
   eventLimit           Int      @default(1)
   currentPeriodStart   DateTime @default(now())
   currentPeriodEnd     DateTime
+  /// Clerk subscription payment period (renewal); not used for order/event quotas.
+  subscriptionPeriodStart DateTime?
+  subscriptionPeriodEnd   DateTime?
   stripeCustomerId     String?  @unique
   stripeSubscriptionId String?
   /// Clerk Billing subscription id (`subscription.*` webhooks).

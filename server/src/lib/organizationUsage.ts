@@ -19,6 +19,7 @@ export type OrganizationUsagePayload = {
   eventsCreatedThisMonth: number;
   eventLimit: number;
   currentPeriodEnd: string;
+  subscriptionRenewsAt: string | null;
   clerkPlanSlug?: string | null;
   currency: string | null;
   initialSetupAt: string | null;
@@ -33,6 +34,7 @@ const orgSelect = {
   eventsCreatedThisMonth: true,
   eventLimit: true,
   currentPeriodEnd: true,
+  subscriptionPeriodEnd: true,
   clerkPlanSlug: true,
   currency: true,
   initialSetupAt: true,
@@ -47,6 +49,7 @@ function baseUsage(org: {
   eventsCreatedThisMonth: number;
   eventLimit: number;
   currentPeriodEnd: Date;
+  subscriptionPeriodEnd: Date | null;
   clerkPlanSlug?: string | null;
   currency: string | null;
   initialSetupAt: Date | null;
@@ -61,6 +64,7 @@ function baseUsage(org: {
     eventsCreatedThisMonth: org.eventsCreatedThisMonth,
     eventLimit: org.eventLimit,
     currentPeriodEnd: org.currentPeriodEnd.toISOString(),
+    subscriptionRenewsAt: org.subscriptionPeriodEnd?.toISOString() ?? null,
     clerkPlanSlug: org.clerkPlanSlug,
     currency: org.currency,
     initialSetupAt: org.initialSetupAt?.toISOString() ?? null,

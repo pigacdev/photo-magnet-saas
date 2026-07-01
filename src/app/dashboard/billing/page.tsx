@@ -80,8 +80,9 @@ function BillingContent() {
       <section className="mt-8">
         <h2 className="text-sm font-semibold text-foreground">Plans</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Choose or change your plan below. Monthly usage meters appear in Current
-          plan when your subscription has limits.
+          Choose or change your plan below. Current plan shows monthly order and
+          event limits, when those limits reset, and when your paid subscription
+          renews.
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
           Subscription prices are billed in EUR. Your order currency (chosen at
