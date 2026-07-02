@@ -2,11 +2,37 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   PDFDocument,
+  appendBezierCurve,
+  clipEvenOdd,
+  endPath,
+  moveTo,
+  popGraphicsState,
+  pushGraphicsState,
   rgb,
   StandardFonts,
+  type PDFFont,
+  type PDFImage,
   type PDFPage,
 } from "pdf-lib";
 import { getBrandTextForOrder } from "./brandTextForOrder";
+import {
+  circleBrandLabelRadius,
+  drawCurvedCircleBrandLabel,
+} from "./printSheetCircleBrand";
+import {
+  computePrintGrid,
+  isLegacySquare50Layout,
+  mm,
+  PAGE_HEIGHT,
+  PAGE_WIDTH,
+  printImageSizeMm,
+  printFrameSizeMm,
+  rowGap,
+  slotOrigin,
+  type PrintSheetShape,
+} from "./printSheetLayout";
+
+export type { PrintSheetShape } from "./printSheetLayout";
 
 export type PrintSheetImageInput = {
   id: string;
@@ -29,23 +55,14 @@ export function expandOrderImagesForPrintSheet(
   return out;
 }
 
-const mm = (v: number) => v * 2.83465;
-
-// A4
-const PAGE_WIDTH = mm(210);
-const PAGE_HEIGHT = mm(297);
-
 /** Regular octagon: length of every edge (physical cutter / blade segment). */
 const OCTAGON_SIDE_MM = 31;
 /** Printed image — square, centered inside octagon bounds. */
 const IMAGE_SIZE_MM = 52;
 
-/** Spacing between rows (vertical); tune 6–10 mm if layout feels tight. */
-const ROW_GAP_MM = 8;
-
 const COLS = 2;
 const ROWS = 3;
-const slotsPerPage = COLS * ROWS;
+const legacySlotsPerPage = COLS * ROWS;
 
 const SQRT2 = Math.SQRT2;
 /** Edge length in PDF points. */
@@ -55,15 +72,17 @@ const octagonSize = side * (1 + SQRT2);
 /** Corner inset along axes so each drawn segment length = `side`. */
 const cut = side / SQRT2;
 
-const imageSize = mm(IMAGE_SIZE_MM);
-const rowGap = mm(ROW_GAP_MM);
+const legacyImageSize = mm(IMAGE_SIZE_MM);
 
-const totalHeight = ROWS * octagonSize + (ROWS - 1) * rowGap;
-const startY = (PAGE_HEIGHT - totalHeight) / 2;
+const legacyTotalHeight = ROWS * octagonSize + (ROWS - 1) * rowGap;
+const legacyStartY = (PAGE_HEIGHT - legacyTotalHeight) / 2;
 
 /** Center of each column within the left/right half of the page. */
 const halfWidth = PAGE_WIDTH / 2;
-const colCenters = [halfWidth / 2, halfWidth + halfWidth / 2];
+const legacyColCenters = [halfWidth / 2, halfWidth + halfWidth / 2];
+
+const CUT_STROKE = rgb(0.6, 0.6, 0.6);
+const KAPPA = (4.0 * (Math.sqrt(2) - 1.0)) / 3.0;
 
 /** Local file path from a same-origin `/uploads/...` URL. */
 function resolveUploadFilePath(publicUrl: string): string {
@@ -92,21 +111,34 @@ function drawOctagon(
   y: number,
   size: number,
 ): void {
-  const s = size;
+  drawOctagonFrame(page, x, y, size, size);
+}
+
+/**
+ * Chamfered-rectangle octagon cut guide around a W×H bounding box (same corner geometry as legacy square).
+ */
+function drawOctagonFrame(
+  page: PDFPage,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  const w = width;
+  const h = height;
   const c = cut;
 
   const points = [
     { x: x + c, y: y },
-    { x: x + s - c, y: y },
-    { x: x + s, y: y + c },
-    { x: x + s, y: y + s - c },
-    { x: x + s - c, y: y + s },
-    { x: x + c, y: y + s },
-    { x: x, y: y + s - c },
+    { x: x + w - c, y: y },
+    { x: x + w, y: y + c },
+    { x: x + w, y: y + h - c },
+    { x: x + w - c, y: y + h },
+    { x: x + c, y: y + h },
+    { x: x, y: y + h - c },
     { x: x, y: y + c },
   ];
 
-  const stroke = rgb(0.6, 0.6, 0.6);
   for (let i = 0; i < points.length; i++) {
     const p1 = points[i]!;
     const p2 = points[(i + 1) % points.length]!;
@@ -114,18 +146,233 @@ function drawOctagon(
       start: p1,
       end: p2,
       thickness: 1,
-      color: stroke,
+      color: CUT_STROKE,
     });
   }
 }
 
+function drawBrandLabel(
+  page: PDFPage,
+  x: number,
+  y: number,
+  slotW: number,
+  slotH: number,
+  brandText: string,
+  labelFont: PDFFont,
+): void {
+  const maxLabelWidth = slotW - 10;
+  let fontSize = 8;
+  let textWidth = labelFont.widthOfTextAtSize(brandText, fontSize);
+  if (textWidth > maxLabelWidth) {
+    fontSize = 6;
+    textWidth = labelFont.widthOfTextAtSize(brandText, fontSize);
+  }
+  if (textWidth > maxLabelWidth) {
+    fontSize = Math.max(2, fontSize * (maxLabelWidth / textWidth));
+    textWidth = labelFont.widthOfTextAtSize(brandText, fontSize);
+  }
+
+  const textX = x + (slotW - textWidth) / 2;
+  const textY = y + slotH - 12;
+
+  page.drawText(brandText, {
+    x: textX,
+    y: textY,
+    size: fontSize,
+    font: labelFont,
+    color: rgb(0.45, 0.45, 0.45),
+  });
+}
+
+function drawOrderLabel(
+  page: PDFPage,
+  x: number,
+  y: number,
+  slotW: number,
+  orderLabel: string,
+  labelFont: PDFFont,
+): void {
+  const width = labelFont.widthOfTextAtSize(orderLabel, 6);
+  const xPos = x + (slotW - width) / 2;
+
+  page.drawText(orderLabel, {
+    x: xPos,
+    y: y + 4,
+    size: 6,
+    font: labelFont,
+    color: rgb(0.5, 0.5, 0.5),
+  });
+}
+
+async function embedRenderedImage(
+  pdfDoc: PDFDocument,
+  renderedUrl: string,
+): Promise<PDFImage> {
+  const filePath = resolveUploadFilePath(renderedUrl);
+  const imageBytes = await fs.readFile(filePath);
+  if (filePath.toLowerCase().endsWith(".png")) {
+    return pdfDoc.embedPng(imageBytes);
+  }
+  return pdfDoc.embedJpg(imageBytes);
+}
+
+/** Ellipse path operators for vector clipping (center coords, equal radii). */
+function circleClipOperators(cx: number, cy: number, radius: number) {
+  const x = cx - radius;
+  const y = cy - radius;
+  const xScale = radius;
+  const yScale = radius;
+  const ox = xScale * KAPPA;
+  const oy = yScale * KAPPA;
+  const xe = x + xScale * 2;
+  const ye = y + yScale * 2;
+  const xm = x + xScale;
+  const ym = y + yScale;
+
+  return [
+    moveTo(x, ym),
+    appendBezierCurve(x, ym - oy, xm - ox, y, xm, y),
+    appendBezierCurve(xm + ox, y, xe, ym - oy, xe, ym),
+    appendBezierCurve(xe, ym + oy, xm + ox, ye, xm, ye),
+    appendBezierCurve(xm - ox, ye, x, ym + oy, x, ym),
+  ];
+}
+
+function drawCircleBleedGuide(
+  page: PDFPage,
+  x: number,
+  y: number,
+  frameDiameter: number,
+): void {
+  const radius = frameDiameter / 2;
+  page.drawCircle({
+    x: x + radius,
+    y: y + radius,
+    size: radius,
+    borderColor: CUT_STROKE,
+    borderWidth: 1,
+    borderDashArray: [4, 4],
+  });
+}
+
+function drawClippedCircleImage(
+  page: PDFPage,
+  pdfImage: PDFImage,
+  x: number,
+  y: number,
+  size: number,
+): void {
+  const radius = size / 2;
+  const cx = x + radius;
+  const cy = y + radius;
+
+  page.pushOperators(
+    pushGraphicsState(),
+    ...circleClipOperators(cx, cy, radius),
+    clipEvenOdd(),
+    endPath(),
+  );
+  page.drawImage(pdfImage, { x, y, width: size, height: size });
+  page.pushOperators(popGraphicsState());
+}
+
+/** Square 50×50 mm — octagon cutter template (unchanged legacy layout). */
+async function drawLegacySquare50Slot(
+  page: PDFPage,
+  pdfDoc: PDFDocument,
+  img: PrintSheetImageInput & { renderedUrl: string },
+  slotIndex: number,
+  brandText: string,
+  labelFont: PDFFont,
+  orderLabel: string | null,
+): Promise<void> {
+  const col = slotIndex % COLS;
+  const row = Math.floor(slotIndex / COLS);
+
+  const centerX = legacyColCenters[col]!;
+  const x = centerX - octagonSize / 2;
+  const y =
+    PAGE_HEIGHT - legacyStartY - (row + 1) * octagonSize - row * rowGap;
+
+  const pdfImage = await embedRenderedImage(pdfDoc, img.renderedUrl);
+
+  drawOctagon(page, x, y, octagonSize);
+
+  const offset = (octagonSize - legacyImageSize) / 2;
+  page.drawImage(pdfImage, {
+    x: x + offset,
+    y: y + offset,
+    width: legacyImageSize,
+    height: legacyImageSize,
+  });
+
+  drawBrandLabel(page, x, y, octagonSize, octagonSize, brandText, labelFont);
+
+  if (orderLabel) {
+    drawOrderLabel(page, x, y, octagonSize, orderLabel, labelFont);
+  }
+}
+
+async function drawShapeAwareSlot(
+  page: PDFPage,
+  pdfDoc: PDFDocument,
+  shape: PrintSheetShape,
+  img: PrintSheetImageInput & { renderedUrl: string },
+  slotIndex: number,
+  brandText: string,
+  labelFont: PDFFont,
+  orderLabel: string | null,
+): Promise<void> {
+  const printSize = printImageSizeMm(shape);
+  const frameSize = printFrameSizeMm(shape);
+  const grid = computePrintGrid(frameSize.w, frameSize.h);
+  const { x, y } = slotOrigin(grid, slotIndex);
+  const frameW = mm(frameSize.w);
+  const frameH = mm(frameSize.h);
+  const imageW = mm(printSize.w);
+  const imageH = mm(printSize.h);
+  const imageX = x + (frameW - imageW) / 2;
+  const imageY = y + (frameH - imageH) / 2;
+
+  const pdfImage = await embedRenderedImage(pdfDoc, img.renderedUrl);
+
+  if (shape.shapeType === "CIRCLE") {
+    drawCircleBleedGuide(page, x, y, frameW);
+    drawClippedCircleImage(page, pdfImage, imageX, imageY, imageW);
+    const frameCx = x + frameW / 2;
+    const frameCy = y + frameH / 2;
+    drawCurvedCircleBrandLabel(
+      page,
+      frameCx,
+      frameCy,
+      circleBrandLabelRadius(frameW),
+      brandText,
+      labelFont,
+    );
+  } else {
+    drawOctagonFrame(page, x, y, frameW, frameH);
+    page.drawImage(pdfImage, {
+      x: imageX,
+      y: imageY,
+      width: imageW,
+      height: imageH,
+    });
+    drawBrandLabel(page, x, y, frameW, frameH, brandText, labelFont);
+  }
+
+  if (orderLabel) {
+    drawOrderLabel(page, x, y, frameW, orderLabel, labelFont);
+  }
+}
+
 /**
- * A4 PDF: fixed 2×3 grid of **rendered** JPEGs. Regular octagon (30 mm edges); image centered inside.
+ * A4 PDF: rendered JPEGs laid out per magnet shape (cut guides + correct dimensions).
  */
 export async function generatePrintSheet(
   orderId: string,
   images: PrintSheetImageInput[],
   shapeId: string,
+  shape: PrintSheetShape,
 ): Promise<string> {
   const onlyRendered = images.filter(
     (img): img is PrintSheetImageInput & { renderedUrl: string } =>
@@ -133,6 +380,14 @@ export async function generatePrintSheet(
   );
 
   const pdfDoc = await PDFDocument.create();
+  const legacy = isLegacySquare50Layout(shape);
+  const frameSize = printFrameSizeMm(shape);
+  const shapeAwareGrid = legacy
+    ? null
+    : computePrintGrid(frameSize.w, frameSize.h);
+  const slotsPerPage = legacy
+    ? legacySlotsPerPage
+    : shapeAwareGrid!.slotsPerPage;
 
   if (onlyRendered.length === 0) {
     const emptyPage = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -141,7 +396,7 @@ export async function generatePrintSheet(
     const brandText = await getBrandTextForOrder(orderId);
     const labelFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     /** Future: load `Order.shortCode` for magnet bottom label (6-char). */
-    const orderLabel: string | null = null; // future: shortCode
+    const orderLabel: string | null = null;
     let page!: PDFPage;
     let globalIndex = 0;
 
@@ -152,72 +407,28 @@ export async function generatePrintSheet(
       }
 
       const slotIndex = globalIndex % slotsPerPage;
-      const col = slotIndex % COLS;
-      const row = Math.floor(slotIndex / COLS);
 
-      const centerX = colCenters[col]!;
-      const x = centerX - octagonSize / 2;
-      const y =
-        PAGE_HEIGHT -
-        startY -
-        (row + 1) * octagonSize -
-        row * rowGap;
-
-      const filePath = resolveUploadFilePath(img.renderedUrl);
-      const imageBytes = await fs.readFile(filePath);
-
-      let pdfImage;
-      if (filePath.toLowerCase().endsWith(".png")) {
-        pdfImage = await pdfDoc.embedPng(imageBytes);
+      if (legacy) {
+        await drawLegacySquare50Slot(
+          page,
+          pdfDoc,
+          img,
+          slotIndex,
+          brandText,
+          labelFont,
+          orderLabel,
+        );
       } else {
-        pdfImage = await pdfDoc.embedJpg(imageBytes);
-      }
-
-      drawOctagon(page, x, y, octagonSize);
-
-      const offset = (octagonSize - imageSize) / 2;
-      page.drawImage(pdfImage, {
-        x: x + offset,
-        y: y + offset,
-        width: imageSize,
-        height: imageSize,
-      });
-
-      /** Horizontal padding inside octagon so label never touches edges. */
-      const maxLabelWidth = octagonSize - 10;
-      let fontSize = 8;
-      let textWidth = labelFont.widthOfTextAtSize(brandText, fontSize);
-      if (textWidth > maxLabelWidth) {
-        fontSize = 6;
-        textWidth = labelFont.widthOfTextAtSize(brandText, fontSize);
-      }
-      if (textWidth > maxLabelWidth) {
-        fontSize = Math.max(2, fontSize * (maxLabelWidth / textWidth));
-        textWidth = labelFont.widthOfTextAtSize(brandText, fontSize);
-      }
-
-      const textX = x + (octagonSize - textWidth) / 2;
-      const textY = y + octagonSize - 12;
-
-      page.drawText(brandText, {
-        x: textX,
-        y: textY,
-        size: fontSize,
-        font: labelFont,
-        color: rgb(0.45, 0.45, 0.45),
-      });
-
-      if (orderLabel) {
-        const width = labelFont.widthOfTextAtSize(orderLabel, 6);
-        const xPos = x + (octagonSize - width) / 2;
-
-        page.drawText(orderLabel, {
-          x: xPos,
-          y: y + 4,
-          size: 6,
-          font: labelFont,
-          color: rgb(0.5, 0.5, 0.5),
-        });
+        await drawShapeAwareSlot(
+          page,
+          pdfDoc,
+          shape,
+          img,
+          slotIndex,
+          brandText,
+          labelFont,
+          orderLabel,
+        );
       }
 
       globalIndex += 1;

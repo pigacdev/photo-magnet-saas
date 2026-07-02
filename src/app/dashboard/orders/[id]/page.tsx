@@ -34,6 +34,7 @@ import {
   orderContextKindLabel,
 } from "@/lib/orderContextDisplay";
 import { formatOrderReference } from "@/lib/orderReference";
+import { OrderImageSelectCard } from "@/components/dashboard/OrderImageSelectCard";
 
 type SellerOrderDetail = {
   orderId: string;
@@ -68,6 +69,9 @@ type SellerOrderDetail = {
     mediaDeletedAt: string | null;
     position: number;
     shapeId: string;
+    shapeType: string;
+    widthMm: number;
+    heightMm: number;
     copies: number;
     printed: boolean;
     printedAt: string | null;
@@ -792,66 +796,22 @@ export default function OrderDetailPage() {
                   </button>
                 </div>
                 <ul className="mt-4 flex flex-wrap gap-3">
-                  {printableImages.map((img) => {
-                    const isSelected = selectedImageIds.includes(img.id);
-                    return (
-                      <li key={img.id} className="relative h-[132px] w-[132px] shrink-0">
-                        <button
-                          type="button"
-                          aria-pressed={isSelected}
-                          aria-label={
-                            isSelected ? "Deselect image" : "Select image"
-                          }
-                          onClick={() => toggleImageSelected(img.id)}
-                          className={`group relative h-[132px] w-[132px] overflow-hidden rounded-lg border bg-surface text-left transition-shadow ${
-                            isSelected
-                              ? "border-primary ring-2 ring-primary"
-                              : "border-border"
-                          }`}
-                        >
-                          {img.renderedUrl ? (
-                            <img
-                              src={img.renderedUrl}
-                              alt=""
-                              className={`h-full w-full object-cover ${
-                                img.printed ? "opacity-60" : ""
-                              }`}
-                            />
-                          ) : (
-                            <div
-                              className={`flex h-full items-center justify-center p-2 text-center text-xs text-muted-foreground ${
-                                img.printed ? "opacity-60" : ""
-                              }`}
-                            >
-                              Not rendered
-                            </div>
-                          )}
-                          <span
-                            className={`absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-md border text-sm font-semibold shadow-sm ${
-                              isSelected
-                                ? "border-primary bg-primary text-white"
-                                : "border-border bg-background/95 text-muted-foreground"
-                            }`}
-                            aria-hidden
-                          >
-                            {isSelected ? "✓" : ""}
-                          </span>
-                          <div
-                            className={`pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-3rem)] flex-col gap-0.5 rounded-md border px-2 py-1 text-[10px] font-semibold leading-tight shadow-sm ${
-                              img.printed
-                                ? "border-green-200 bg-green-50/95 text-green-800"
-                                : "border-border bg-background/95 text-muted-foreground"
-                            }`}
-                          >
-                            <span>Copies: {img.copies ?? 1}</span>
-                            <span>
-                              {img.printed ? "✅ Printed" : "⚪ Not printed"}
-                            </span>
-                          </div>
-                        </button>
-                      </li>
-                    );
-                  })}
+                  {printableImages.map((img) => (
+                    <li key={img.id}>
+                      <OrderImageSelectCard
+                        renderedUrl={img.renderedUrl}
+                        shape={{
+                          shapeType: img.shapeType,
+                          widthMm: img.widthMm,
+                          heightMm: img.heightMm,
+                        }}
+                        copies={img.copies ?? 1}
+                        printed={img.printed}
+                        selected={selectedImageIds.includes(img.id)}
+                        onToggle={() => toggleImageSelected(img.id)}
+                      />
+                    </li>
+                  ))}
                 </ul>
               </>
             )}

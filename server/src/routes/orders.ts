@@ -304,10 +304,19 @@ ordersRouter.post(
       grouped[img.shapeId]!.push(img);
     }
 
+    const shapeIds = Object.keys(grouped);
+    const allowedShapes = await prisma.allowedShape.findMany({
+      where: { id: { in: shapeIds } },
+      select: { id: true, shapeType: true, widthMm: true, heightMm: true },
+    });
+    const shapeById = new Map(allowedShapes.map((s) => [s.id, s]));
+
     const urls: string[] = [];
-    for (const shapeId of Object.keys(grouped)) {
+    for (const shapeId of shapeIds) {
       const imgs = grouped[shapeId];
       if (!imgs?.length) continue;
+      const shapeRow = shapeById.get(shapeId);
+      if (!shapeRow) continue;
       const pdfUrl = await generatePrintSheet(
         orderId,
         expandOrderImagesForPrintSheet(
@@ -318,6 +327,11 @@ ordersRouter.post(
           })),
         ),
         shapeId,
+        {
+          shapeType: shapeRow.shapeType,
+          widthMm: shapeRow.widthMm,
+          heightMm: shapeRow.heightMm,
+        },
       );
       urls.push(pdfUrl);
     }
@@ -427,10 +441,19 @@ ordersRouter.post(
       grouped[img.shapeId]!.push(img);
     }
 
+    const shapeIds = Object.keys(grouped);
+    const allowedShapes = await prisma.allowedShape.findMany({
+      where: { id: { in: shapeIds } },
+      select: { id: true, shapeType: true, widthMm: true, heightMm: true },
+    });
+    const shapeById = new Map(allowedShapes.map((s) => [s.id, s]));
+
     const urls: string[] = [];
-    for (const shapeId of Object.keys(grouped)) {
+    for (const shapeId of shapeIds) {
       const groupImages = grouped[shapeId];
       if (!groupImages?.length) continue;
+      const shapeRow = shapeById.get(shapeId);
+      if (!shapeRow) continue;
       const pdfUrl = await generatePrintSheet(
         orderId,
         expandOrderImagesForPrintSheet(
@@ -441,6 +464,11 @@ ordersRouter.post(
           })),
         ),
         shapeId,
+        {
+          shapeType: shapeRow.shapeType,
+          widthMm: shapeRow.widthMm,
+          heightMm: shapeRow.heightMm,
+        },
       );
       urls.push(pdfUrl);
     }
@@ -1141,7 +1169,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
       const shapeIds = [...new Set(orderRow.orderImages.map((i) => i.shapeId))];
       const shapes = await prisma.allowedShape.findMany({
         where: { id: { in: shapeIds } },
-        select: { id: true, widthMm: true, heightMm: true },
+        select: { id: true, shapeType: true, widthMm: true, heightMm: true },
       });
       const shapeById = new Map(shapes.map((s) => [s.id, s]));
       const printSheets = shapeIds.map((sid) => {
@@ -1181,17 +1209,23 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
         storefrontPickupAddress,
         printedAt: orderRow.printedAt?.toISOString() ?? null,
         shippedAt: orderRow.shippedAt?.toISOString() ?? null,
-        images: orderRow.orderImages.map((img) => ({
-          id: img.id,
-          renderedUrl:
-            img.mediaDeletedAt != null ? null : img.renderedUrl,
-          mediaDeletedAt: img.mediaDeletedAt?.toISOString() ?? null,
-          position: img.position,
-          shapeId: img.shapeId,
-          copies: img.copies,
-          printed: img.printed,
-          printedAt: img.printedAt?.toISOString() ?? null,
-        })),
+        images: orderRow.orderImages.map((img) => {
+          const sh = shapeById.get(img.shapeId);
+          return {
+            id: img.id,
+            renderedUrl:
+              img.mediaDeletedAt != null ? null : img.renderedUrl,
+            mediaDeletedAt: img.mediaDeletedAt?.toISOString() ?? null,
+            position: img.position,
+            shapeId: img.shapeId,
+            shapeType: sh?.shapeType ?? "SQUARE",
+            widthMm: sh?.widthMm ?? 50,
+            heightMm: sh?.heightMm ?? 50,
+            copies: img.copies,
+            printed: img.printed,
+            printedAt: img.printedAt?.toISOString() ?? null,
+          };
+        }),
         printSheets,
       });
       return;
