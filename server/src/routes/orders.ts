@@ -288,6 +288,7 @@ ordersRouter.post(
           cropY: img.cropY,
           cropWidth: img.cropWidth,
           cropHeight: img.cropHeight,
+          rotation: img.rotation,
         })),
       );
     } catch (renderErr) {
@@ -424,6 +425,7 @@ ordersRouter.post(
           cropY: img.cropY,
           cropWidth: img.cropWidth,
           cropHeight: img.cropHeight,
+          rotation: img.rotation,
         })),
       );
     } catch (renderErr) {

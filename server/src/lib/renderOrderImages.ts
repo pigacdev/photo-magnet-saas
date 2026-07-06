@@ -1,12 +1,16 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import {
+  normalizeRotation,
+  sharpRotateFromCropRotation,
+} from "../../../src/lib/cropRotation";
 import { ORDER_IMAGE_LIST_ORDER_BY } from "./magnetImageOrderBy";
 import { prisma } from "./prisma";
 
 /**
  * Minimal shape for rendering (e.g. Prisma OrderImage rows).
- * Crop fields are used as-is for extract(); only rounded for Sharp integer requirement.
+ * Crop fields are in post-rotation image space; rotation is user CW degrees.
  */
 export type OrderImageRenderInput = {
   id: string;
@@ -15,6 +19,7 @@ export type OrderImageRenderInput = {
   cropY: number;
   cropWidth: number;
   cropHeight: number;
+  rotation?: number;
 };
 
 /** Local disk path under process.cwd() from a same-origin `/uploads/...` URL. */
@@ -29,7 +34,7 @@ function resolveLocalInputPath(originalUrl: string): string {
 }
 
 /**
- * Extracts the crop rectangle from each source file and writes a JPEG (no resize/scale).
+ * Rotates (when needed), extracts the crop rectangle, and writes a JPEG (no resize/scale).
  * Crop rectangle uses integer pixel bounds (Sharp); values are rounded from stored pixels only.
  */
 export async function renderOrderImages(
@@ -65,7 +70,16 @@ export async function renderOrderImages(
       );
     }
 
-    await sharp(inputPath)
+    const sharpAngle = sharpRotateFromCropRotation(
+      normalizeRotation(img.rotation ?? 0),
+    );
+
+    let pipeline = sharp(inputPath);
+    if (sharpAngle !== 0) {
+      pipeline = pipeline.rotate(sharpAngle);
+    }
+
+    await pipeline
       .extract({
         left,
         top,
@@ -124,6 +138,7 @@ export async function ensureOrderImagesRendered(orderId: string): Promise<void> 
       cropY: img.cropY!,
       cropWidth: img.cropWidth!,
       cropHeight: img.cropHeight!,
+      rotation: img.rotation,
     })),
   );
 }

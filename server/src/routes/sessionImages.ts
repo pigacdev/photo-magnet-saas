@@ -28,6 +28,10 @@ import { MAX_MULTIPART_FILES_PER_REQUEST } from "../../../src/lib/sessionImageLi
 import { getMinRequiredPx } from "../../../src/lib/minRequiredPxForShape";
 import { getMaxImagesAllowed } from "../lib/sessionImageMaxFromSession";
 import { SESSION_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
+import {
+  effectiveImageDimensions,
+  normalizeRotation,
+} from "../../../src/lib/cropRotation";
 
 export const sessionImagesRouter = Router();
 
@@ -477,12 +481,23 @@ sessionImagesRouter.patch("/:id", async (req, res) => {
     return;
   }
 
+  const crotRaw = body.cropRotation;
+  const cropRotation =
+    typeof crotRaw === "number" && Number.isFinite(crotRaw)
+      ? normalizeRotation(crotRaw)
+      : 0;
+  const { w: imageW, h: imageH } = effectiveImageDimensions(
+    row.width,
+    row.height,
+    cropRotation,
+  );
+
   const {
     cropX: cx,
     cropY: cy,
     cropWidth: cw,
     cropHeight: ch,
-  } = clampCropRectToImage(row.width, row.height, cropX, cropY, cropWidth, cropHeight);
+  } = clampCropRectToImage(imageW, imageH, cropX, cropY, cropWidth, cropHeight);
 
   if (!session.selectedShapeId) {
     res.status(400).json({ error: "Select a magnet shape before saving crop" });
@@ -503,8 +518,8 @@ sessionImagesRouter.patch("/:id", async (req, res) => {
 
   const expectedRatio = expectedCropAspectRatio(allowedShape);
   const snapped = snapCropRectToShapeAspectRatio(
-    row.width,
-    row.height,
+    imageW,
+    imageH,
     cx,
     cy,
     cw,
@@ -535,7 +550,6 @@ sessionImagesRouter.patch("/:id", async (req, res) => {
   const cs = body.cropScale;
   const ctx = body.cropTranslateX;
   const cty = body.cropTranslateY;
-  const crot = body.cropRotation;
 
   const updated = await prisma.sessionImage.update({
     where: { id: row.id },
@@ -547,8 +561,7 @@ sessionImagesRouter.patch("/:id", async (req, res) => {
       cropScale: typeof cs === "number" && Number.isFinite(cs) ? cs : null,
       cropTranslateX: typeof ctx === "number" && Number.isFinite(ctx) ? ctx : null,
       cropTranslateY: typeof cty === "number" && Number.isFinite(cty) ? cty : null,
-      cropRotation:
-        typeof crot === "number" && Number.isFinite(crot) ? crot : 0,
+      cropRotation,
     },
   });
 

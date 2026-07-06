@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { catalogShapeAspectRatio } from "@/lib/catalogShapeAspectRatio";
+import { normalizeRotation } from "@/lib/cropRotation";
 import {
   MAX_CROP_ZOOM_FACTOR,
   clampPan,
@@ -38,6 +39,37 @@ function isCircleShape(shape: CatalogShape): boolean {
   return shape.shapeType.toUpperCase() === "CIRCLE";
 }
 
+function buildPayload(
+  ow: number,
+  oh: number,
+  fw: number,
+  fh: number,
+  tx: number,
+  ty: number,
+  k: number,
+  userZoom: number,
+  rotationDeg: number,
+): SessionImageCropPayload {
+  const pc = clampPan(ow, oh, fw, fh, k, tx, ty, rotationDeg);
+  const rect = computeCropPixelRect(
+    ow,
+    oh,
+    fw,
+    fh,
+    pc.tx,
+    pc.ty,
+    k,
+    rotationDeg,
+  );
+  return {
+    ...rect,
+    cropScale: userZoom,
+    cropTranslateX: pc.tx,
+    cropTranslateY: pc.ty,
+    cropRotation: rotationDeg,
+  };
+}
+
 export function FixedCropCanvas({ image, shape, onChange }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
@@ -53,6 +85,9 @@ export function FixedCropCanvas({ image, shape, onChange }: Props) {
   const ow = image.width;
   const oh = image.height;
 
+  const [rotation, setRotation] = useState(() =>
+    normalizeRotation(image.cropRotation ?? 0),
+  );
   const [pan, setPan] = useState(() => ({
     tx: image.cropTranslateX ?? 0,
     ty: image.cropTranslateY ?? 0,
@@ -89,49 +124,38 @@ export function FixedCropCanvas({ image, shape, onChange }: Props) {
     return () => ro.disconnect();
   }, []);
 
-  const baseK = fw > 0 && fh > 0 ? minCoverScale(fw, fh, ow, oh) : 1;
+  const baseK =
+    fw > 0 && fh > 0 ? minCoverScale(fw, fh, ow, oh, rotation) : 1;
   const k = effectiveScale(baseK, userZoom);
 
   useEffect(() => {
     if (fw <= 0 || fh <= 0) return;
-    setPan((p) => clampPan(ow, oh, fw, fh, k, p.tx, p.ty));
-  }, [ow, oh, fw, fh, k]);
+    setPan((p) => clampPan(ow, oh, fw, fh, k, p.tx, p.ty, rotation));
+  }, [ow, oh, fw, fh, k, rotation]);
 
-  const panClamped = clampPan(ow, oh, fw, fh, k, pan.tx, pan.ty);
+  const panClamped = clampPan(ow, oh, fw, fh, k, pan.tx, pan.ty, rotation);
 
   useLayoutEffect(() => {
     if (fw <= 0 || fh <= 0) return;
     if (initialEmitDoneRef.current) return;
-    const pc = clampPan(ow, oh, fw, fh, k, pan.tx, pan.ty);
-    const rect = computeCropPixelRect(ow, oh, fw, fh, pc.tx, pc.ty, k);
+    onChangeRef.current(
+      buildPayload(ow, oh, fw, fh, pan.tx, pan.ty, k, userZoom, rotation),
+    );
     initialEmitDoneRef.current = true;
-    onChangeRef.current({
-      ...rect,
-      cropScale: userZoom,
-      cropTranslateX: pc.tx,
-      cropTranslateY: pc.ty,
-      cropRotation: 0,
-    });
-  }, [ow, oh, fw, fh, k, pan.tx, pan.ty, userZoom]);
+  }, [ow, oh, fw, fh, k, pan.tx, pan.ty, userZoom, rotation]);
 
   useEffect(() => {
     if (fw <= 0 || fh <= 0) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      const pc = clampPan(ow, oh, fw, fh, k, pan.tx, pan.ty);
-      const rect = computeCropPixelRect(ow, oh, fw, fh, pc.tx, pc.ty, k);
-      onChangeRef.current({
-        ...rect,
-        cropScale: userZoom,
-        cropTranslateX: pc.tx,
-        cropTranslateY: pc.ty,
-        cropRotation: 0,
-      });
+      onChangeRef.current(
+        buildPayload(ow, oh, fw, fh, pan.tx, pan.ty, k, userZoom, rotation),
+      );
     }, 250);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [ow, oh, fw, fh, k, pan.tx, pan.ty, userZoom]);
+  }, [ow, oh, fw, fh, k, pan.tx, pan.ty, userZoom, rotation]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -157,6 +181,7 @@ export function FixedCropCanvas({ image, shape, onChange }: Props) {
         k,
         dragRef.current.tx + dx,
         dragRef.current.ty + dy,
+        rotation,
       ),
     );
   };
@@ -209,6 +234,8 @@ export function FixedCropCanvas({ image, shape, onChange }: Props) {
 
   const imgLeft = fw / 2 + panClamped.tx - (ow * k) / 2;
   const imgTop = fh / 2 + panClamped.ty - (oh * k) / 2;
+  const imgCenterX = imgLeft + (ow * k) / 2;
+  const imgCenterY = imgTop + (oh * k) / 2;
 
   const ar = catalogShapeAspectRatio(shape);
   const circle = isCircleShape(shape);
@@ -219,6 +246,12 @@ export function FixedCropCanvas({ image, shape, onChange }: Props) {
 
   const zoomIn = useCallback(() => {
     setUserZoom((z) => Math.min(MAX_CROP_ZOOM_FACTOR, z * 1.08));
+  }, []);
+
+  const rotate90 = useCallback(() => {
+    setRotation((r) => normalizeRotation(r + 90));
+    setPan({ tx: 0, ty: 0 });
+    setUserZoom(1);
   }, []);
 
   return (
@@ -251,6 +284,8 @@ export function FixedCropCanvas({ image, shape, onChange }: Props) {
             height: oh * k,
             left: imgLeft,
             top: imgTop,
+            transform: `rotate(${rotation}deg)`,
+            transformOrigin: `${imgCenterX - imgLeft}px ${imgCenterY - imgTop}px`,
           }}
         />
         {circle && (
@@ -273,6 +308,26 @@ export function FixedCropCanvas({ image, shape, onChange }: Props) {
         <button
           type="button"
           className="min-h-12 min-w-12 rounded-2xl border-2 border-border bg-background text-lg font-semibold text-foreground active:bg-surface"
+          aria-label="Rotate 90 degrees"
+          onClick={rotate90}
+        >
+          <svg
+            className="mx-auto size-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M21 12a9 9 0 1 1-3-6.7" />
+            <polyline points="21 3 21 9 15 9" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="min-h-12 min-w-12 rounded-2xl border-2 border-border bg-background text-lg font-semibold text-foreground active:bg-surface"
           aria-label="Zoom in"
           onClick={zoomIn}
         >
@@ -280,7 +335,7 @@ export function FixedCropCanvas({ image, shape, onChange }: Props) {
         </button>
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        Drag to move · Pinch or scroll to zoom
+        Drag to move · Pinch or scroll to zoom · Tap rotate to turn
       </p>
     </div>
   );

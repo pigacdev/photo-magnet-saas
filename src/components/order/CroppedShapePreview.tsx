@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { catalogShapeAspectRatio } from "@/lib/catalogShapeAspectRatio";
+import { drawPostRotationCrop } from "@/lib/renderRotatedCropCanvas";
 import type { CatalogShape, SessionImage } from "@/lib/orderSessionTypes";
 
 function isCircleShape(shape: CatalogShape): boolean {
@@ -24,6 +25,7 @@ function drawCropped(
   ch: number,
   cssW: number,
   cssH: number,
+  rotationDeg: number,
 ): void {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -38,7 +40,7 @@ function drawCropped(
   ctx.scale(dpr, dpr);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, cx, cy, cw, ch, 0, 0, cssW, cssH);
+  drawPostRotationCrop(ctx, img, cx, cy, cw, ch, cssW, cssH, rotationDeg);
 }
 
 /**
@@ -62,6 +64,7 @@ export function CroppedShapePreview({
   const cy = image.cropY;
   const cw = image.cropWidth;
   const ch = image.cropHeight;
+  const rotation = image.cropRotation ?? 0;
 
   const frameAspect = catalogShapeAspectRatio(shape);
 
@@ -95,7 +98,7 @@ export function CroppedShapePreview({
       if (!canvas) return;
       const cssW = Math.min(maxWidthPx, layoutW);
       const cssH = cssW / frameAspect;
-      drawCropped(canvas, img, cx, cy, cw, ch, cssW, cssH);
+      drawCropped(canvas, img, cx, cy, cw, ch, cssW, cssH, rotation);
       setStatus("ready");
     };
 
@@ -144,6 +147,7 @@ export function CroppedShapePreview({
     cy,
     cw,
     ch,
+    rotation,
     maxWidthPx,
     layoutW,
     frameAspect,

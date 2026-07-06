@@ -104,6 +104,7 @@ type OrderImageZipRow = {
   cropY: number;
   cropWidth: number;
   cropHeight: number;
+  rotation: number;
 };
 
 /** Original must be a local, non-http path with file on disk — matches {@link renderOrderImages} constraints. */
@@ -212,6 +213,7 @@ async function resolveFinalOrderImageForZip(
     cropY: img.cropY,
     cropWidth: img.cropWidth,
     cropHeight: img.cropHeight,
+    rotation: img.rotation,
   };
 
   try {
@@ -353,6 +355,7 @@ export async function streamEndedEventMediaZip(
           cropY: true,
           cropWidth: true,
           cropHeight: true,
+          rotation: true,
         },
       },
     },

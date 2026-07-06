@@ -530,7 +530,7 @@ export async function runOrderCommitTransaction(
         cropY: img.cropY!,
         cropWidth: img.cropWidth!,
         cropHeight: img.cropHeight!,
-        rotation: 0,
+        rotation: img.cropRotation ?? 0,
         width: img.width,
         height: img.height,
         position: img.position,
