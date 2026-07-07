@@ -14,6 +14,7 @@ import { getDisplayPreferences } from "@/lib/auth";
 import { formatDisplayDateTime } from "@/lib/dateFormat";
 import { CustomerEditModal } from "@/components/dashboard/CustomerEditModal";
 import { CancelOrderModal } from "@/components/dashboard/CancelOrderModal";
+import { PrintOutcomeModal } from "@/components/dashboard/PrintOutcomeModal";
 import { OrderStatusRow } from "@/lib/orderDetailClarity";
 import {
   normalizeLegacyShippingType,
@@ -347,6 +348,7 @@ export default function OrderDetailPage() {
         method: "PATCH",
         body: body?.imageIds?.length ? { imageIds: body.imageIds } : undefined,
       });
+      setPrintOutcomePrompt(false);
       refreshOrder();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update");
@@ -599,33 +601,6 @@ export default function OrderDetailPage() {
                     Open the PDF preview, then confirm when production printing is
                     done.
                   </p>
-                )}
-                {showMarkPrinted && printOutcomePrompt && (
-                  <div className="rounded-lg border border-border bg-surface p-4 sm:p-5">
-                    <p className="text-sm font-medium text-foreground">
-                      Did everything print correctly?
-                    </p>
-                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                      <button
-                        type="button"
-                        disabled={actionBusy !== null}
-                        onClick={() => void markPrinted()}
-                        className="min-h-[48px] rounded-lg bg-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[200px]"
-                      >
-                        {actionBusy === "markPrinted"
-                          ? "Updating…"
-                          : "Yes → Mark all as printed"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={actionBusy !== null}
-                        onClick={() => setPrintOutcomePrompt(false)}
-                        className="min-h-[48px] rounded-lg border border-border bg-background px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50 sm:min-w-[220px]"
-                      >
-                        No → I&apos;ll reprint some later
-                      </button>
-                    </div>
-                  </div>
                 )}
               </div>
             )}
@@ -883,6 +858,15 @@ export default function OrderDetailPage() {
           if (actionBusy !== "status") setCancelModalOpen(false);
         }}
         onConfirm={handleConfirmCancel}
+      />
+
+      <PrintOutcomeModal
+        open={printOutcomePrompt}
+        saving={actionBusy === "markPrinted"}
+        onClose={() => {
+          if (actionBusy !== "markPrinted") setPrintOutcomePrompt(false);
+        }}
+        onConfirm={() => void markPrinted()}
       />
 
     </div>
