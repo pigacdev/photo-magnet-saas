@@ -20,7 +20,7 @@ describe("printSheetCircleBrand", () => {
   });
 
   it("places characters along decreasing top arc angles (left to right)", () => {
-    const text = "@magnetooprints";
+    const text = "Magnetoo";
     const charWidths = text.split("").map(() => 5);
     const radius = 100;
     const placements = computeCurvedBrandPlacements(text, charWidths, radius);

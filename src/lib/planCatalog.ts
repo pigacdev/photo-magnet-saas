@@ -6,7 +6,7 @@ export type PlanSlug = "free" | "free_user" | "hobby" | "pro";
 export const FREE_PRINT_BRAND_TEXT = "Magnetoo Studio";
 
 /** Default print brand for paid plans when brandText is unset. */
-export const DEFAULT_PRINT_BRAND_TEXT = "@magnetooprints";
+export const DEFAULT_PRINT_BRAND_TEXT = "Magnetoo";
 
 /** Sentinel for unlimited orders / events per billing period. */
 export const UNLIMITED_ENTITLEMENT = 999_999;

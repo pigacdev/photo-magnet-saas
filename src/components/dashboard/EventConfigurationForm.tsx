@@ -22,7 +22,7 @@ import {
 import Link from "next/link";
 import { useOrganizationUsage } from "@/hooks/useOrganizationUsage";
 import { formatDisplayDateTime } from "@/lib/dateFormat";
-import { FREE_PRINT_BRAND_TEXT } from "@/lib/planCatalog";
+import { DEFAULT_PRINT_BRAND_TEXT, FREE_PRINT_BRAND_TEXT } from "@/lib/planCatalog";
 import { usageHasFeature } from "@/lib/planFeatures";
 import { EventBannerUpload } from "@/components/dashboard/EventBannerUpload";
 
@@ -298,7 +298,7 @@ export function EventConfigurationForm({
             <>
               <p className="mt-1 text-xs text-muted-foreground">
                 Shown on seller PDF print sheets. Max 40 characters. Empty uses
-                default <span className="font-mono">@magnetooprints</span>.
+                default <span className="font-medium">{DEFAULT_PRINT_BRAND_TEXT}</span>.
               </p>
               <label className="mt-4 flex flex-col gap-1">
                 <span className="text-xs font-medium text-muted-foreground">Brand line</span>
@@ -307,7 +307,7 @@ export function EventConfigurationForm({
                   value={brandDraft}
                   onChange={(e) => setBrandDraft(e.target.value.slice(0, 40))}
                   maxLength={40}
-                  placeholder="@magnetooprints"
+                  placeholder={DEFAULT_PRINT_BRAND_TEXT}
                   className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
                 />
               </label>
