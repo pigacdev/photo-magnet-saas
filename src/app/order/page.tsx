@@ -131,18 +131,6 @@ export default function OrderPage() {
       }
 
       await patchSession({ selectedShapeId: s.id });
-      if (perItem) {
-        await patchSession({
-          selectedShapeId: s.id,
-          pricingType: "per_item",
-        });
-      } else if (bundleFallback) {
-        await patchSession({
-          selectedShapeId: s.id,
-          pricingType: "bundle",
-          bundleId: bundleFallback,
-        });
-      }
     },
     [pricing, patchSession],
   );

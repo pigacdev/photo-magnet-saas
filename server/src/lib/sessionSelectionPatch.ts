@@ -21,8 +21,9 @@ function roundMoney(n: number): string {
  * - `per_item` → `bundleId` is set to `null` (clears any prior bundle selection).
  * - `bundle` → `quantity` is set to `null` (clears any prior per-item quantity).
  *
- * Shape change: when `selectedShapeId` differs from the stored session, pricing is cleared
- * (`pricingType`, `quantity`, `bundleId`, `totalPrice` → null) so the user must pick pricing again.
+ * Shape change: when `selectedShapeId` differs from the stored session, only the shape is
+ * updated. Pricing is context-scoped (not shape-scoped), so existing bundle/per-item selection
+ * is preserved.
  */
 export async function applySessionSelectionPatch(
   session: OrderSession,
@@ -58,10 +59,6 @@ export async function applySessionSelectionPatch(
       where: { id: session.id },
       data: {
         selectedShapeId: shape.id,
-        pricingType: null,
-        quantity: null,
-        bundleId: null,
-        totalPrice: null,
         lastActiveAt: new Date(),
       },
     });
