@@ -12,6 +12,7 @@ import {
 } from "./dashboardNav";
 import { DashboardNavIcon } from "./dashboardNavIcons";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
+import { useNewOrdersCount } from "@/hooks/useNewOrdersCount";
 import { usageHasFeature } from "@/lib/planFeatures";
 
 export type DashboardSidebarProps = {
@@ -29,6 +30,7 @@ export function DashboardSidebar({
 }: DashboardSidebarProps) {
   const pathname = usePathname();
   const { storefront } = useSellerStorefront();
+  const { count: newOrdersCount } = useNewOrdersCount();
 
   return (
     <aside
@@ -92,7 +94,15 @@ export function DashboardSidebar({
                     isActive ? "text-primary" : "text-muted-foreground"
                   }`}
                 />
-                {item.label}
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.href === "/dashboard/orders" && newOrdersCount > 0 && (
+                  <span
+                    className="ml-auto inline-flex min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-[#16A34A] px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"
+                    aria-label={`${newOrdersCount} new orders`}
+                  >
+                    {newOrdersCount > 99 ? "99+" : newOrdersCount}
+                  </span>
+                )}
               </Link>
             );
           })}

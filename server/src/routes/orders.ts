@@ -297,6 +297,20 @@ ordersRouter.get(
   },
 );
 
+/** GET /api/orders/new-count — count of orders awaiting first seller review (status NEW). */
+ordersRouter.get(
+  "/new-count",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const count = await prisma.order.count({
+      where: { organizationId: userId, status: "NEW" },
+    });
+    res.json({ count });
+  },
+);
+
 /**
  * POST /api/orders/:id/print-preview — generate PDF(s) only; does not set printed flags.
  */

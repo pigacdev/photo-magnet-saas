@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { invalidateNewOrdersCount } from "@/lib/newOrdersCount";
 
 export type NewOrderNotificationItem = {
   id: string;
@@ -49,6 +50,7 @@ export function useNewOrderNotifications() {
           }, lastSeenAtRef.current.getTime());
           lastSeenAtRef.current = new Date(latestCreatedAt);
           setQueue((prev) => [...prev, ...fresh]);
+          invalidateNewOrdersCount();
         }
       } catch {
         /* ignore transient poll failures */

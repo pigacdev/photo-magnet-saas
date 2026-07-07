@@ -36,6 +36,7 @@ import {
 } from "@/lib/orderContextDisplay";
 import { formatOrderReference } from "@/lib/orderReference";
 import { OrderImageSelectCard } from "@/components/dashboard/OrderImageSelectCard";
+import { invalidateNewOrdersCount } from "@/lib/newOrdersCount";
 
 type SellerOrderDetail = {
   orderId: string;
@@ -225,6 +226,7 @@ export default function OrderDetailPage() {
     cancellationNote?: string | null,
   ) {
     if (!id) return;
+    const wasNew = order?.status === "NEW";
     setActionBusy("status");
     setError(null);
     try {
@@ -241,6 +243,7 @@ export default function OrderDetailPage() {
       });
       setCancelModalOpen(false);
       refreshOrder();
+      if (wasNew) invalidateNewOrdersCount();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update status");
     } finally {
