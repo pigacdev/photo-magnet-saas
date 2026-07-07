@@ -15,6 +15,7 @@ import { formatDisplayDateTime } from "@/lib/dateFormat";
 import { CustomerEditModal } from "@/components/dashboard/CustomerEditModal";
 import { CancelOrderModal } from "@/components/dashboard/CancelOrderModal";
 import { PrintOutcomeModal } from "@/components/dashboard/PrintOutcomeModal";
+import { SendOrderEmailModal } from "@/components/dashboard/SendOrderEmailModal";
 import { OrderStatusRow } from "@/lib/orderDetailClarity";
 import {
   normalizeLegacyShippingType,
@@ -98,6 +99,7 @@ export default function OrderDetailPage() {
     null,
   );
   const [customerEditOpen, setCustomerEditOpen] = useState(false);
+  const [sendEmailOpen, setSendEmailOpen] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   /** After a successful "Print order", ask before marking — reinforces preview → confirm flow. */
   const [printOutcomePrompt, setPrintOutcomePrompt] = useState(false);
@@ -615,13 +617,22 @@ export default function OrderDetailPage() {
                 <h2 className="text-lg font-semibold text-foreground sm:text-xl">
                   Customer & shipping
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => setCustomerEditOpen(true)}
-                  className="min-h-[44px] text-left text-sm font-medium text-primary hover:underline sm:text-right"
-                >
-                  Edit customer info
-                </button>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSendEmailOpen(true)}
+                    className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[#16A34A] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#15803D]"
+                  >
+                    Send email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerEditOpen(true)}
+                    className="min-h-[44px] text-left text-sm font-medium text-primary hover:underline sm:text-right"
+                  >
+                    Edit customer info
+                  </button>
+                </div>
               </div>
               {hasCustomerInfo ? (
                 <dl className="mt-3 space-y-2 text-sm">
@@ -851,6 +862,17 @@ export default function OrderDetailPage() {
           order={order}
           onClose={() => setCustomerEditOpen(false)}
           onSaved={refreshOrder}
+        />
+      )}
+
+      {sendEmailOpen && order && (
+        <SendOrderEmailModal
+          open={sendEmailOpen}
+          orderId={order.orderId}
+          orderReference={orderReference}
+          customerEmail={order.customerEmail}
+          onClose={() => setSendEmailOpen(false)}
+          onSent={() => setPrintFeedbackToast("Email sent")}
         />
       )}
 

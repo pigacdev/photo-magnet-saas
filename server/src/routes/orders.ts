@@ -5,6 +5,7 @@
  */
 import type { Request, Response } from "express";
 import { Router } from "express";
+import multer from "multer";
 import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { sessionConfig } from "../config/session";
@@ -51,7 +52,11 @@ import { renderOrderImages, ensureOrderImagesRendered } from "../lib/renderOrder
 import {
   buildOrderEmailHtml,
   buildOrderEmailSubject,
+  buildSellerToBuyerEmailHtml,
+  isResendConfigured,
+  sendEmail,
   sendNewOrderEmail,
+  TEST_EMAIL_FROM,
 } from "../lib/email";
 import { loadOrderNotificationContext } from "../lib/orderNotificationContext";
 import {
@@ -67,6 +72,12 @@ import {
   allOrderImagesMediaRemoved,
   filterPrintableOrderImages,
 } from "../lib/orderImageMediaAvailability";
+import {
+  ORDER_EMAIL_MAX_ATTACHMENTS,
+  ORDER_EMAIL_MAX_FILE_BYTES,
+  parseOrderEmailFormBody,
+  validateOrderEmailAttachments,
+} from "../lib/orderSendEmailValidation";
 
 export const ordersRouter = Router();
 
@@ -75,6 +86,14 @@ const MEDIA_UNAVAILABLE_AFTER_RETENTION =
 
 const MARK_PRINTED_NO_PRINTABLE_MEDIA =
   "No printable images: media was removed after the retention period.";
+
+const orderEmailUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: ORDER_EMAIL_MAX_FILE_BYTES,
+    files: ORDER_EMAIL_MAX_ATTACHMENTS,
+  },
+});
 
 function sendOrderPrepareError(res: Response, err: PrepareCommitError) {
   if (err.status === 403 && err.code === "ORDER_LIMIT_REACHED") {
@@ -1207,6 +1226,113 @@ ordersRouter.post("/", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Could not create order" });
   }
 });
+
+/**
+ * POST /api/orders/:id/send-email — seller sends a custom email to the buyer.
+ */
+ordersRouter.post(
+  "/:id/send-email",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  (req, res, next) => {
+    orderEmailUpload.array("attachments", ORDER_EMAIL_MAX_ATTACHMENTS)(
+      req,
+      res,
+      (err) => {
+        if (err instanceof multer.MulterError) {
+          if (err.code === "LIMIT_FILE_SIZE") {
+            res.status(400).json({ error: "Each attachment must be 10 MB or smaller" });
+            return;
+          }
+          if (err.code === "LIMIT_FILE_COUNT") {
+            res.status(400).json({
+              error: `At most ${ORDER_EMAIL_MAX_ATTACHMENTS} attachments allowed`,
+            });
+            return;
+          }
+          res.status(400).json({ error: err.message });
+          return;
+        }
+        if (err) {
+          next(err);
+          return;
+        }
+        void (async () => {
+          const orderId = String(req.params.id ?? "").trim();
+          if (!orderId) {
+            res.status(400).json({ error: "Order id required" });
+            return;
+          }
+
+          const owner = req.user!.userId;
+          const order = await prisma.order.findFirst({
+            where: { id: orderId, organizationId: owner },
+            select: {
+              id: true,
+              shortCode: true,
+              contextType: true,
+              contextId: true,
+            },
+          });
+          if (!order) {
+            res.status(404).json({ error: "Order not found" });
+            return;
+          }
+
+          const parsed = parseOrderEmailFormBody(
+            req.body as Record<string, unknown>,
+          );
+          if (!parsed.ok) {
+            res.status(400).json({ error: parsed.error });
+            return;
+          }
+
+          const attachmentResult = validateOrderEmailAttachments(
+            req.files as Express.Multer.File[] | undefined,
+          );
+          if (!attachmentResult.ok) {
+            res.status(400).json({ error: attachmentResult.error });
+            return;
+          }
+
+          if (!isResendConfigured()) {
+            res.status(503).json({ error: "Email service is not configured" });
+            return;
+          }
+
+          const { contextName, notificationEmail } =
+            await loadOrderNotificationContext(order);
+
+          const orderReference =
+            order.shortCode?.trim() || order.id.slice(0, 8).toUpperCase();
+
+          const html = buildSellerToBuyerEmailHtml({
+            contextName,
+            orderReference,
+            messageHtml: parsed.messageHtml,
+          });
+
+          try {
+            await sendEmail({
+              to: parsed.to,
+              from: TEST_EMAIL_FROM,
+              ...(notificationEmail ? { replyTo: notificationEmail } : {}),
+              subject: parsed.subject,
+              html,
+              attachments: attachmentResult.attachments,
+            });
+          } catch (err) {
+            console.error("[orders.send-email] failed", err);
+            res.status(500).json({ error: "Could not send email" });
+            return;
+          }
+
+          res.json({ ok: true });
+        })().catch(next);
+      },
+    );
+  },
+);
 
 /**
  * GET /api/orders/:id

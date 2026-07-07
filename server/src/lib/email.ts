@@ -339,12 +339,46 @@ export function buildSellerFromAddress(
   return `${safeName} <${notificationEmail}>`;
 }
 
+export type EmailAttachment = {
+  filename: string;
+  content: Buffer;
+};
+
+export function buildSellerToBuyerEmailHtml(data: {
+  contextName: string;
+  orderReference: string;
+  messageHtml: string;
+}): string {
+  const context = escapeHtml(data.contextName.trim() || "Magnetoo");
+  const ref = escapeHtml(data.orderReference.trim() || "—");
+  const body = data.messageHtml.trim() || "<p></p>";
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:24px;background:#f9fafb;">
+  <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
+
+    <h2 style="margin:0 0 4px;font-size:20px;font-weight:600;">Message from ${context}</h2>
+    <p style="color:#666;margin:0;font-size:14px;">Regarding order ${ref}</p>
+
+    <div style="border:1px solid #eee;border-radius:8px;padding:16px;margin-top:16px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,0.04);font-size:15px;">
+      ${body}
+    </div>
+
+    <p style="margin:16px 0 0;font-size:13px;color:#6B7280;">If you have any questions, reply to this email.</p>
+
+  </div>
+</body>
+</html>`;
+}
+
 export async function sendEmail(data: {
   to: string;
   from?: string;
   replyTo?: string;
   subject: string;
   html: string;
+  attachments?: EmailAttachment[];
 }): Promise<void> {
   const key = process.env.RESEND_API_KEY?.trim();
   if (!key) {
@@ -359,6 +393,14 @@ export async function sendEmail(data: {
     ...(data.replyTo?.trim() ? { replyTo: data.replyTo.trim() } : {}),
     subject: data.subject,
     html: data.html,
+    ...(data.attachments?.length
+      ? {
+          attachments: data.attachments.map((a) => ({
+            filename: a.filename,
+            content: a.content,
+          })),
+        }
+      : {}),
   });
 }
 
