@@ -239,6 +239,64 @@ ordersRouter.get(
   },
 );
 
+/** GET /api/orders/recent — lightweight poll for new orders since a timestamp. */
+ordersRouter.get(
+  "/recent",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const sinceRaw =
+      typeof req.query.since === "string" ? req.query.since.trim() : "";
+    if (!sinceRaw) {
+      res.status(400).json({ error: "since query parameter is required" });
+      return;
+    }
+
+    const sinceDate = new Date(sinceRaw);
+    if (Number.isNaN(sinceDate.getTime())) {
+      res.status(400).json({ error: "Invalid since timestamp" });
+      return;
+    }
+
+    const orders = await prisma.order.findMany({
+      where: {
+        organizationId: userId,
+        createdAt: { gt: sinceDate },
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        customerName: true,
+        createdAt: true,
+        totalPrice: true,
+        currency: true,
+        orderImages: {
+          select: { mediaDeletedAt: true, copies: true },
+        },
+      },
+      take: 20,
+    });
+
+    res.json({
+      items: orders.map((o) => {
+        const printable = filterPrintableOrderImages(o.orderImages);
+        return {
+          id: o.id,
+          customerName: o.customerName,
+          createdAt: o.createdAt.toISOString(),
+          totalPrice: o.totalPrice.toString(),
+          currency: o.currency,
+          magnetCount: printable.reduce(
+            (sum, img) => sum + (img.copies ?? 1),
+            0,
+          ),
+        };
+      }),
+    });
+  },
+);
+
 /**
  * POST /api/orders/:id/print-preview — generate PDF(s) only; does not set printed flags.
  */

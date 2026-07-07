@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { OrganizationUsage, User } from "@/lib/auth";
 import { DashboardHeader } from "./DashboardHeader";
 import { DashboardSidebar } from "./DashboardSidebar";
+import { NewOrderNotification } from "./NewOrderNotification";
 
 export type DashboardShellProps = {
   user: User;
@@ -59,6 +60,7 @@ export function DashboardShell({
         <DashboardHeader onMenuToggle={() => setMobileOpen((v) => !v)} />
         <main className="flex-1 px-4 py-6 lg:px-6">{children}</main>
       </div>
+      <NewOrderNotification />
     </div>
   );
 }
