@@ -14,6 +14,7 @@ import { api } from "@/lib/api";
 import { OrderShell } from "@/components/order/OrderShell";
 import { OrderStepHeader } from "@/components/order/OrderStepHeader";
 import {
+  orderAlertWarning,
   orderBtnPrimary,
   orderCard,
   orderLoadingScreen,
@@ -735,13 +736,14 @@ function CustomerPageInner() {
                 </dd>
               </div>
             </dl>
-            {!isEvent && (
-              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                Shipping cost and taxes will be calculated based on your details
-                and sent to your email with the invoice.
-              </p>
-            )}
           </section>
+
+          {!isEvent && (
+            <p className={orderAlertWarning} role="status">
+              Shipping cost and taxes will be calculated based on your details
+              and sent to your email with the invoice.
+            </p>
+          )}
 
           {error && (
             <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
