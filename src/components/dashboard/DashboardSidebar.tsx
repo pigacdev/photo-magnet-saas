@@ -14,27 +14,6 @@ import { DashboardNavIcon } from "./dashboardNavIcons";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
 import { usageHasFeature } from "@/lib/planFeatures";
 
-function LogoMark() {
-  return (
-    <svg
-      className="size-8 shrink-0 text-primary"
-      viewBox="0 0 32 32"
-      fill="none"
-      aria-hidden
-    >
-      <rect width="32" height="32" rx="8" fill="currentColor" fillOpacity="0.1" />
-      <rect x="8" y="8" width="16" height="16" rx="4" stroke="currentColor" strokeWidth="2" />
-      <circle cx="16" cy="14" r="3" fill="currentColor" />
-      <path
-        d="M10 22c1.5-2.5 4-4 6-4s4.5 1.5 6 4"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 export type DashboardSidebarProps = {
   user: User;
   usage: OrganizationUsage | null;
@@ -59,12 +38,18 @@ export function DashboardSidebar({
         <Link
           href="/dashboard"
           onClick={onNavigate}
-          className="flex min-w-0 items-center gap-2.5"
+          className="flex min-w-0 items-center"
         >
-          <LogoMark />
-          <span className="truncate text-sm font-semibold text-foreground">
-            Photo Magnet
-          </span>
+          <img
+            src="/logo-light.png"
+            alt="Magnetoo"
+            className="block h-8 w-auto max-w-[200px] object-contain dark:hidden"
+          />
+          <img
+            src="/logo-dark.png"
+            alt="Magnetoo"
+            className="hidden h-8 w-auto max-w-[200px] object-contain dark:block"
+          />
         </Link>
       </div>
 
