@@ -46,6 +46,11 @@ export function isPrintEligibleStatus(status: string): boolean {
   );
 }
 
+/** Orders eligible for print PDF preview (no DB changes). Keep in sync with `server/src/lib/orderStatus.ts`. */
+export function isPrintPreviewEligibleStatus(status: string): boolean {
+  return status !== "CANCELLED";
+}
+
 /** Allowed next statuses for seller actions (mirrors server orderStatus.ts). */
 export const ORDER_STATUS_TRANSITIONS: Record<
   OrderWorkflowStatus,

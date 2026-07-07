@@ -50,7 +50,7 @@ export function canTransitionOrderStatus(
   return ALLOWED_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
-/** Orders eligible for seller print actions. */
+/** Orders eligible for seller print fulfillment (mark printed, print selected). */
 export function isPrintEligibleStatus(status: OrderStatus): boolean {
   return (
     status === "PAID" ||
@@ -58,6 +58,11 @@ export function isPrintEligibleStatus(status: OrderStatus): boolean {
     status === "SHIPPED" ||
     status === "COMPLETED"
   );
+}
+
+/** Orders eligible for print PDF preview (no DB changes). Keep in sync with `src/lib/orderDisplayStatus.tsx`. */
+export function isPrintPreviewEligibleStatus(status: OrderStatus): boolean {
+  return status !== "CANCELLED";
 }
 
 export function parseEventPaymentPreference(

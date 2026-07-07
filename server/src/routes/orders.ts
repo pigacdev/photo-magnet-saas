@@ -23,6 +23,7 @@ import {
 import {
   canTransitionOrderStatus,
   isPrintEligibleStatus,
+  isPrintPreviewEligibleStatus,
   isValidOrderStatus,
   parseCancellationNote,
   parseEventPaymentPreference,
@@ -88,9 +89,14 @@ function sendOrderPrepareError(res: Response, err: PrepareCommitError) {
     .json("code" in err && err.code ? { error: err.error, code: err.code } : { error: err.error });
 }
 
-/** Seller print flow requires payment confirmed in workflow. */
+/** Seller print fulfillment requires payment confirmed in workflow. */
 function isReadyToPrintForSeller(order: { status: string }): boolean {
   return isPrintEligibleStatus(order.status as import("../../../src/generated/prisma/client").OrderStatus);
+}
+
+/** Seller print PDF preview: any active (non-cancelled) order. */
+function isPrintPreviewEligibleForSeller(order: { status: string }): boolean {
+  return isPrintPreviewEligibleStatus(order.status as import("../../../src/generated/prisma/client").OrderStatus);
 }
 
 /** GET /api/orders — seller list with search, filters, pagination (status filtered in memory). */
@@ -257,9 +263,9 @@ ordersRouter.post(
       res.status(404).json({ error: "Order not found" });
       return;
     }
-    if (!isReadyToPrintForSeller(order)) {
+    if (!isPrintPreviewEligibleForSeller(order)) {
       res.status(400).json({
-        error: "Order must be marked as paid before printing",
+        error: "Cancelled orders cannot be printed",
       });
       return;
     }

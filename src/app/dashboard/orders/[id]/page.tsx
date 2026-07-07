@@ -28,7 +28,7 @@ import {
   orderStatusLabel,
   type OrderWorkflowStatus,
 } from "@/lib/orderDisplayStatus";
-import { isReadyToPrint } from "@/lib/sellerOrderPrintStatus";
+import { isReadyToPrint, isReadyToPrintPreview } from "@/lib/sellerOrderPrintStatus";
 import {
   orderContextHref,
   orderContextKindLabel,
@@ -324,7 +324,9 @@ export default function OrderDetailPage() {
           }, i * 250);
         }
       }
-      setPrintOutcomePrompt(true);
+      if (order && isReadyToPrint(order)) {
+        setPrintOutcomePrompt(true);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not generate print preview");
     } finally {
@@ -395,15 +397,17 @@ export default function OrderDetailPage() {
       printableImages.length > 0 &&
       !allMediaRemoved,
   );
-  const awaitingPayment = Boolean(
+  const canPreviewPrint = Boolean(
     order &&
-      (order.status === "NEW" ||
-        order.status === "CONFIRMED" ||
-        order.status === "INVOICE_SENT") &&
-      order.images.length > 0 &&
+      isReadyToPrintPreview(order) &&
+      printableImages.length > 0 &&
       !allMediaRemoved,
   );
-  const showPrintOrderSlot = canPrintNow || awaitingPayment;
+  const awaitingPayment = Boolean(
+    order &&
+      canPreviewPrint &&
+      !canPrintNow,
+  );
 
   const statusActions = order
     ? nextStatusOptions(order.status).filter(
@@ -412,7 +416,7 @@ export default function OrderDetailPage() {
     : [];
 
   const hasOrderPrinted = Boolean(order?.printedAt);
-  const showPrintOrder = showPrintOrderSlot;
+  const showPrintOrder = canPreviewPrint;
   const showMarkPrinted = Boolean(canPrintNow && !hasOrderPrinted);
   const orderStatusActionButtonClass =
     "min-h-[44px] rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface disabled:opacity-50 sm:min-w-[160px]";
@@ -545,13 +549,15 @@ export default function OrderDetailPage() {
                     <div className="flex flex-col items-start gap-1.5">
                       <button
                         type="button"
-                        disabled={actionBusy !== null || !canPrintNow}
+                        disabled={actionBusy !== null || !canPreviewPrint}
                         onClick={() => void printOrderPreview()}
                         className="min-h-[48px] rounded-lg bg-primary px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50 sm:min-w-[180px]"
                       >
                         {actionBusy === "printPreview"
                           ? "Preparing…"
-                          : "Print order"}
+                          : canPrintNow
+                            ? "Print order"
+                            : "Preview PDF"}
                       </button>
                       {!allMediaRemoved && (
                         <p className="text-sm text-muted-foreground">
@@ -579,9 +585,10 @@ export default function OrderDetailPage() {
                     </p>
                   )}
                 </div>
-                {awaitingPayment && !canPrintNow && (
-                  <p className="text-xs font-medium text-amber-800">
-                    Advance order status to Paid before printing.
+                {awaitingPayment && (
+                  <p className="text-xs text-muted-foreground">
+                    Preview the PDF anytime. Mark as Paid before confirming
+                    production print.
                   </p>
                 )}
                 {showPrintOrder &&
