@@ -10,6 +10,7 @@ import {
   putEventBannerObject,
   withBannerCacheBust,
 } from "../lib/eventBannerStorage";
+import { validateEventNameInput } from "../../../src/lib/eventName";
 import {
   enrichEvent,
   isEventConfigurationComplete,
@@ -103,13 +104,18 @@ eventsRouter.post("/", async (req, res) => {
 
   if (
     typeof name !== "string" ||
-    !name.trim() ||
     startDate === undefined ||
     startDate === null ||
     endDate === undefined ||
     endDate === null
   ) {
     res.status(400).json({ error: "Name, start date, and end date are required" });
+    return;
+  }
+
+  const nameValidation = validateEventNameInput(name);
+  if (!nameValidation.ok) {
+    res.status(400).json({ error: nameValidation.error });
     return;
   }
 
@@ -197,7 +203,7 @@ eventsRouter.post("/", async (req, res) => {
   const event = await prisma.event.create({
     data: {
       userId,
-      name: name.trim(),
+      name: nameValidation.value,
       startDate: start,
       endDate: end,
       ...(maxMagnets !== undefined && { maxMagnetsPerOrder: maxMagnets }),
@@ -371,6 +377,16 @@ eventsRouter.patch("/:id", async (req, res) => {
     return;
   }
 
+  let nameUpdate: string | undefined;
+  if (typeof name === "string") {
+    const nameValidation = validateEventNameInput(name);
+    if (!nameValidation.ok) {
+      res.status(400).json({ error: nameValidation.error });
+      return;
+    }
+    nameUpdate = nameValidation.value;
+  }
+
   let maxMagnetsUpdate: number | null | undefined;
   if (maxMagnetsPerOrder !== undefined) {
     const parsed = parseMaxMagnetsPerOrderInput(maxMagnetsPerOrder);
@@ -425,7 +441,7 @@ eventsRouter.patch("/:id", async (req, res) => {
   const event = await prisma.event.update({
     where: { id },
     data: {
-      ...(typeof name === "string" && { name: name.trim() }),
+      ...(nameUpdate !== undefined && { name: nameUpdate }),
       ...(startDate != null && startDate !== "" && { startDate: start }),
       ...(endDate != null && endDate !== "" && { endDate: end }),
       ...(typeof isActive === "boolean" && { isActive }),

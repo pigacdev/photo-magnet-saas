@@ -92,7 +92,7 @@ model User {
 model Event {
   id                 String    @id @default(uuid())
   userId             String
-  name               String
+  name               String    @db.VarChar(100)
   startDate          DateTime
   endDate            DateTime
   isActive           Boolean   @default(true)

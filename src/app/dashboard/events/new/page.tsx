@@ -17,6 +17,7 @@ import {
   toDatetimeLocalValue,
   validateNewEventSchedule,
 } from "@/lib/eventSchedule";
+import { EVENT_NAME_MAX_LEN, validateEventNameInput } from "@/lib/eventName";
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -50,8 +51,9 @@ export default function NewEventPage() {
     e.preventDefault();
     setError("");
 
-    if (!name.trim()) {
-      setError("Event name is required");
+    const nameValidation = validateEventNameInput(name);
+    if (!nameValidation.ok) {
+      setError(nameValidation.error);
       return;
     }
 
@@ -75,7 +77,7 @@ export default function NewEventPage() {
       const created = await api<{ event: { id: string } }>("/api/events", {
         method: "POST",
         body: {
-          name: name.trim(),
+          name: nameValidation.value,
           startDate: new Date(startDate).toISOString(),
           endDate: new Date(endDate).toISOString(),
         },
@@ -134,6 +136,7 @@ export default function NewEventPage() {
             id="name"
             type="text"
             required
+            maxLength={EVENT_NAME_MAX_LEN}
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
@@ -150,7 +153,6 @@ export default function NewEventPage() {
               id="startDate"
               type="datetime-local"
               required
-              min={minScheduleDate}
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"

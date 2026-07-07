@@ -11,9 +11,6 @@ export function validateNewEventSchedule(
   if (start >= end) {
     return { ok: false, error: "Start date must be before end date" };
   }
-  if (start < now) {
-    return { ok: false, error: "Start date cannot be in the past" };
-  }
   if (end <= now) {
     return { ok: false, error: "End date must be in the future" };
   }
