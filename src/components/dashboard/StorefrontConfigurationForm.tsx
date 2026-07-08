@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { getEventConfigurationIssues } from "@/lib/eventConfiguration";
 import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
@@ -224,49 +224,14 @@ export function StorefrontConfigurationForm({
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
-  useUnsavedChangesWarning(isDirty);
-
-  useEffect(() => {
-    setBrandDraft(storefront.brandText ?? "");
-    setNotifEmailDraft(storefront.notificationEmail ?? "");
-    setNotifSendDraft(storefront.sendOrderEmails ?? false);
-    const pickup = pickupFieldsFromStorefront(storefront.pickupAddress);
-    setPickupStreet(pickup.street);
-    setPickupHouseNumber(pickup.houseNumber);
-    setPickupCity(pickup.city);
-    setPickupPostCode(pickup.postCode);
-    setPickupCountry(pickup.country);
-    setSelectedShapeKeys(new Set(storefront.shapes.map((s) => shapeRecordKey(s))));
-  }, [
-    storefront.id,
-    storefront.brandText,
-    storefront.notificationEmail,
-    storefront.sendOrderEmails,
-    storefront.pickupAddress,
-    storefront.shapes,
-  ]);
-
-  function toggleShape(key: string) {
-    setSelectedShapeKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const saveConfiguration = useCallback(async (): Promise<boolean> => {
     setFormError("");
     setSavedMessage("");
 
     const pricingValidation = pricingRef.current?.validate();
     if (!pricingValidation?.ok) {
       setFormError(pricingValidation?.error ?? "Set valid pricing");
-      return;
+      return false;
     }
 
     const configIssues = getEventConfigurationIssues({
@@ -278,13 +243,13 @@ export function StorefrontConfigurationForm({
 
     if (configIssues.length > 0) {
       setFormError(configIssues.join(". "));
-      return;
+      return false;
     }
 
     const pickupError = validateOptionalStructuredAddress(pickupDraft);
     if (pickupError) {
       setFormError(pickupError);
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -332,13 +297,64 @@ export function StorefrontConfigurationForm({
         pricing: pricingResult.pricing,
       });
       setSavedMessage("Configuration saved.");
+      return true;
     } catch (err) {
       setFormError(
         err instanceof Error ? err.message : "Could not save configuration",
       );
+      return false;
     } finally {
       setSaving(false);
     }
+  }, [
+    brandDraft,
+    canCustomBrand,
+    notifEmailDraft,
+    notifSendDraft,
+    onSaved,
+    pickupDraft,
+    selectedShapeKeys,
+    storefront.id,
+    storefront.shapes,
+  ]);
+
+  useUnsavedChangesWarning(isDirty, { save: saveConfiguration });
+
+  useEffect(() => {
+    setBrandDraft(storefront.brandText ?? "");
+    setNotifEmailDraft(storefront.notificationEmail ?? "");
+    setNotifSendDraft(storefront.sendOrderEmails ?? false);
+    const pickup = pickupFieldsFromStorefront(storefront.pickupAddress);
+    setPickupStreet(pickup.street);
+    setPickupHouseNumber(pickup.houseNumber);
+    setPickupCity(pickup.city);
+    setPickupPostCode(pickup.postCode);
+    setPickupCountry(pickup.country);
+    setSelectedShapeKeys(new Set(storefront.shapes.map((s) => shapeRecordKey(s))));
+  }, [
+    storefront.id,
+    storefront.brandText,
+    storefront.notificationEmail,
+    storefront.sendOrderEmails,
+    storefront.pickupAddress,
+    storefront.shapes,
+  ]);
+
+  function toggleShape(key: string) {
+    setSelectedShapeKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await saveConfiguration();
   }
 
   return (

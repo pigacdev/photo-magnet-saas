@@ -5,31 +5,35 @@ import { useEffect, useRef } from "react";
 export type UnsavedChangesDialogProps = {
   open: boolean;
   message: string;
-  onStay: () => void;
+  saving?: boolean;
+  onSave: () => void;
+  onDismiss: () => void;
   onLeave: () => void;
 };
 
 export function UnsavedChangesDialog({
   open,
   message,
-  onStay,
+  saving = false,
+  onSave,
+  onDismiss,
   onLeave,
 }: UnsavedChangesDialogProps) {
-  const stayButtonRef = useRef<HTMLButtonElement>(null);
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onStay();
+      if (e.key === "Escape" && !saving) onDismiss();
     }
     document.addEventListener("keydown", onKeyDown);
     document.body.style.overflow = "hidden";
-    stayButtonRef.current?.focus();
+    saveButtonRef.current?.focus();
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = "";
     };
-  }, [open, onStay]);
+  }, [open, onDismiss, saving]);
 
   if (!open) return null;
 
@@ -39,7 +43,8 @@ export function UnsavedChangesDialog({
         type="button"
         className="absolute inset-0 bg-black/40"
         aria-label="Close dialog"
-        onClick={onStay}
+        disabled={saving}
+        onClick={onDismiss}
       />
       <div
         role="dialog"
@@ -58,17 +63,19 @@ export function UnsavedChangesDialog({
         </div>
         <div className="flex flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
           <button
-            ref={stayButtonRef}
+            ref={saveButtonRef}
             type="button"
-            onClick={onStay}
-            className="min-h-[44px] rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-surface"
+            disabled={saving}
+            onClick={onSave}
+            className="min-h-[44px] rounded-lg bg-[#2563EB] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1D4ED8] disabled:opacity-60"
           >
-            Stay on page
+            {saving ? "Saving…" : "Save changes"}
           </button>
           <button
             type="button"
+            disabled={saving}
             onClick={onLeave}
-            className="min-h-[44px] rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+            className="min-h-[44px] rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
           >
             Leave without saving
           </button>

@@ -2,18 +2,29 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useOptionalUnsavedChangesConfirm } from "@/components/dashboard/UnsavedChangesProvider";
+import {
+  useOptionalUnsavedChangesConfirm,
+  useRegisterUnsavedChangesSave,
+} from "@/components/dashboard/UnsavedChangesProvider";
 import { UNSAVED_CHANGES_MESSAGE, allowPendingNavigation, shouldSkipBeforeUnload } from "@/lib/unsavedChanges";
 
 export { UNSAVED_CHANGES_MESSAGE };
 
+type UnsavedChangesWarningOptions = {
+  message?: string;
+  save?: () => Promise<boolean>;
+};
+
 /** Browser leave + same-origin link navigation guard. */
 export function useUnsavedChangesWarning(
   active: boolean,
-  message: string = UNSAVED_CHANGES_MESSAGE,
+  options: UnsavedChangesWarningOptions = {},
 ) {
+  const { message = UNSAVED_CHANGES_MESSAGE, save } = options;
   const router = useRouter();
   const confirmCtx = useOptionalUnsavedChangesConfirm();
+
+  useRegisterUnsavedChangesSave(active && save ? save : null);
 
   useEffect(() => {
     if (!active) return;

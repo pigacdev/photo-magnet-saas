@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { getEventConfigurationIssues } from "@/lib/eventConfiguration";
 import {
@@ -153,36 +153,14 @@ export function EventConfigurationForm({
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
-  useUnsavedChangesWarning(isDirty);
-
-  useEffect(() => {
-    setBrandDraft(event.brandText ?? "");
-    setNotifEmailDraft(event.notificationEmail ?? "");
-    setNotifSendDraft(event.sendOrderEmails ?? false);
-    setSelectedShapeKeys(new Set(event.shapes.map((s) => shapeRecordKey(s))));
-  }, [event.id, event.brandText, event.notificationEmail, event.sendOrderEmails, event.shapes]);
-
-  function toggleShape(key: string) {
-    setSelectedShapeKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const saveConfiguration = useCallback(async (): Promise<boolean> => {
     setFormError("");
     setSavedMessage("");
 
     const pricingValidation = pricingRef.current?.validate();
     if (!pricingValidation?.ok) {
       setFormError(pricingValidation?.error ?? "Set valid pricing");
-      return;
+      return false;
     }
 
     const configIssues = getEventConfigurationIssues({
@@ -194,7 +172,7 @@ export function EventConfigurationForm({
 
     if (configIssues.length > 0) {
       setFormError(configIssues.join(". "));
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -233,11 +211,48 @@ export function EventConfigurationForm({
         pricing: pricingResult.pricing,
       });
       setSavedMessage("Configuration saved.");
+      return true;
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Could not save configuration");
+      return false;
     } finally {
       setSaving(false);
     }
+  }, [
+    brandDraft,
+    canCustomBrand,
+    event.id,
+    event.shapes,
+    notifEmailDraft,
+    notifSendDraft,
+    onSaved,
+    selectedShapeKeys,
+  ]);
+
+  useUnsavedChangesWarning(isDirty, { save: saveConfiguration });
+
+  useEffect(() => {
+    setBrandDraft(event.brandText ?? "");
+    setNotifEmailDraft(event.notificationEmail ?? "");
+    setNotifSendDraft(event.sendOrderEmails ?? false);
+    setSelectedShapeKeys(new Set(event.shapes.map((s) => shapeRecordKey(s))));
+  }, [event.id, event.brandText, event.notificationEmail, event.sendOrderEmails, event.shapes]);
+
+  function toggleShape(key: string) {
+    setSelectedShapeKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await saveConfiguration();
   }
 
   return (
