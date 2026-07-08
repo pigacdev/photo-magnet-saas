@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { getEventConfigurationIssues } from "@/lib/eventConfiguration";
 import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
@@ -56,6 +56,7 @@ type StorefrontConfigurationFormProps = {
   storefront: StorefrontConfigurationStorefront;
   onSaved: (storefront: StorefrontConfigurationStorefront) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  afterPricing?: ReactNode;
 };
 
 function shapeKeySetsEqual(a: Set<string>, b: Set<string>): boolean {
@@ -130,6 +131,7 @@ export function StorefrontConfigurationForm({
   storefront,
   onSaved,
   onDirtyChange,
+  afterPricing,
 }: StorefrontConfigurationFormProps) {
   const pricingRef = useRef<PricingEditorHandle>(null);
   const usage = useOrganizationUsage();
@@ -576,6 +578,7 @@ export function StorefrontConfigurationForm({
               />
             </div>
           </section>
+          {afterPricing}
         </div>
       </div>
 

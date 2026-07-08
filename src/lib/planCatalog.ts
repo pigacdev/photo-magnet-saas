@@ -31,6 +31,7 @@ const HOBBY_FEATURES = [
   "manual_send_email",
   "qr_ordering",
   "support",
+  "vacation_mode",
 ] as const;
 
 const PRO_FEATURES = [

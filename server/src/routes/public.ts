@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { canAcceptOrders } from "../lib/event";
-import { canStorefrontAcceptOrders } from "../lib/storefront";
+import {
+  canStorefrontAcceptOrders,
+  isVacationActive,
+  vacationPublicPayload,
+  VACATION_MODE_CODE,
+} from "../lib/storefront";
 import {
   isOrganizationCurrencyConfigured,
   SELLER_CURRENCY_NOT_CONFIGURED_MESSAGE,
@@ -105,26 +110,37 @@ publicRouter.get("/entry/:contextType/:contextId", async (req, res) => {
       return;
     }
 
-    const [pricingCount, shapeCount] = await Promise.all([
+    const [pricingCount, shapeCount, org] = await Promise.all([
       prisma.pricing.count({
         where: { contextType: "STOREFRONT", contextId: storefront.id, deletedAt: null },
       }),
       prisma.allowedShape.count({
         where: { contextType: "STOREFRONT", contextId: storefront.id },
       }),
+      prisma.organization.findUnique({
+        where: { id: storefront.userId },
+        select: { plan: true },
+      }),
     ]);
+
+    const plan = org?.plan ?? "FREE";
 
     const orderCheck = canStorefrontAcceptOrders(
       storefront,
       pricingCount,
       shapeCount,
+      plan,
     );
     if (!orderCheck.ok) {
+      const vacationActive = isVacationActive(storefront, plan);
       res.json({
         name: storefront.name,
         canOrder: false,
         unavailableReason: orderCheck.reason,
-        unavailableCode: null,
+        unavailableCode: vacationActive ? VACATION_MODE_CODE : null,
+        ...(vacationActive && {
+          vacation: vacationPublicPayload(storefront),
+        }),
       });
       return;
     }

@@ -32,6 +32,7 @@ export const BILLING_PLAN_COLUMNS: readonly BillingPlanColumn[] = [
       "Customer support",
       "Up to 50 orders per billing period",
       "Up to 5 events per billing period",
+      "Storefront vacation mode",
     ],
   },
   {

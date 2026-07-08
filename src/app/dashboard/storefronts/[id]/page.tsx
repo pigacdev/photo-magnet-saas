@@ -12,6 +12,9 @@ import {
 import { getPlanUsageLevel } from "@/lib/planUsage";
 import { CustomerLinkBanner } from "@/components/dashboard/CustomerLinkBanner";
 import { StorefrontConfigurationForm } from "@/components/dashboard/StorefrontConfigurationForm";
+import { StorefrontVacationDisableModal } from "@/components/dashboard/StorefrontVacationDisableModal";
+import { StorefrontVacationEnableModal } from "@/components/dashboard/StorefrontVacationEnableModal";
+import { StorefrontVacationModeBanner } from "@/components/dashboard/StorefrontVacationModeBanner";
 import type { PricingRule } from "@/components/PricingEditor";
 
 type AllowedShape = {
@@ -31,6 +34,12 @@ type Storefront = {
   isActive: boolean;
   isOpen: boolean;
   configurationComplete?: boolean;
+  canUseVacationMode: boolean;
+  vacationScheduled: boolean;
+  isVacationMode: boolean;
+  vacationFrom: string | null;
+  vacationTo: string | null;
+  vacationNote: string | null;
   createdAt: string;
   maxMagnetsPerOrder: number | null;
   pickupAddress: {
@@ -51,6 +60,9 @@ export default function StorefrontDetailPage() {
   const [error, setError] = useState("");
   const [publicEntryUrl, setPublicEntryUrl] = useState("");
   const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
+  const [enableModalOpen, setEnableModalOpen] = useState(false);
+  const [disableModalOpen, setDisableModalOpen] = useState(false);
+  const [vacationLoading, setVacationLoading] = useState(false);
 
   useEffect(() => {
     void getMe().then(() => setUsage(getCachedOrganizationUsage()));
@@ -74,6 +86,31 @@ export default function StorefrontDetailPage() {
     setPublicEntryUrl(`${window.location.origin}/store/${storefront.id}`);
   }, [storefront?.id]);
 
+  async function updateVacation(body: {
+    vacationFrom: string | null;
+    vacationTo: string | null;
+    vacationNote: string | null;
+  }) {
+    if (!storefront) return;
+    setVacationLoading(true);
+    try {
+      const updated = await api<{ storefront: Storefront }>(
+        `/api/storefronts/${storefront.id}`,
+        { method: "PATCH", body },
+      );
+      setStorefront({
+        ...storefront,
+        ...updated.storefront,
+        shapes: updated.storefront.shapes ?? storefront.shapes,
+        pricing: updated.storefront.pricing ?? storefront.pricing,
+      });
+      setEnableModalOpen(false);
+      setDisableModalOpen(false);
+    } finally {
+      setVacationLoading(false);
+    }
+  }
+
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
@@ -94,10 +131,27 @@ export default function StorefrontDetailPage() {
   const monthlyLimitReached =
     usage != null && getPlanUsageLevel(usage) === "reached";
 
+  const statusBadge = storefront.isVacationMode
+    ? {
+        label: "Vacation",
+        className:
+          "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+      }
+    : storefront.isOpen
+      ? {
+          label: "Open",
+          className:
+            "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400",
+        }
+      : {
+          label: "Closed",
+          className: "bg-surface text-muted-foreground",
+        };
+
   return (
     <div className="dashboard-page">
       <div>
-        {ordersReady ? (
+        {ordersReady && !storefront.isVacationMode ? (
           <CustomerLinkBanner
             publicUrl={publicEntryUrl}
             variant="storefront"
@@ -107,18 +161,15 @@ export default function StorefrontDetailPage() {
             className="mb-4"
           />
         ) : null}
+
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           {storefront.name}
         </h1>
         <div className="mt-2">
           <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              storefront.isOpen
-                ? "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400"
-                : "bg-surface text-muted-foreground"
-            }`}
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge.className}`}
           >
-            {storefront.isOpen ? "Open" : "Closed"}
+            {statusBadge.label}
           </span>
         </div>
       </div>
@@ -126,6 +177,44 @@ export default function StorefrontDetailPage() {
       <StorefrontConfigurationForm
         storefront={storefront}
         onSaved={(updated) => setStorefront(updated as Storefront)}
+        afterPricing={
+          <StorefrontVacationModeBanner
+            canUseVacationMode={storefront.canUseVacationMode}
+            vacationScheduled={storefront.vacationScheduled}
+            isVacationMode={storefront.isVacationMode}
+            vacationFrom={storefront.vacationFrom}
+            vacationTo={storefront.vacationTo}
+            vacationNote={storefront.vacationNote}
+            dateFormat={usage?.dateFormat}
+            onEnableClick={() => setEnableModalOpen(true)}
+            onDisableClick={() => setDisableModalOpen(true)}
+            className=""
+          />
+        }
+      />
+
+      <StorefrontVacationEnableModal
+        open={enableModalOpen}
+        loading={vacationLoading}
+        onClose={() => {
+          if (!vacationLoading) setEnableModalOpen(false);
+        }}
+        onConfirm={(input) => void updateVacation(input)}
+      />
+
+      <StorefrontVacationDisableModal
+        open={disableModalOpen}
+        loading={vacationLoading}
+        onClose={() => {
+          if (!vacationLoading) setDisableModalOpen(false);
+        }}
+        onConfirm={() =>
+          void updateVacation({
+            vacationFrom: null,
+            vacationTo: null,
+            vacationNote: null,
+          })
+        }
       />
     </div>
   );

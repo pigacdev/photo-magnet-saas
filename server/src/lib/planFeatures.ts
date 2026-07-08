@@ -57,6 +57,9 @@ export function featureRequiredMessage(feature: string): string {
   if (feature === "manual_send_email") {
     return "Send email to customers is available on the Hobby plan or higher.";
   }
+  if (feature === "vacation_mode") {
+    return "Vacation mode is available on the Hobby plan or higher.";
+  }
   if (ent.features.includes(feature)) {
     return "This feature requires a paid plan. Upgrade to continue.";
   }

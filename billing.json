@@ -17,7 +17,8 @@
       { "slug": "priority_support", "name": "Priority customer support" },
       { "slug": "orders_export_csv", "name": "Orders CSV export" },
       { "slug": "customers", "name": "Customer management" },
-      { "slug": "qr_ordering", "name": "QR code ordering" }
+      { "slug": "qr_ordering", "name": "QR code ordering" },
+      { "slug": "vacation_mode", "name": "Storefront vacation mode" }
     ],
     "plans": [
       {
@@ -44,7 +45,8 @@
           "email_notifications",
           "manual_send_email",
           "qr_ordering",
-          "support"
+          "support",
+          "vacation_mode"
         ]
       },
       {
@@ -65,7 +67,8 @@
           "customers",
           "priority_support",
           "qr_ordering",
-          "support"
+          "support",
+          "vacation_mode"
         ]
       }
     ]

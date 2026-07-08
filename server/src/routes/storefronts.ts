@@ -1,7 +1,11 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { normalizeBrandTextInput } from "../lib/brandTextForOrder";
-import { enrichStorefront, isStorefrontConfigurationComplete } from "../lib/storefront";
+import {
+  enrichStorefront,
+  isStorefrontConfigurationComplete,
+  parseVacationModeInput,
+} from "../lib/storefront";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
 import { parsePickupAddressInput } from "../lib/parsePickupAddressInput";
 import {
@@ -10,6 +14,7 @@ import {
 } from "../lib/parseOrderNotificationSettings";
 import { planHasFeature } from "../lib/planCatalog";
 import { featureRequiredMessage } from "../lib/planFeatures";
+
 async function sellerPlan(userId: string) {
   const org = await prisma.organization.findUnique({
     where: { id: userId },
@@ -22,13 +27,14 @@ export const storefrontsRouter = Router();
 
 storefrontsRouter.get("/", async (req, res) => {
   const userId = req.user!.userId;
+  const plan = await sellerPlan(userId);
 
   const storefronts = await prisma.storefront.findMany({
     where: { userId, deletedAt: null },
     orderBy: { createdAt: "desc" },
   });
 
-  const enriched = storefronts.map((sf) => ({ ...sf, ...enrichStorefront(sf) }));
+  const enriched = storefronts.map((sf) => ({ ...sf, ...enrichStorefront(sf, plan) }));
 
   res.json({ storefronts: enriched });
 });
@@ -121,12 +127,15 @@ storefrontsRouter.post("/", async (req, res) => {
     },
   });
 
-  res.status(201).json({ storefront: { ...storefront, ...enrichStorefront(storefront) } });
+  res.status(201).json({
+    storefront: { ...storefront, ...enrichStorefront(storefront, createPlan) },
+  });
 });
 
 storefrontsRouter.get("/:id", async (req, res) => {
   const userId = req.user!.userId;
   const { id } = req.params;
+  const plan = await sellerPlan(userId);
 
   const storefront = await prisma.storefront.findUnique({
     where: { id, userId, deletedAt: null },
@@ -150,7 +159,7 @@ storefrontsRouter.get("/:id", async (req, res) => {
   res.json({
     storefront: {
       ...storefront,
-      ...enrichStorefront(storefront),
+      ...enrichStorefront(storefront, plan),
       shapes,
       pricing,
       configurationComplete: isStorefrontConfigurationComplete(shapes.length, pricing.length),
@@ -169,6 +178,9 @@ storefrontsRouter.patch("/:id", async (req, res) => {
     notificationEmail,
     sendOrderEmails,
     pickupAddress,
+    vacationFrom,
+    vacationTo,
+    vacationNote,
   } = req.body as {
     name?: unknown;
     isActive?: unknown;
@@ -177,6 +189,9 @@ storefrontsRouter.patch("/:id", async (req, res) => {
     notificationEmail?: unknown;
     sendOrderEmails?: unknown;
     pickupAddress?: unknown;
+    vacationFrom?: unknown;
+    vacationTo?: unknown;
+    vacationNote?: unknown;
   };
 
   const existing = await prisma.storefront.findUnique({
@@ -199,6 +214,31 @@ storefrontsRouter.patch("/:id", async (req, res) => {
   }
 
   const patchPlan = await sellerPlan(userId);
+
+  const hasVacationFields =
+    vacationFrom !== undefined || vacationTo !== undefined || vacationNote !== undefined;
+  let vacationPatch: {
+    vacationFrom?: Date | null;
+    vacationTo?: Date | null;
+    vacationNote?: string | null;
+  } = {};
+
+  if (hasVacationFields) {
+    if (!planHasFeature(patchPlan, "vacation_mode")) {
+      res.status(403).json({ error: featureRequiredMessage("vacation_mode") });
+      return;
+    }
+    const parsed = parseVacationModeInput({ vacationFrom, vacationTo, vacationNote });
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    vacationPatch = {
+      vacationFrom: parsed.from,
+      vacationTo: parsed.to,
+      vacationNote: parsed.note,
+    };
+  }
 
   const brandNorm = normalizeBrandTextInput(brandText);
   if (brandNorm.kind === "error") {
@@ -249,6 +289,7 @@ storefrontsRouter.patch("/:id", async (req, res) => {
       ...brandPatch,
       ...notifPatch,
       ...pickupPatch,
+      ...vacationPatch,
     },
   });
 
@@ -265,7 +306,7 @@ storefrontsRouter.patch("/:id", async (req, res) => {
   res.json({
     storefront: {
       ...storefront,
-      ...enrichStorefront(storefront),
+      ...enrichStorefront(storefront, patchPlan),
       shapes,
       pricing,
       configurationComplete: isStorefrontConfigurationComplete(shapes.length, pricing.length),

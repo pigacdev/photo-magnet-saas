@@ -7,18 +7,29 @@ import { api } from "@/lib/api";
 import { buildOrderUrlWithReturn } from "@/lib/orderReturnTo";
 import { OrderShell } from "@/components/order/OrderShell";
 import { orderBtnPrimary, orderLoadingScreen } from "@/components/order/orderUi";
+import { formatDisplayDate } from "@/lib/dateFormat";
+
+type VacationInfo = {
+  from: string;
+  to: string;
+  note: string | null;
+};
 
 type StoreEntryMeta = {
   name: string;
   canOrder: boolean;
   unavailableReason: string | null;
   unavailableCode?: string | null;
+  vacation?: VacationInfo | null;
 };
 
 function unavailableMessage(meta: StoreEntryMeta): string | null {
   if (!meta.unavailableReason) return null;
   if (meta.unavailableCode === "ORDER_LIMIT_REACHED") {
     return meta.unavailableReason;
+  }
+  if (meta.unavailableCode === "VACATION_MODE") {
+    return null;
   }
   return `Ordering is not available: ${meta.unavailableReason}`;
 }
@@ -86,6 +97,9 @@ export default function StoreEntryPage() {
   }
 
   const canOrder = meta?.canOrder ?? false;
+  const showVacationPanel =
+    meta?.unavailableCode === "VACATION_MODE" && meta.vacation != null;
+  const genericUnavailable = !canOrder && unavailableMessage(meta!);
 
   return (
     <OrderShell contentWidth="medium" className="pb-10 pt-4">
@@ -97,9 +111,29 @@ export default function StoreEntryPage() {
           Store — photo magnets
         </p>
 
-        {!canOrder && meta?.unavailableReason ? (
+        {showVacationPanel ? (
+          <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-center dark:border-amber-900 dark:bg-amber-950/30">
+            <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+              Not taking orders right now
+            </p>
+            <p className="mt-2 text-sm text-amber-900/90 dark:text-amber-200/90">
+              {formatDisplayDate(meta.vacation!.from)} —{" "}
+              {formatDisplayDate(meta.vacation!.to)}
+            </p>
+            {meta.vacation!.note ? (
+              <p className="mt-3 text-sm text-amber-900/90 dark:text-amber-200/90">
+                {meta.vacation!.note}
+              </p>
+            ) : null}
+            <p className="mt-3 text-sm text-amber-900/80 dark:text-amber-200/80">
+              Please check back later.
+            </p>
+          </div>
+        ) : null}
+
+        {genericUnavailable ? (
           <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-950">
-            {unavailableMessage(meta)}
+            {genericUnavailable}
           </p>
         ) : null}
 

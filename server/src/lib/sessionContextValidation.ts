@@ -94,16 +94,21 @@ export async function validateStorefrontOrderContext(
     };
   }
 
-  const [pricing, shapeCount] = await Promise.all([
+  const [pricing, shapeCount, org] = await Promise.all([
     prisma.pricing.findMany({
       where: { contextType: "STOREFRONT", contextId: storefront.id, deletedAt: null },
     }),
     prisma.allowedShape.count({
       where: { contextType: "STOREFRONT", contextId: storefront.id },
     }),
+    prisma.organization.findUnique({
+      where: { id: storefront.userId },
+      select: { plan: true },
+    }),
   ]);
 
-  const check = canStorefrontAcceptOrders(storefront, pricing.length, shapeCount);
+  const plan = org?.plan ?? "FREE";
+  const check = canStorefrontAcceptOrders(storefront, pricing.length, shapeCount, plan);
   if (!check.ok) {
     return { ok: false, notFound: false, reason: check.reason };
   }

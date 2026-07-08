@@ -138,6 +138,12 @@ model Storefront {
   sendOrderEmails    Boolean   @default(false)
   /// Seller pickup location; same shape as delivery shippingAddress.
   pickupAddress      Json?
+  /// Inclusive vacation start (UTC date); null when no vacation scheduled.
+  vacationFrom       DateTime?
+  /// Inclusive vacation end (UTC date); null when no vacation scheduled.
+  vacationTo         DateTime?
+  /// Optional message shown on the public storefront during vacation.
+  vacationNote       String?   @db.VarChar(500)
   user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])

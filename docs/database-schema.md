@@ -71,6 +71,9 @@ Seller tenant (1:1 with User; `id` = `user.id`). Billing limits + magnet order c
 - notification_email (nullable)
 - send_order_emails (boolean)
 - **pickup_address** (JSON, nullable — structured: street, house_number, city, post_code, country)
+- **vacation_from** (nullable — inclusive UTC date; Hobby+ vacation mode)
+- **vacation_to** (nullable — inclusive UTC date; Hobby+ vacation mode)
+- **vacation_note** (nullable, max 500 chars — shown on public storefront during vacation)
 - created_at
 - updated_at
 - deleted_at (nullable)
