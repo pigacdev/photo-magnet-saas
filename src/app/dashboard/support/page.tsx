@@ -14,6 +14,7 @@ import {
   SupportTicketForm,
   type SupportTicketInitialContext,
 } from "@/components/dashboard/SupportTicketForm";
+import { SupportSocialLinks } from "@/components/dashboard/SupportSocialLinks";
 
 function parseInitialContext(
   searchParams: URLSearchParams,
@@ -105,6 +106,9 @@ function SupportPageContent() {
           >
             View plans
           </Link>
+          <div className="mt-6 border-t border-border pt-6">
+            <SupportSocialLinks />
+          </div>
           <p className="mt-4 text-sm text-muted-foreground">
             <Link href="/dashboard" className="text-primary hover:underline">
               ← Back to dashboard
