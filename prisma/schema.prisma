@@ -36,6 +36,8 @@ model Organization {
   dateFormat           String?
   /// UI magnet size unit: mm | cm | in (display only; storage stays mm).
   sizeUnit             String?
+  /// Seller business/shop display name; used in customer email branding.
+  name                 String?
   /// AES-256-GCM encrypted Resend API key (Pro own-domain sending).
   resendApiKeyEncrypted String?  @map("resend_api_key_encrypted")
   /// Verified sender email on seller's Resend domain (Pro).

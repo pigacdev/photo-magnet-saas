@@ -25,6 +25,7 @@ export type OrganizationUsagePayload = {
   initialSetupAt: string | null;
   dateFormat: DateFormat;
   sizeUnit: SizeUnit;
+  name: string | null;
 };
 
 const orgSelect = {
@@ -40,6 +41,7 @@ const orgSelect = {
   initialSetupAt: true,
   dateFormat: true,
   sizeUnit: true,
+  name: true,
 } as const;
 
 function baseUsage(org: {
@@ -55,6 +57,7 @@ function baseUsage(org: {
   initialSetupAt: Date | null;
   dateFormat: string | null;
   sizeUnit: string | null;
+  name: string | null;
 }): OrganizationUsagePayload {
   return {
     plan: org.plan,
@@ -70,6 +73,7 @@ function baseUsage(org: {
     initialSetupAt: org.initialSetupAt?.toISOString() ?? null,
     dateFormat: normalizeDateFormat(org.dateFormat) ?? DEFAULT_DATE_FORMAT,
     sizeUnit: normalizeSizeUnit(org.sizeUnit) ?? DEFAULT_SIZE_UNIT,
+    name: org.name?.trim() || null,
   };
 }
 

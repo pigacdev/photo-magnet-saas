@@ -30,6 +30,7 @@ export type OrganizationUsage = {
   initialSetupAt: string | null;
   dateFormat: DateFormat;
   sizeUnit: SizeUnit;
+  name: string | null;
 };
 
 export type DisplayPreferences = {

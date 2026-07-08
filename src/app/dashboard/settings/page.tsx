@@ -39,6 +39,7 @@ export default function SettingsPage() {
       <SellerSettingsContent
         accountId={user.id}
         currency={usage?.currency ?? null}
+        organizationName={usage?.name ?? null}
         displayPreferences={{
           dateFormat: usage?.dateFormat ?? "DMY",
           sizeUnit: usage?.sizeUnit ?? "mm",

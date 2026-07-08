@@ -44,6 +44,7 @@ export function platformFromAddress(): string {
 export type EmailBrandingOptions = {
   branded: boolean;
   contextName: string;
+  organizationName: string | null;
   brandText?: string | null;
   bannerUrl?: string | null;
 };
@@ -51,7 +52,10 @@ export type EmailBrandingOptions = {
 function buildEmailBrandingPrefix(branding?: EmailBrandingOptions): string {
   if (!branding?.branded) return "";
   const displayName = escapeHtml(
-    branding.brandText?.trim() || branding.contextName.trim() || "Magnetoo",
+    branding.brandText?.trim() ||
+      branding.organizationName?.trim() ||
+      branding.contextName.trim() ||
+      "Magnetoo",
   );
   const banner = branding.bannerUrl?.trim()
     ? `<img src="${escapeHtml(branding.bannerUrl.trim())}" alt="" width="120" style="display:block;max-height:48px;width:auto;margin-bottom:12px;border-radius:4px;" />`
@@ -61,7 +65,11 @@ function buildEmailBrandingPrefix(branding?: EmailBrandingOptions): string {
 
 function buildEmailBrandingSuffix(branding?: EmailBrandingOptions): string {
   if (!branding?.branded) return "";
-  const ctx = escapeHtml(branding.contextName.trim() || "your shop");
+  const ctx = escapeHtml(
+    branding.organizationName?.trim() ||
+      branding.contextName.trim() ||
+      "your shop",
+  );
   return `<p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;">Sent on behalf of ${ctx} via Magnetoo</p>`;
 }
 
@@ -286,7 +294,11 @@ export function buildBuyerConfirmationHtml(
   },
 ): string {
   const shortId = escapeHtml(order.id.slice(0, 6).toUpperCase());
-  const ctx = escapeHtml(contextName);
+  const ctx = escapeHtml(
+    options?.branding?.organizationName?.trim() ||
+      contextName.trim() ||
+      "Magnetoo",
+  );
   const greetingName = order.customerName?.trim()
     ? escapeHtml(order.customerName.trim())
     : "there";
@@ -394,7 +406,11 @@ export function buildSellerToBuyerEmailHtml(data: {
   messageHtml: string;
   branding?: EmailBrandingOptions;
 }): string {
-  const context = escapeHtml(data.contextName.trim() || "Magnetoo");
+  const context = escapeHtml(
+    data.branding?.organizationName?.trim() ||
+      data.contextName.trim() ||
+      "Magnetoo",
+  );
   const ref = escapeHtml(data.orderReference.trim() || "—");
   const body = data.messageHtml.trim() || "<p></p>";
   const brandingPrefix = buildEmailBrandingPrefix(data.branding);

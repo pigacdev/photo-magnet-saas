@@ -10,6 +10,7 @@ import {
   organizationHasCommittedOrders,
   patchOrganizationCurrency,
 } from "../lib/organizationCurrency";
+import { patchOrganizationName } from "../lib/organizationName";
 import { prisma } from "../lib/prisma";
 
 export const organizationRouter = Router();
@@ -19,7 +20,7 @@ organizationRouter.get("/settings", async (req, res) => {
 
   const org = await prisma.organization.findUnique({
     where: { id: userId },
-    select: { currency: true, initialSetupAt: true, dateFormat: true, sizeUnit: true },
+    select: { currency: true, initialSetupAt: true, dateFormat: true, sizeUnit: true, name: true },
   });
 
   if (!org) {
@@ -41,6 +42,7 @@ organizationRouter.get("/settings", async (req, res) => {
     sizeUnit: displayPreferences.sizeUnit,
     supportedDateFormats: DATE_FORMAT_OPTIONS,
     supportedSizeUnits: SIZE_UNIT_OPTIONS,
+    name: org.name?.trim() || null,
   });
 });
 
@@ -50,15 +52,17 @@ organizationRouter.patch("/settings", async (req, res) => {
     currency?: unknown;
     dateFormat?: unknown;
     sizeUnit?: unknown;
+    name?: unknown;
   };
 
   const hasCurrency = body.currency !== undefined;
   const hasDisplayPrefs =
     body.dateFormat !== undefined || body.sizeUnit !== undefined;
+  const hasName = body.name !== undefined;
 
-  if (!hasCurrency && !hasDisplayPrefs) {
+  if (!hasCurrency && !hasDisplayPrefs && !hasName) {
     res.status(400).json({
-      error: "At least one of currency, dateFormat, or sizeUnit is required",
+      error: "At least one of currency, dateFormat, sizeUnit, or name is required",
     });
     return;
   }
@@ -87,6 +91,14 @@ organizationRouter.patch("/settings", async (req, res) => {
     }
   }
 
+  if (hasName) {
+    const nameResult = await patchOrganizationName(userId, body.name);
+    if (!nameResult.ok) {
+      res.status(nameResult.status).json({ error: nameResult.error });
+      return;
+    }
+  }
+
   const org = await prisma.organization.findUnique({
     where: { id: userId },
     select: {
@@ -94,6 +106,7 @@ organizationRouter.patch("/settings", async (req, res) => {
       initialSetupAt: true,
       dateFormat: true,
       sizeUnit: true,
+      name: true,
     },
   });
 
@@ -107,5 +120,6 @@ organizationRouter.patch("/settings", async (req, res) => {
     hasOrders,
     dateFormat: displayPreferences.dateFormat,
     sizeUnit: displayPreferences.sizeUnit,
+    name: org?.name?.trim() || null,
   });
 });

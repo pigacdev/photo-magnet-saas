@@ -2,22 +2,36 @@
 
 import { CopyableAccountId } from "@/components/dashboard/CopyableAccountId";
 import { DisplayPreferencesForm } from "@/components/dashboard/DisplayPreferencesForm";
+import { OrganizationNameForm } from "@/components/dashboard/OrganizationNameForm";
 import type { DisplayPreferences } from "@/lib/auth";
 import { getCurrencyLabel } from "@/lib/currency";
 
 type SellerSettingsContentProps = {
   accountId: string;
   currency: string | null;
+  organizationName: string | null;
   displayPreferences: DisplayPreferences;
 };
 
 export function SellerSettingsContent({
   accountId,
   currency,
+  organizationName,
   displayPreferences,
 }: SellerSettingsContentProps) {
   return (
     <div className="space-y-6">
+      <section className="dashboard-card">
+        <h2 className="text-sm font-semibold text-foreground">Shop name</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Your business name as customers see it in emails and future branding.
+        </p>
+        <OrganizationNameForm
+          initialName={organizationName}
+          showHint={organizationName == null && currency != null}
+        />
+      </section>
+
       <section className="dashboard-card">
         <h2 className="text-sm font-semibold text-foreground">
           Display preferences

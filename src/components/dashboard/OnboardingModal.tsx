@@ -24,6 +24,7 @@ const ONBOARDING_STEPS = [{ id: "setup" as const }] as const;
 const PREVIEW_DATE = new Date(2026, 5, 20);
 
 export function OnboardingModal({ onCompleted }: OnboardingModalProps) {
+  const [shopName, setShopName] = useState("");
   const [currency, setCurrency] = useState("EUR");
   const [dateFormat, setDateFormat] = useState<DateFormat>("DMY");
   const [sizeUnit, setSizeUnit] = useState<SizeUnit>("mm");
@@ -59,11 +60,16 @@ export function OnboardingModal({ onCompleted }: OnboardingModalProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    const trimmedName = shopName.trim();
+    if (!trimmedName) {
+      setError("Shop name is required");
+      return;
+    }
     setLoading(true);
     try {
       await api("/api/organization/settings", {
         method: "PATCH",
-        body: { currency, dateFormat, sizeUnit },
+        body: { name: trimmedName, currency, dateFormat, sizeUnit },
       });
       invalidateAuthCache();
       onCompleted();
@@ -100,6 +106,29 @@ export function OnboardingModal({ onCompleted }: OnboardingModalProps) {
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <div>
+            <label
+              htmlFor="onboarding-shop-name"
+              className="block text-sm font-medium text-foreground"
+            >
+              Shop name
+            </label>
+            <input
+              id="onboarding-shop-name"
+              type="text"
+              value={shopName}
+              onChange={(e) => setShopName(e.target.value)}
+              disabled={loading}
+              required
+              maxLength={80}
+              placeholder="Your business or shop name"
+              className="mt-1.5 block w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Shown in customer emails and used for your shop branding.
+            </p>
+          </div>
+
           <div>
             <label
               htmlFor="onboarding-currency"
