@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Photo Magnet",
+  title: "Magnetoo",
   description: "Photo magnet SaaS platform",
 };
 
