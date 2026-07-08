@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { OrganizationUsage, User } from "@/lib/auth";
 import { SidebarPlanBadge } from "./SidebarPlanBadge";
+import { SidebarSocialLinks } from "./SidebarSocialLinks";
 import {
   DASHBOARD_NAV_ITEMS,
   DASHBOARD_STOREFRONT_NAV_BASE,
@@ -55,7 +56,7 @@ export function DashboardSidebar({
         </Link>
       </div>
 
-      <div className="p-3">
+      <div className="flex min-h-0 flex-1 flex-col p-3">
         <nav className="flex flex-col gap-0.5">
           {DASHBOARD_NAV_ITEMS.filter((item) => {
             if (item.href === "/dashboard/calendar") {
@@ -111,6 +112,8 @@ export function DashboardSidebar({
         <div className="mt-3">
           <SidebarPlanBadge user={user} usage={usage} />
         </div>
+
+        <SidebarSocialLinks />
       </div>
     </aside>
   );
