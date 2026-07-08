@@ -101,6 +101,36 @@ function clearDraft(): void {
   sessionStorage.removeItem(DRAFT_STORAGE_KEY);
 }
 
+const ORDER_AMBIGUOUS_ERROR =
+  "That reference matches more than one order. Paste the full order id from the order page.";
+
+function fieldInputClass(hasError: boolean): string {
+  return `mt-1.5 block w-full rounded-lg border px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 ${
+    hasError
+      ? "border-red-300 ring-red-200 focus:ring-red-200"
+      : "border-border focus:border-primary focus:ring-primary"
+  }`;
+}
+
+function FieldHint({
+  error,
+  id,
+}: {
+  error?: string;
+  id?: string;
+}) {
+  if (!error) return null;
+  return (
+    <p id={id} className="mt-1 text-xs text-red-600" role="alert">
+      {error}
+    </p>
+  );
+}
+
+function isOrderIdFieldError(message: string): boolean {
+  return message === "Order not found" || message === ORDER_AMBIGUOUS_ERROR;
+}
+
 function buildInitialState(initialContext?: SupportTicketInitialContext): FormDraft {
   const draft = readDraft();
   const fromUrl = Boolean(
@@ -140,6 +170,7 @@ export function SupportTicketForm({
   const [contextsLoading, setContextsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [orderIdError, setOrderIdError] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
@@ -158,6 +189,7 @@ export function SupportTicketForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setOrderIdError("");
 
     const trimmedMessage = message.trim();
     if (trimmedMessage.length < MIN_MESSAGE_LENGTH) {
@@ -176,7 +208,7 @@ export function SupportTicketForm({
     }
 
     if (contextOption === "order" && !normalizedOrderId) {
-      setError("Order id is required");
+      setOrderIdError("Order id is required");
       return;
     }
 
@@ -198,7 +230,13 @@ export function SupportTicketForm({
       clearDraft();
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit ticket");
+      const message =
+        err instanceof Error ? err.message : "Failed to submit ticket";
+      if (contextOption === "order" && isOrderIdFieldError(message)) {
+        setOrderIdError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -249,6 +287,7 @@ export function SupportTicketForm({
             setContextId("");
             setOrderId("");
             setError("");
+            setOrderIdError("");
           }}
           className="mt-1.5 block w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
         >
@@ -315,10 +354,16 @@ export function SupportTicketForm({
             type="text"
             required
             value={orderId}
-            onChange={(e) => setOrderId(e.target.value)}
+            aria-invalid={Boolean(orderIdError)}
+            aria-describedby={orderIdError ? "orderId-error" : undefined}
+            onChange={(e) => {
+              setOrderId(e.target.value);
+              if (orderIdError) setOrderIdError("");
+            }}
             placeholder="Order reference or UUID"
-            className="mt-1.5 block w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+            className={fieldInputClass(Boolean(orderIdError))}
           />
+          <FieldHint error={orderIdError} id="orderId-error" />
           <p className="mt-1.5 text-xs text-muted-foreground">
             Paste the value from{" "}
             <span className="font-medium">Copy reference</span> on the order
