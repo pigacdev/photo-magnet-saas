@@ -109,7 +109,6 @@ export function EventConfigurationForm({
     [usage?.sizeUnit],
   );
   const canCustomBrand = usageHasFeature(usage, "custom_branding");
-  const canEmailNotif = usageHasFeature(usage, "email_notifications");
 
   const [brandDraft, setBrandDraft] = useState(event.brandText ?? "");
   const [notifEmailDraft, setNotifEmailDraft] = useState(
@@ -207,11 +206,9 @@ export function EventConfigurationForm({
           ...(canCustomBrand && {
             brandText: brandDraft.trim() === "" ? null : brandDraft.trim(),
           }),
-          ...(canEmailNotif && {
-            sendOrderEmails: notifSendDraft,
-            notificationEmail:
-              notifEmailDraft.trim() === "" ? null : notifEmailDraft.trim(),
-          }),
+          sendOrderEmails: notifSendDraft,
+          notificationEmail:
+            notifEmailDraft.trim() === "" ? null : notifEmailDraft.trim(),
         },
       });
 
@@ -324,48 +321,37 @@ export function EventConfigurationForm({
           )}
         </section>
 
-        {canEmailNotif ? (
-          <section className="dashboard-card">
-            <h2 className="text-sm font-semibold text-foreground">Order notifications</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Email alerts when a customer places an order.
-            </p>
-            <label className="mt-4 flex cursor-pointer items-start gap-2">
-              <input
-                type="checkbox"
-                className="mt-0.5 rounded border-border text-primary focus:ring-primary"
-                checked={notifSendDraft}
-                onChange={(e) => setNotifSendDraft(e.target.checked)}
-              />
-              <span className="text-sm text-foreground">Send new-order emails</span>
-            </label>
-            <label className="mt-4 flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">
-                Notification email
-                {notifSendDraft ? " (required)" : ""}
-              </span>
-              <input
-                type="email"
-                value={notifEmailDraft}
-                onChange={(e) => setNotifEmailDraft(e.target.value)}
-                placeholder="seller@example.com"
-                autoComplete="email"
-                required={notifSendDraft}
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
-              />
-            </label>
-          </section>
-        ) : (
-          <section className="dashboard-card">
-            <h2 className="text-sm font-semibold text-foreground">Order notifications</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Email alerts are available on Hobby and Pro.{" "}
-              <Link href="/dashboard/billing" className="text-primary hover:underline">
-                View plans
-              </Link>
-            </p>
-          </section>
-        )}
+        <section className="dashboard-card">
+          <h2 className="text-sm font-semibold text-foreground">Order notifications</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Email alerts when a customer places an order. Buyer confirmations
+            are sent automatically on all plans.
+          </p>
+          <label className="mt-4 flex cursor-pointer items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-0.5 rounded border-border text-primary focus:ring-primary"
+              checked={notifSendDraft}
+              onChange={(e) => setNotifSendDraft(e.target.checked)}
+            />
+            <span className="text-sm text-foreground">Send new-order emails</span>
+          </label>
+          <label className="mt-4 flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">
+              Notification email
+              {notifSendDraft ? " (required)" : ""}
+            </span>
+            <input
+              type="email"
+              value={notifEmailDraft}
+              onChange={(e) => setNotifEmailDraft(e.target.value)}
+              placeholder="seller@example.com"
+              autoComplete="email"
+              required={notifSendDraft}
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-primary focus:ring-2"
+            />
+          </label>
+        </section>
 
         <section className="dashboard-card">
           <h2 className="text-sm font-semibold text-foreground">Shapes</h2>

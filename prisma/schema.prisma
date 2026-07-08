@@ -36,6 +36,14 @@ model Organization {
   dateFormat           String?
   /// UI magnet size unit: mm | cm | in (display only; storage stays mm).
   sizeUnit             String?
+  /// AES-256-GCM encrypted Resend API key (Pro own-domain sending).
+  resendApiKeyEncrypted String?  @map("resend_api_key_encrypted")
+  /// Verified sender email on seller's Resend domain (Pro).
+  resendFromEmail      String?  @map("resend_from_email")
+  /// Optional display name for resendFromEmail (Pro).
+  resendFromName       String?  @map("resend_from_name")
+  /// Set when Pro Resend settings are first saved.
+  resendConfiguredAt   DateTime? @map("resend_configured_at")
   orders               Order[]
   customers            Customer[]
   user                 User     @relation(fields: [id], references: [id], onDelete: Cascade)

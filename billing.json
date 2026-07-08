@@ -12,6 +12,7 @@
       { "slug": "calendar", "name": "Event calendar" },
       { "slug": "custom_branding", "name": "Custom print branding" },
       { "slug": "email_notifications", "name": "Order email notifications" },
+      { "slug": "manual_send_email", "name": "Send email to customers" },
       { "slug": "support", "name": "Customer Support" },
       { "slug": "priority_support", "name": "Priority customer support" },
       { "slug": "orders_export_csv", "name": "Orders CSV export" },
@@ -41,6 +42,7 @@
           "calendar",
           "custom_branding",
           "email_notifications",
+          "manual_send_email",
           "qr_ordering",
           "support"
         ]
@@ -58,6 +60,7 @@
           "calendar",
           "custom_branding",
           "email_notifications",
+          "manual_send_email",
           "orders_export_csv",
           "customers",
           "priority_support",

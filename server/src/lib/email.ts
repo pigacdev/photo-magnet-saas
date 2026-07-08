@@ -36,6 +36,35 @@ export function isResendConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY?.trim());
 }
 
+/** Platform sender for Free/Hobby seller-context emails (not seller domain). */
+export function platformFromAddress(): string {
+  return process.env.RESEND_FROM_EMAIL?.trim() || DEFAULT_FROM;
+}
+
+export type EmailBrandingOptions = {
+  branded: boolean;
+  contextName: string;
+  brandText?: string | null;
+  bannerUrl?: string | null;
+};
+
+function buildEmailBrandingPrefix(branding?: EmailBrandingOptions): string {
+  if (!branding?.branded) return "";
+  const displayName = escapeHtml(
+    branding.brandText?.trim() || branding.contextName.trim() || "Magnetoo",
+  );
+  const banner = branding.bannerUrl?.trim()
+    ? `<img src="${escapeHtml(branding.bannerUrl.trim())}" alt="" width="120" style="display:block;max-height:48px;width:auto;margin-bottom:12px;border-radius:4px;" />`
+    : "";
+  return `${banner}<p style="margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:0.02em;color:#374151;text-transform:uppercase;">${displayName}</p>`;
+}
+
+function buildEmailBrandingSuffix(branding?: EmailBrandingOptions): string {
+  if (!branding?.branded) return "";
+  const ctx = escapeHtml(branding.contextName.trim() || "your shop");
+  return `<p style="margin:20px 0 0;font-size:12px;color:#9CA3AF;">Sent on behalf of ${ctx} via Magnetoo</p>`;
+}
+
 function defaultFromAddress(): string {
   return process.env.RESEND_FROM_EMAIL?.trim() || DEFAULT_FROM;
 }
@@ -137,7 +166,10 @@ function buildDashboardOrderUrl(orderId: string): string {
 export function buildOrderEmailHtml(
   order: OrderForEmail,
   contextName: string,
-  options?: { storefrontPickupAddress?: Prisma.JsonValue | null },
+  options?: {
+    storefrontPickupAddress?: Prisma.JsonValue | null;
+    branding?: EmailBrandingOptions;
+  },
 ): string {
   const shortId = escapeHtml(order.id.slice(0, 6).toUpperCase());
   const ctx = escapeHtml(contextName);
@@ -185,12 +217,15 @@ export function buildOrderEmailHtml(
   const images = String(order.orderImages.length);
   const total = formatMoney(order.totalPrice, order.currency);
   const orderUrl = escapeHtml(buildDashboardOrderUrl(order.id));
+  const brandingPrefix = buildEmailBrandingPrefix(options?.branding);
+  const brandingSuffix = buildEmailBrandingSuffix(options?.branding);
 
   return `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:24px;background:#f9fafb;">
   <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
 
+    ${brandingPrefix}
     <h2 style="margin:0 0 4px;font-size:20px;font-weight:600;">📦 New order received</h2>
     <p style="color:#666;margin:0;font-size:14px;">${ctx}</p>
 
@@ -217,6 +252,7 @@ export function buildOrderEmailHtml(
        View order
     </a>
 
+    ${brandingSuffix}
   </div>
 </body>
 </html>`;
@@ -244,7 +280,10 @@ export function buildBuyerConfirmationHtml(
   order: OrderForBuyerEmail,
   contextName: string,
   shapeLabelText: string,
-  options?: { storefrontPickupAddress?: Prisma.JsonValue | null },
+  options?: {
+    storefrontPickupAddress?: Prisma.JsonValue | null;
+    branding?: EmailBrandingOptions;
+  },
 ): string {
   const shortId = escapeHtml(order.id.slice(0, 6).toUpperCase());
   const ctx = escapeHtml(contextName);
@@ -293,11 +332,15 @@ export function buildBuyerConfirmationHtml(
         })()
       : "";
 
+  const brandingPrefix = buildEmailBrandingPrefix(options?.branding);
+  const brandingSuffix = buildEmailBrandingSuffix(options?.branding);
+
   return `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:24px;background:#f9fafb;">
   <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
 
+    ${brandingPrefix}
     <h2 style="margin:0 0 4px;font-size:20px;font-weight:600;">Confirmation of your purchase</h2>
     <p style="color:#666;margin:0;font-size:14px;">${ctx}</p>
 
@@ -326,6 +369,7 @@ export function buildBuyerConfirmationHtml(
 
     <p style="margin:12px 0 0;font-size:14px;color:#6B7280;">If you have any questions, reply to this email.</p>
 
+    ${brandingSuffix}
   </div>
 </body>
 </html>`;
@@ -348,16 +392,20 @@ export function buildSellerToBuyerEmailHtml(data: {
   contextName: string;
   orderReference: string;
   messageHtml: string;
+  branding?: EmailBrandingOptions;
 }): string {
   const context = escapeHtml(data.contextName.trim() || "Magnetoo");
   const ref = escapeHtml(data.orderReference.trim() || "—");
   const body = data.messageHtml.trim() || "<p></p>";
+  const brandingPrefix = buildEmailBrandingPrefix(data.branding);
+  const brandingSuffix = buildEmailBrandingSuffix(data.branding);
 
   return `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:24px;background:#f9fafb;">
   <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
 
+    ${brandingPrefix}
     <h2 style="margin:0 0 4px;font-size:20px;font-weight:600;">Message from ${context}</h2>
     <p style="color:#666;margin:0;font-size:14px;">Regarding order ${ref}</p>
 
@@ -367,6 +415,7 @@ export function buildSellerToBuyerEmailHtml(data: {
 
     <p style="margin:16px 0 0;font-size:13px;color:#6B7280;">If you have any questions, reply to this email.</p>
 
+    ${brandingSuffix}
   </div>
 </body>
 </html>`;
@@ -379,10 +428,11 @@ export async function sendEmail(data: {
   subject: string;
   html: string;
   attachments?: EmailAttachment[];
+  resendApiKey?: string;
 }): Promise<void> {
-  const key = process.env.RESEND_API_KEY?.trim();
+  const key = data.resendApiKey?.trim() || process.env.RESEND_API_KEY?.trim();
   if (!key) {
-    console.warn("[email] RESEND_API_KEY not set; skipping send");
+    console.warn("[email] Resend API key not set; skipping send");
     return;
   }
 
@@ -404,16 +454,42 @@ export async function sendEmail(data: {
   });
 }
 
-export async function sendNewOrderEmail(data: {
-  to: string;
-  subject: string;
-  html: string;
-}): Promise<void> {
+export async function sendEmailWithTransport(
+  transport: {
+    resendApiKey: string;
+    from: string;
+    replyTo?: string;
+  },
+  data: {
+    to: string;
+    subject: string;
+    html: string;
+    attachments?: EmailAttachment[];
+  },
+): Promise<void> {
   await sendEmail({
     to: data.to,
+    from: transport.from,
+    replyTo: transport.replyTo,
     subject: data.subject,
     html: data.html,
+    attachments: data.attachments,
+    resendApiKey: transport.resendApiKey,
   });
+}
+
+export async function sendNewOrderEmail(
+  transport: {
+    resendApiKey: string;
+    from: string;
+  },
+  data: {
+    to: string;
+    subject: string;
+    html: string;
+  },
+): Promise<void> {
+  await sendEmailWithTransport(transport, data);
 }
 
 export function buildSupportTicketSubject(

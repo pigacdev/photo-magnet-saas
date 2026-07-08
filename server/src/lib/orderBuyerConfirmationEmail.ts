@@ -1,11 +1,10 @@
 import {
   buildBuyerConfirmationHtml,
   buildBuyerConfirmationSubject,
-  sendEmail,
-  TEST_EMAIL_FROM,
 } from "./email";
 import { shapeLabel } from "./eventAnalytics";
-import { loadOrderNotificationContext } from "./orderNotificationContext";
+import { loadOrderEmailContext } from "./orderEmailBranding";
+import { sendBuyerContextEmail } from "./orderContextEmailSend";
 import { prisma } from "./prisma";
 
 /**
@@ -33,8 +32,17 @@ export async function sendBuyerOrderConfirmationIfNeeded(
     return;
   }
 
-  const { contextName, notificationEmail, storefrontPickupAddress } =
-    await loadOrderNotificationContext(order);
+  const org = await prisma.organization.findUnique({
+    where: { id: order.organizationId },
+    select: { plan: true },
+  });
+  const plan = org?.plan ?? "FREE";
+
+  const { contextName, notificationEmail, storefrontPickupAddress, branding } =
+    await loadOrderEmailContext(
+      { contextType: order.contextType, contextId: order.contextId },
+      plan,
+    );
 
   const firstShapeId = order.orderImages[0]?.shapeId;
   let shapeLabelText = "—";
@@ -65,16 +73,21 @@ export async function sendBuyerOrderConfirmationIfNeeded(
     },
     contextName,
     shapeLabelText,
-    { storefrontPickupAddress },
+    { storefrontPickupAddress, branding },
   );
 
-  await sendEmail({
+  const sent = await sendBuyerContextEmail({
     to: buyerEmail,
-    from: TEST_EMAIL_FROM,
-    ...(notificationEmail ? { replyTo: notificationEmail } : {}),
     subject: buildBuyerConfirmationSubject(),
     html,
+    notificationEmail,
   });
+  if (!sent) {
+    console.warn("[email] buyer confirmation skipped: no email transport", {
+      orderId,
+    });
+    return;
+  }
 
   await prisma.order.update({
     where: { id: orderId },

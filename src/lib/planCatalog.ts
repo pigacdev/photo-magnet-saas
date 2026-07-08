@@ -28,6 +28,7 @@ const HOBBY_FEATURES = [
   "calendar",
   "custom_branding",
   "email_notifications",
+  "manual_send_email",
   "qr_ordering",
   "support",
 ] as const;

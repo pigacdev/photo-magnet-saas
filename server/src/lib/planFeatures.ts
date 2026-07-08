@@ -54,6 +54,9 @@ export function featureRequiredMessage(feature: string): string {
   if (feature === "priority_support") {
     return "Priority support is included with the Pro plan.";
   }
+  if (feature === "manual_send_email") {
+    return "Send email to customers is available on the Hobby plan or higher.";
+  }
   if (ent.features.includes(feature)) {
     return "This feature requires a paid plan. Upgrade to continue.";
   }

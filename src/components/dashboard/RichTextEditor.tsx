@@ -11,6 +11,8 @@ export type RichTextEditorProps = {
   onChange: (html: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  /** Taller editing area for modals and compose screens. */
+  variant?: "default" | "large";
   "aria-label"?: string;
 };
 
@@ -48,8 +50,12 @@ export function RichTextEditor({
   onChange,
   disabled = false,
   placeholder = "Write your message…",
+  variant = "default",
   "aria-label": ariaLabel = "Email message",
 }: RichTextEditorProps) {
+  const editorMinHeightClass =
+    variant === "large" ? "min-h-[280px] sm:min-h-[360px]" : "min-h-[120px]";
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -76,7 +82,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "min-h-[120px] px-3 py-2 text-sm text-foreground outline-none prose prose-sm max-w-none dark:prose-invert [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5",
+          `${editorMinHeightClass} px-3 py-2 text-sm text-foreground outline-none prose prose-sm max-w-none dark:prose-invert [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5`,
         "aria-label": ariaLabel,
         "data-placeholder": placeholder,
       },

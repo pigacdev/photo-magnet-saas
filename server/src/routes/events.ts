@@ -156,17 +156,6 @@ eventsRouter.post("/", async (req, res) => {
     return;
   }
 
-  if (
-    !planHasFeature(plan, "email_notifications") &&
-    (notificationEmail !== undefined ||
-      sendOrderEmails !== undefined)
-  ) {
-    res.status(403).json({
-      error: featureRequiredMessage("email_notifications"),
-    });
-    return;
-  }
-
   let maxMagnets: number | null | undefined;
   if (maxMagnetsPerOrder !== undefined) {
     const parsed = parseMaxMagnetsPerOrderInput(maxMagnetsPerOrder);
@@ -422,15 +411,6 @@ eventsRouter.patch("/:id", async (req, res) => {
   const notifSend = parseSendOrderEmailsInput(sendOrderEmails);
   if (notifSend.kind === "error") {
     res.status(400).json({ error: notifSend.error });
-    return;
-  }
-  if (
-    (notifEmail.kind !== "omit" || notifSend.kind !== "omit") &&
-    !planHasFeature(patchPlan, "email_notifications")
-  ) {
-    res.status(403).json({
-      error: featureRequiredMessage("email_notifications"),
-    });
     return;
   }
   const notifPatch = {

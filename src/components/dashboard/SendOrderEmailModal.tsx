@@ -171,10 +171,10 @@ export function SendOrderEmailModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="send-order-email-title"
-        className="relative flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border border-border bg-background shadow-xl sm:rounded-xl"
+        className="relative flex h-[min(92vh,880px)] w-full max-w-3xl flex-col overflow-hidden rounded-t-xl border border-border bg-background shadow-xl sm:rounded-xl"
       >
         <form onSubmit={(e) => void handleSubmit(e)} className="flex min-h-0 flex-1 flex-col">
-          <div className="border-b border-border px-4 py-3 sm:px-5">
+          <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
             <h2
               id="send-order-email-title"
               className="text-base font-semibold text-foreground sm:text-lg"
@@ -186,8 +186,8 @@ export function SendOrderEmailModal({
             </p>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
-            <label className="flex flex-col gap-1.5">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4 sm:px-6">
+            <label className="flex shrink-0 flex-col gap-1.5">
               <span className="text-sm font-medium text-foreground">Email To</span>
               <input
                 type="email"
@@ -200,7 +200,7 @@ export function SendOrderEmailModal({
               />
             </label>
 
-            <label className="flex flex-col gap-1.5">
+            <label className="flex shrink-0 flex-col gap-1.5">
               <span className="text-sm font-medium text-foreground">Subject</span>
               <input
                 type="text"
@@ -214,19 +214,20 @@ export function SendOrderEmailModal({
               />
             </label>
 
-            <div className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium text-foreground">Message</span>
+            <div className="flex min-h-[280px] flex-1 flex-col gap-1.5 sm:min-h-[320px]">
+              <span className="shrink-0 text-sm font-medium text-foreground">Message</span>
               <RichTextEditor
                 value={html}
                 onChange={setHtml}
                 disabled={saving}
+                variant="large"
               />
-              <span className="text-xs text-muted-foreground tabular-nums">
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
                 {messagePlainLength}/{ORDER_EMAIL_MIN_MESSAGE_CHARS} min characters
               </span>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex shrink-0 flex-col gap-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium text-foreground">Attachments</span>
                 <span className="text-xs text-muted-foreground">
@@ -280,7 +281,7 @@ export function SendOrderEmailModal({
             ) : null}
           </div>
 
-          <div className="flex flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
+          <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:justify-end sm:px-6">
             <button
               type="button"
               disabled={saving}

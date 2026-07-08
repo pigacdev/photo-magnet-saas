@@ -13,6 +13,8 @@ export async function loadOrderNotificationContext(order: {
   sendOrderEmails: boolean;
   notificationEmail: string | null;
   storefrontPickupAddress: StructuredShippingAddress | null;
+  brandText: string | null;
+  bannerUrl: string | null;
 }> {
   if (order.contextType === "EVENT") {
     const ev = await prisma.event.findFirst({
@@ -21,6 +23,8 @@ export async function loadOrderNotificationContext(order: {
         name: true,
         sendOrderEmails: true,
         notificationEmail: true,
+        brandText: true,
+        bannerUrl: true,
       },
     });
     if (!ev) {
@@ -29,6 +33,8 @@ export async function loadOrderNotificationContext(order: {
         sendOrderEmails: false,
         notificationEmail: null,
         storefrontPickupAddress: null,
+        brandText: null,
+        bannerUrl: null,
       };
     }
     return {
@@ -36,6 +42,8 @@ export async function loadOrderNotificationContext(order: {
       sendOrderEmails: ev.sendOrderEmails,
       notificationEmail: ev.notificationEmail?.trim() || null,
       storefrontPickupAddress: null,
+      brandText: ev.brandText?.trim() || null,
+      bannerUrl: ev.bannerUrl?.trim() || null,
     };
   }
 
@@ -46,6 +54,7 @@ export async function loadOrderNotificationContext(order: {
       sendOrderEmails: true,
       notificationEmail: true,
       pickupAddress: true,
+      brandText: true,
     },
   });
   if (!sf) {
@@ -54,6 +63,8 @@ export async function loadOrderNotificationContext(order: {
       sendOrderEmails: false,
       notificationEmail: null,
       storefrontPickupAddress: null,
+      brandText: null,
+      bannerUrl: null,
     };
   }
   return {
@@ -61,5 +72,7 @@ export async function loadOrderNotificationContext(order: {
     sendOrderEmails: sf.sendOrderEmails,
     notificationEmail: sf.notificationEmail?.trim() || null,
     storefrontPickupAddress: storedPickupAddressFromJson(sf.pickupAddress),
+    brandText: sf.brandText?.trim() || null,
+    bannerUrl: null,
   };
 }

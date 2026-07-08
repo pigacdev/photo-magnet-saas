@@ -95,15 +95,6 @@ storefrontsRouter.post("/", async (req, res) => {
     res.status(400).json({ error: notifSend.error });
     return;
   }
-  if (
-    (notifEmail.kind !== "omit" || notifSend.kind !== "omit") &&
-    !planHasFeature(createPlan, "email_notifications")
-  ) {
-    res.status(403).json({
-      error: featureRequiredMessage("email_notifications"),
-    });
-    return;
-  }
   const notifCreate = {
     ...(notifEmail.kind === "ok" && { notificationEmail: notifEmail.value }),
     ...(notifSend.kind === "ok" && { sendOrderEmails: notifSend.value }),
@@ -232,15 +223,6 @@ storefrontsRouter.patch("/:id", async (req, res) => {
   const notifSend = parseSendOrderEmailsInput(sendOrderEmails);
   if (notifSend.kind === "error") {
     res.status(400).json({ error: notifSend.error });
-    return;
-  }
-  if (
-    (notifEmail.kind !== "omit" || notifSend.kind !== "omit") &&
-    !planHasFeature(patchPlan, "email_notifications")
-  ) {
-    res.status(403).json({
-      error: featureRequiredMessage("email_notifications"),
-    });
     return;
   }
   const notifPatch = {

@@ -16,6 +16,7 @@ import { CustomerEditModal } from "@/components/dashboard/CustomerEditModal";
 import { CancelOrderModal } from "@/components/dashboard/CancelOrderModal";
 import { PrintOutcomeModal } from "@/components/dashboard/PrintOutcomeModal";
 import { SendOrderEmailModal } from "@/components/dashboard/SendOrderEmailModal";
+import { ManualSendEmailUpgradeModal } from "@/components/dashboard/ManualSendEmailUpgradeModal";
 import { OrderStatusRow } from "@/lib/orderDetailClarity";
 import {
   normalizeLegacyShippingType,
@@ -38,6 +39,8 @@ import {
 import { formatOrderReference } from "@/lib/orderReference";
 import { OrderImageSelectCard } from "@/components/dashboard/OrderImageSelectCard";
 import { invalidateNewOrdersCount } from "@/lib/newOrdersCount";
+import { useOrganizationUsage } from "@/hooks/useOrganizationUsage";
+import { usageHasFeature } from "@/lib/planFeatures";
 
 type SellerOrderDetail = {
   orderId: string;
@@ -100,10 +103,14 @@ export default function OrderDetailPage() {
   );
   const [customerEditOpen, setCustomerEditOpen] = useState(false);
   const [sendEmailOpen, setSendEmailOpen] = useState(false);
+  const [sendEmailUpgradeOpen, setSendEmailUpgradeOpen] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   /** After a successful "Print order", ask before marking — reinforces preview → confirm flow. */
   const [printOutcomePrompt, setPrintOutcomePrompt] = useState(false);
   const [referenceCopied, setReferenceCopied] = useState(false);
+
+  const usage = useOrganizationUsage();
+  const canManualSendEmail = usageHasFeature(usage, "manual_send_email");
 
   const orderReference = useMemo(
     () =>
@@ -617,22 +624,13 @@ export default function OrderDetailPage() {
                 <h2 className="text-lg font-semibold text-foreground sm:text-xl">
                   Customer & shipping
                 </h2>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSendEmailOpen(true)}
-                    className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[#16A34A] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#15803D]"
-                  >
-                    Send email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCustomerEditOpen(true)}
-                    className="min-h-[44px] text-left text-sm font-medium text-primary hover:underline sm:text-right"
-                  >
-                    Edit customer info
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setCustomerEditOpen(true)}
+                  className="min-h-[44px] text-left text-sm font-medium text-primary hover:underline sm:text-right"
+                >
+                  Edit customer info
+                </button>
               </div>
               {hasCustomerInfo ? (
                 <dl className="mt-3 space-y-2 text-sm">
@@ -741,6 +739,19 @@ export default function OrderDetailPage() {
                   No customer details yet.
                 </p>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!canManualSendEmail) {
+                    setSendEmailUpgradeOpen(true);
+                    return;
+                  }
+                  setSendEmailOpen(true);
+                }}
+                className="mt-4 inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-[#16A34A] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#15803D] sm:w-auto"
+              >
+                Send email
+              </button>
           </div>
           </div>
 
@@ -865,7 +876,7 @@ export default function OrderDetailPage() {
         />
       )}
 
-      {sendEmailOpen && order && (
+      {sendEmailOpen && order && canManualSendEmail && (
         <SendOrderEmailModal
           open={sendEmailOpen}
           orderId={order.orderId}
@@ -875,6 +886,11 @@ export default function OrderDetailPage() {
           onSent={() => setPrintFeedbackToast("Email sent")}
         />
       )}
+
+      <ManualSendEmailUpgradeModal
+        open={sendEmailUpgradeOpen}
+        onClose={() => setSendEmailUpgradeOpen(false)}
+      />
 
       <CancelOrderModal
         open={cancelModalOpen}

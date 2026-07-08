@@ -1,8 +1,10 @@
-# Production todos
-
-Items to address before production launch.
-
-## Email
-
-- [ ] **Buyer confirmation `From` address** — Currently all buyer order confirmation emails are sent from the hardcoded Resend test address `Magnetoo <onboarding@resend.dev>` (`TEST_EMAIL_FROM` in `server/src/lib/email.ts`). Before production, switch to the seller’s configured `notificationEmail` on the event or storefront (display name = context name, `replyTo` = same address). Requires a verified sending domain in Resend.
-- [ ] **Support ticket `To` / `From` addresses** — Currently hardcoded to `magnetooprints@gmail.com` (recipient) and `Magnetoo <onboarding@resend.dev>` (sender) via `SUPPORT_TICKET_TO` and `SUPPORT_TICKET_FROM` in `server/src/lib/email.ts`. Before production, replace with the real Magnetoo support inbox and a verified platform sending domain in Resend (e.g. move to env vars `SUPPORT_EMAIL` and `RESEND_FROM_EMAIL`).
+# Production todos
+
+Items to address before production launch.
+
+## Email
+
+All seller-context emails (Free, Hobby, and Pro) are sent via the platform Magnetoo Resend account (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`). Customer-facing emails set `Reply-To` to the seller's `notificationEmail` on the event or storefront so replies go directly to the seller.
+
+- [ ] **Platform `From` address for production** — Configure `RESEND_FROM_EMAIL` to a verified Magnetoo sending domain (e.g. `Magnetoo <orders@magnetoo.com>`).
+- [ ] **Support ticket `To` / `From` addresses** — Currently hardcoded to `magnetooprints@gmail.com` (recipient) and `Magnetoo <onboarding@resend.dev>` (sender) via `SUPPORT_TICKET_TO` and `SUPPORT_TICKET_FROM` in `server/src/lib/email.ts`. Before production, replace with the real Magnetoo support inbox and a verified platform sending domain in Resend.

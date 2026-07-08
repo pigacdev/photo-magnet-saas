@@ -53,12 +53,10 @@ import {
   buildOrderEmailHtml,
   buildOrderEmailSubject,
   buildSellerToBuyerEmailHtml,
-  isResendConfigured,
-  sendEmail,
-  sendNewOrderEmail,
-  TEST_EMAIL_FROM,
 } from "../lib/email";
-import { loadOrderNotificationContext } from "../lib/orderNotificationContext";
+import { loadOrderEmailContext } from "../lib/orderEmailBranding";
+import { sendOrderContextEmail, sendBuyerContextEmail } from "../lib/orderContextEmailSend";
+import { isPlatformEmailSendReady } from "../lib/organizationEmailTransport";
 import {
   getOrderContextNameFromMap,
   resolveOrderContextName,
@@ -949,16 +947,26 @@ ordersRouter.patch("/:id/customer", async (req: Request, res: Response) => {
     });
 
     if (orderFull) {
-      const { contextName, sendOrderEmails, notificationEmail, storefrontPickupAddress } =
-        await loadOrderNotificationContext(orderFull);
+      const org = await prisma.organization.findUnique({
+        where: { id: orderFull.organizationId },
+        select: { plan: true },
+      });
+      const plan = org?.plan ?? "FREE";
+      const { contextName, sendOrderEmails, notificationEmail, storefrontPickupAddress, branding } =
+        await loadOrderEmailContext(
+          { contextType: orderFull.contextType, contextId: orderFull.contextId },
+          plan,
+        );
 
       if (sendOrderEmails && notificationEmail) {
-        await sendNewOrderEmail({
+        await sendOrderContextEmail({
           to: notificationEmail,
           subject: buildOrderEmailSubject(orderFull, contextName),
           html: buildOrderEmailHtml(orderFull, contextName, {
             storefrontPickupAddress,
+            branding,
           }),
+          notificationEmail,
         });
       }
     }
@@ -1127,15 +1135,25 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
           include: { orderImages: true },
         });
         if (orderFull) {
-          const { contextName, sendOrderEmails, notificationEmail, storefrontPickupAddress } =
-            await loadOrderNotificationContext(orderFull);
+          const org = await prisma.organization.findUnique({
+            where: { id: orderFull.organizationId },
+            select: { plan: true },
+          });
+          const plan = org?.plan ?? "FREE";
+          const { contextName, sendOrderEmails, notificationEmail, storefrontPickupAddress, branding } =
+            await loadOrderEmailContext(
+              { contextType: orderFull.contextType, contextId: orderFull.contextId },
+              plan,
+            );
           if (sendOrderEmails && notificationEmail) {
-            await sendNewOrderEmail({
+            await sendOrderContextEmail({
               to: notificationEmail,
               subject: buildOrderEmailSubject(orderFull, contextName),
               html: buildOrderEmailHtml(orderFull, contextName, {
                 storefrontPickupAddress,
+                branding,
               }),
+              notificationEmail,
             });
           }
         }
@@ -1279,6 +1297,22 @@ ordersRouter.post(
             return;
           }
 
+          try {
+            await assertOrganizationFeature(owner, "manual_send_email");
+          } catch (err) {
+            if (err instanceof Error && err.message === FEATURE_REQUIRED) {
+              res
+                .status(403)
+                .json({ error: featureRequiredMessage("manual_send_email") });
+              return;
+            }
+            if (err instanceof Error && err.message === "Organization not found") {
+              res.status(404).json({ error: "Organization not found" });
+              return;
+            }
+            throw err;
+          }
+
           const parsed = parseOrderEmailFormBody(
             req.body as Record<string, unknown>,
           );
@@ -1295,13 +1329,22 @@ ordersRouter.post(
             return;
           }
 
-          if (!isResendConfigured()) {
+          const org = await prisma.organization.findUnique({
+            where: { id: owner },
+            select: { plan: true },
+          });
+          const plan = org?.plan ?? "FREE";
+
+          if (!isPlatformEmailSendReady()) {
             res.status(503).json({ error: "Email service is not configured" });
             return;
           }
 
-          const { contextName, notificationEmail } =
-            await loadOrderNotificationContext(order);
+          const { contextName, notificationEmail, branding } =
+            await loadOrderEmailContext(
+              { contextType: order.contextType, contextId: order.contextId },
+              plan,
+            );
 
           const orderReference =
             order.shortCode?.trim() || order.id.slice(0, 8).toUpperCase();
@@ -1310,17 +1353,21 @@ ordersRouter.post(
             contextName,
             orderReference,
             messageHtml: parsed.messageHtml,
+            branding,
           });
 
           try {
-            await sendEmail({
+            const sent = await sendBuyerContextEmail({
               to: parsed.to,
-              from: TEST_EMAIL_FROM,
-              ...(notificationEmail ? { replyTo: notificationEmail } : {}),
               subject: parsed.subject,
               html,
+              notificationEmail,
               attachments: attachmentResult.attachments,
             });
+            if (!sent) {
+              res.status(503).json({ error: "Email service is not configured" });
+              return;
+            }
           } catch (err) {
             console.error("[orders.send-email] failed", err);
             res.status(500).json({ error: "Could not send email" });
