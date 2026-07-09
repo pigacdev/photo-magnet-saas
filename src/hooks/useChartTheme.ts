@@ -1,7 +1,7 @@
 "use client";
 
 import { type CSSProperties } from "react";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/theme/ThemeProvider";
 
 export type ChartTheme = {
   grid: string;

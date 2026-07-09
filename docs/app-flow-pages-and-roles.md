@@ -94,7 +94,8 @@ Rules:
 ## User roles
 
 - SaaS Owner (you)
-  - manages platform (outside dashboard)
+  - `/platform` — cross-tenant operator dashboard (env allowlist: `PLATFORM_OWNER_EMAILS`)
+  - KPIs: sellers, plan mix, platform GMV, activity, tenant table
 
 - Client (Organization admin)
   - manages:

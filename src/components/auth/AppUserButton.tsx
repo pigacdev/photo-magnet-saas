@@ -1,7 +1,8 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { UserButton } from "@clerk/nextjs";
+import { getCachedIsPlatformOwner, getMe } from "@/lib/auth";
 
 function MenuIcon({ children }: { children: ReactNode }) {
   return (
@@ -46,16 +47,56 @@ function SettingsIcon() {
   );
 }
 
+function PlatformIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 6h16M4 12h16M4 18h7"
+      />
+      <circle cx="17" cy="18" r="2" />
+    </svg>
+  );
+}
+
 export type AppUserButtonProps = {
   showAppLinks?: boolean;
+  /** When false, hides Platform link (e.g. on /platform page). */
+  showPlatformLink?: boolean;
 };
 
-export function AppUserButton({ showAppLinks = false }: AppUserButtonProps) {
+export function AppUserButton({
+  showAppLinks = false,
+  showPlatformLink = true,
+}: AppUserButtonProps) {
+  const [isPlatformOwner, setIsPlatformOwner] = useState(() =>
+    getCachedIsPlatformOwner(),
+  );
+
+  useEffect(() => {
+    void getMe().then(() => setIsPlatformOwner(getCachedIsPlatformOwner()));
+  }, []);
+
+  const platformMenuLink =
+    showPlatformLink && isPlatformOwner ? (
+      <UserButton.Link
+        label="Platform"
+        labelIcon={
+          <MenuIcon>
+            <PlatformIcon />
+          </MenuIcon>
+        }
+        href="/platform"
+      />
+    ) : null;
+
   return (
     <UserButton>
       {showAppLinks ? (
         <UserButton.MenuItems>
           <UserButton.Action label="manageAccount" />
+          {platformMenuLink}
           <UserButton.Link
             label="Billing & plan"
             labelIcon={
@@ -88,6 +129,7 @@ export function AppUserButton({ showAppLinks = false }: AppUserButtonProps) {
       ) : (
         <UserButton.MenuItems>
           <UserButton.Action label="manageAccount" />
+          {platformMenuLink}
           <UserButton.Action label="signOut" />
         </UserButton.MenuItems>
       )}

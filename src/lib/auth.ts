@@ -49,18 +49,29 @@ export function getDisplayPreferences(): DisplayPreferences {
 type AuthResponse = {
   user: User;
   organization: OrganizationUsage | null;
+  isPlatformOwner?: boolean;
 };
 
 let cachedUser: User | null | undefined;
 let cachedOrganization: OrganizationUsage | null | undefined;
+let cachedIsPlatformOwner: boolean | undefined;
 const usageListeners = new Set<() => void>();
 
-function setCache(user: User | null, organization?: OrganizationUsage | null) {
+function setCache(
+  user: User | null,
+  organization?: OrganizationUsage | null,
+  isPlatformOwner?: boolean,
+) {
   cachedUser = user;
   if (organization !== undefined) {
     cachedOrganization = organization;
   } else if (user === null) {
     cachedOrganization = null;
+  }
+  if (isPlatformOwner !== undefined) {
+    cachedIsPlatformOwner = isPlatformOwner;
+  } else if (user === null) {
+    cachedIsPlatformOwner = false;
   }
   usageListeners.forEach((listener) => listener());
 }
@@ -75,6 +86,11 @@ export function subscribeOrganizationUsage(listener: () => void): () => void {
 export function invalidateAuthCache(): void {
   cachedUser = undefined;
   cachedOrganization = undefined;
+  cachedIsPlatformOwner = undefined;
+}
+
+export function getCachedIsPlatformOwner(): boolean {
+  return cachedIsPlatformOwner ?? false;
 }
 
 /** Merge fields into cached org usage and notify subscribers (no network round-trip). */
@@ -99,7 +115,11 @@ export async function getMe(): Promise<User | null> {
 
   try {
     const data = await api<AuthResponse>("/api/auth/me");
-    setCache(data.user, data.organization ?? null);
+    setCache(
+      data.user,
+      data.organization ?? null,
+      data.isPlatformOwner ?? false,
+    );
     return data.user;
   } catch {
     setCache(null, null);

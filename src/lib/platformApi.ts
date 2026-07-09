@@ -1,0 +1,105 @@
+import { api } from "./api";
+
+export type PlatformPlanBreakdown = {
+  FREE: number;
+  HOBBY: number;
+  PRO: number;
+};
+
+export type SignupMonthPoint = {
+  month: string;
+  label: string;
+  signups: number;
+};
+
+export type SignupYearPoint = {
+  year: string;
+  signups: number;
+};
+
+export type PlatformOverview = {
+  totalSellers: number;
+  planBreakdown: PlatformPlanBreakdown;
+  signupsLast30Days: { date: string; signups: number }[];
+  signupsByMonth: SignupMonthPoint[];
+  signupsByYear: SignupYearPoint[];
+  gmvThisMonth: number;
+  gmvLastMonth: number;
+  ordersThisMonth: number;
+  activeSellersLast30Days: number;
+  nearOrderLimit: number;
+  nearEventLimit: number;
+  orderLimitReached: number;
+  eventLimitReached: number;
+  onboardingIncomplete: number;
+};
+
+export type PlatformTenant = {
+  id: string;
+  email: string;
+  name: string | null;
+  businessName: string | null;
+  plan: "FREE" | "HOBBY" | "PRO";
+  clerkPlanSlug: string | null;
+  createdAt: string;
+  ordersThisMonth: number;
+  orderLimit: number;
+  eventsThisMonth: number;
+  eventLimit: number;
+  totalSettledOrders: number;
+  settledRevenue: number;
+  eventCount: number;
+  storefrontCount: number;
+  lastOrderAt: string | null;
+  onboardingComplete: boolean;
+};
+
+export type PlatformTenantsResponse = {
+  tenants: PlatformTenant[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type TenantSort = "createdAt" | "ordersThisMonth" | "settledRevenue";
+export type TenantOrder = "asc" | "desc";
+
+export type PlatformTenantUsageFilter =
+  | "nearOrderLimit"
+  | "nearEventLimit"
+  | "orderLimitReached"
+  | "eventLimitReached"
+  | "onboardingIncomplete";
+
+export const USAGE_FILTER_LABELS: Record<PlatformTenantUsageFilter, string> = {
+  nearOrderLimit: "Near order limit",
+  nearEventLimit: "Near event limit",
+  orderLimitReached: "Order limit reached",
+  eventLimitReached: "Event limit reached",
+  onboardingIncomplete: "Onboarding incomplete",
+};
+
+export function fetchPlatformOverview(): Promise<PlatformOverview> {
+  return api<PlatformOverview>("/api/platform/overview");
+}
+
+export function fetchPlatformTenants(params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sort?: TenantSort;
+  order?: TenantOrder;
+  usageFilter?: PlatformTenantUsageFilter | null;
+}): Promise<PlatformTenantsResponse> {
+  const q = new URLSearchParams();
+  if (params.page != null) q.set("page", String(params.page));
+  if (params.pageSize != null) q.set("pageSize", String(params.pageSize));
+  if (params.search?.trim()) q.set("search", params.search.trim());
+  if (params.sort) q.set("sort", params.sort);
+  if (params.order) q.set("order", params.order);
+  if (params.usageFilter) q.set("usageFilter", params.usageFilter);
+  const qs = q.toString();
+  return api<PlatformTenantsResponse>(
+    `/api/platform/tenants${qs ? `?${qs}` : ""}`,
+  );
+}

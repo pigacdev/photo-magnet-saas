@@ -13,6 +13,7 @@ export function ClerkAuthHeader() {
 
   if (
     pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/platform") ||
     pathname.startsWith("/order") ||
     pathname.startsWith("/store") ||
     pathname.startsWith("/event") ||

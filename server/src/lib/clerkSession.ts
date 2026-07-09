@@ -36,6 +36,10 @@ function getClerkClient(): ReturnType<typeof createClerkClient> | null {
   return clerkClient;
 }
 
+export function resolveClerkClient(): ReturnType<typeof createClerkClient> | null {
+  return getClerkClient();
+}
+
 function getAuthorizedParties(): string[] {
   const parties = new Set<string>();
   for (const value of [
@@ -72,7 +76,7 @@ function expressToWebRequest(req: ExpressRequest): globalThis.Request {
   return new globalThis.Request(url, { method: req.method, headers });
 }
 
-function resolveClerkPrimaryEmail(
+export function resolveClerkPrimaryEmail(
   clerkUser: Awaited<
     ReturnType<NonNullable<ReturnType<typeof getClerkClient>>["users"]["getUser"]>
   >,

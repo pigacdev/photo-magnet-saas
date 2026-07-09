@@ -19,8 +19,10 @@ import { dashboardRouter } from "./routes/dashboard";
 import { organizationRouter } from "./routes/organization";
 import { supportRouter } from "./routes/support";
 import { adminRouter } from "./routes/admin";
+import { platformRouter } from "./routes/platform";
 import { stripeRouter, stripeWebhookHandler } from "./routes/stripe";
 import { authenticate, requireRole } from "./middleware/auth";
+import { requirePlatformOwner } from "./middleware/platformOwner";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
@@ -93,6 +95,12 @@ app.use(
   authenticate,
   requireRole("ADMIN", "STAFF"),
   supportRouter,
+);
+app.use(
+  "/api/platform",
+  authenticate,
+  requirePlatformOwner,
+  platformRouter,
 );
 
 app.use(errorHandler);

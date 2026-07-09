@@ -4,6 +4,7 @@ import { ensureSellerUser, ensureSellerOrganization } from "@/lib/clerkUserSync"
 import { syncOrganizationBillingFromClerk } from "@/lib/clerkBillingSync";
 import { prisma } from "@/lib/prisma";
 import { buildOrganizationUsage } from "../../../../../server/src/lib/organizationUsage";
+import { isPlatformOwnerEmail } from "../../../../../server/src/lib/platformOwner";
 
 export const dynamic = "force-dynamic";
 
@@ -75,7 +76,11 @@ export async function GET() {
 
     const organization = await buildOrganizationUsage(user.id);
 
-    return NextResponse.json({ user, organization });
+    return NextResponse.json({
+      user,
+      organization,
+      isPlatformOwner: isPlatformOwnerEmail(email),
+    });
   } catch (err) {
     console.error("[GET /api/auth/me]", err);
     return NextResponse.json(
