@@ -6,6 +6,7 @@ import { Router } from "express";
 import { aggregateSettledMonthMetrics } from "../lib/orderSettlement";
 import { planHasFeature } from "../lib/planCatalog";
 import { prisma } from "../lib/prisma";
+import { orderNeedsPrintingAttention } from "../../../src/lib/orderPrintProgress";
 
 export const dashboardRouter = Router();
 
@@ -160,6 +161,7 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
     unpaidOrders,
     ordersThisMonthForMetrics,
     ordersLastMonthForMetrics,
+    printEligibleOrders,
   ] = await prisma.$transaction([
     prisma.order.count({ where: createdThisMonthWhere }),
     prisma.order.aggregate({
@@ -188,7 +190,23 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
       where: createdLastMonthWhere,
       select: orderMonthSelect,
     }),
+    prisma.order.findMany({
+      where: {
+        organizationId: orgId,
+        status: { in: ["PAID", "IN_PRODUCTION", "SHIPPED", "COMPLETED"] },
+      },
+      select: {
+        status: true,
+        orderImages: {
+          select: { printed: true, mediaDeletedAt: true },
+        },
+      },
+    }),
   ]);
+
+  const ordersNeedingPrint = printEligibleOrders.filter((o) =>
+    orderNeedsPrintingAttention(o.status, o.orderImages),
+  ).length;
 
   const settledThisMonth = aggregateSettledMonthMetrics(ordersThisMonthForMetrics);
   const settledLastMonth = aggregateSettledMonthMetrics(ordersLastMonthForMetrics);
@@ -275,6 +293,7 @@ dashboardRouter.get("/stats", async (req: Request, res: Response) => {
     magnetsSoldLastMonth: settledLastMonth.magnetsSold,
     newOrders,
     unpaidOrders,
+    ordersNeedingPrint,
     last7Days,
     byMonth,
   });

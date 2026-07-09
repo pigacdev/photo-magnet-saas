@@ -51,6 +51,7 @@ type DashboardStats = {
   magnetsSoldLastMonth?: number;
   newOrders?: number;
   unpaidOrders?: number;
+  ordersNeedingPrint?: number;
   last7Days: Last7DayPoint[];
   byMonth?: ByMonthPoint[];
 };
@@ -475,6 +476,14 @@ export default function DashboardPage() {
                 value={statsLoading ? "…" : String(stats?.unpaidOrders ?? "—")}
                 subtitle="Awaiting payment"
                 href="/dashboard/orders?status=unpaid"
+              />
+              <KpiCard
+                label="Needs printing"
+                value={
+                  statsLoading ? "…" : String(stats?.ordersNeedingPrint ?? "—")
+                }
+                subtitle="Unprinted images"
+                href="/dashboard/orders?printStatus=needs_printing"
               />
             </>
           ) : null}

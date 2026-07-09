@@ -1,19 +1,25 @@
 import type { OrderStatus, Prisma } from "../../../src/generated/prisma/client";
+import { computeOrderPrintProgress } from "../../../src/lib/orderPrintProgress";
 import { prisma } from "./prisma";
 import {
   expandStatusFilterParams,
   isKnownStatusFilterToken,
   orderStatusSortPriority,
 } from "./orderListStatusFilter";
-import { filterPrintableOrderImages } from "./orderImageMediaAvailability";
+import {
+  matchesPrintStatusFilter,
+  parsePrintStatusFilter,
+  type PrintStatusFilter,
+} from "./orderListPrintFilter";
 
-export type SellerOrderListSortBy = "createdAt" | "status";
+export type SellerOrderListSortBy = "createdAt" | "status" | "unprintedImages";
 export type SellerOrderListSortOrder = "asc" | "desc";
 
 export type SellerOrderListQueryParams = {
   search: string;
   statusFilterTokens: string[];
   expandedStatusFilter: Set<OrderStatus> | null;
+  printStatusFilter: PrintStatusFilter | null;
   createdAt?: { gte?: Date; lte?: Date };
   contextType?: "EVENT" | "STOREFRONT";
   contextId?: string;
@@ -64,6 +70,7 @@ export type SellerOrderListItemPayload = {
   imageCount: number;
   totalImages: number;
   printedImages: number;
+  unprintedImages: number;
 };
 
 export type SellerOrderListMappedRow = {
@@ -165,6 +172,11 @@ export function parseSellerOrderListQuery(
     return { ok: false, error: statusParsed.error };
   }
 
+  const printStatusParsed = parsePrintStatusFilter(query);
+  if (!printStatusParsed.ok) {
+    return { ok: false, error: printStatusParsed.error };
+  }
+
   const expandedStatusFilter =
     statusParsed.tokens.length > 0
       ? expandStatusFilterParams(statusParsed.tokens)
@@ -211,7 +223,11 @@ export function parseSellerOrderListQuery(
   const sortByParam =
     typeof query.sortBy === "string" ? query.sortBy.trim() : "";
   const sortBy: SellerOrderListSortBy =
-    sortByParam === "status" ? "status" : "createdAt";
+    sortByParam === "status"
+      ? "status"
+      : sortByParam === "unprintedImages"
+        ? "unprintedImages"
+        : "createdAt";
   const sortOrderRaw =
     typeof query.sortOrder === "string"
       ? query.sortOrder.trim().toLowerCase()
@@ -225,6 +241,7 @@ export function parseSellerOrderListQuery(
       search,
       statusFilterTokens: statusParsed.tokens,
       expandedStatusFilter,
+      printStatusFilter: printStatusParsed.filter,
       createdAt,
       contextType,
       contextId,
@@ -264,9 +281,7 @@ async function validateContextAccess(
 
 function mapOrderRows(orders: OrderListRow[]): SellerOrderListMappedRow[] {
   return orders.map((o) => {
-    const printable = filterPrintableOrderImages(o.orderImages);
-    const totalImages = printable.length;
-    const printedImages = printable.filter((img) => img.printed).length;
+    const progress = computeOrderPrintProgress(o.orderImages);
     return {
       row: o,
       payload: {
@@ -281,9 +296,10 @@ function mapOrderRows(orders: OrderListRow[]): SellerOrderListMappedRow[] {
         totalPrice: o.totalPrice.toString(),
         currency: o.currency,
         createdAt: o.createdAt.toISOString(),
-        imageCount: totalImages,
-        totalImages,
-        printedImages,
+        imageCount: progress.totalImages,
+        totalImages: progress.totalImages,
+        printedImages: progress.printedImages,
+        unprintedImages: progress.unprintedImages,
       },
     };
   });
@@ -300,6 +316,16 @@ function sortSellerOrderRows(
       const tb = y.row.createdAt.getTime();
       const cmp = sortOrder === "asc" ? ta - tb : tb - ta;
       if (cmp !== 0) return cmp;
+      return x.row.id.localeCompare(y.row.id);
+    }
+    if (sortBy === "unprintedImages") {
+      const ua = x.payload.unprintedImages;
+      const ub = y.payload.unprintedImages;
+      const cmp = sortOrder === "asc" ? ua - ub : ub - ua;
+      if (cmp !== 0) return cmp;
+      const ta = x.row.createdAt.getTime();
+      const tb = y.row.createdAt.getTime();
+      if (tb !== ta) return tb - ta;
       return x.row.id.localeCompare(y.row.id);
     }
     const pa = orderStatusSortPriority(x.row.status);
@@ -376,10 +402,23 @@ export async function querySellerOrders(
 
   const mapped = mapOrderRows(filtered);
 
+  const printFiltered =
+    params.printStatusFilter != null
+      ? mapped.filter((x) =>
+          matchesPrintStatusFilter(
+            params.printStatusFilter,
+            x.row.status,
+            x.row.orderImages,
+          ),
+        )
+      : mapped;
+
   const statusFiltered =
     params.expandedStatusFilter != null
-      ? mapped.filter((x) => params.expandedStatusFilter!.has(x.row.status))
-      : mapped;
+      ? printFiltered.filter((x) =>
+          params.expandedStatusFilter!.has(x.row.status),
+        )
+      : printFiltered;
 
   const sortedList = sortSellerOrderRows(
     statusFiltered,

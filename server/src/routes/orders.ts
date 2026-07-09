@@ -136,6 +136,7 @@ ordersRouter.get(
     const result = await querySellerOrders(userId, {
       search: params.search,
       expandedStatusFilter: params.expandedStatusFilter,
+      printStatusFilter: params.printStatusFilter,
       createdAt: params.createdAt,
       contextType: params.contextType,
       contextId: params.contextId,
@@ -210,6 +211,7 @@ ordersRouter.get(
     const result = await querySellerOrders(userId, {
       search: params.search,
       expandedStatusFilter: params.expandedStatusFilter,
+      printStatusFilter: params.printStatusFilter,
       createdAt: params.createdAt,
       contextType: params.contextType,
       contextId: params.contextId,

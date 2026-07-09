@@ -35,6 +35,7 @@ import {
 } from "@/lib/auth";
 import { formatDisplayDateTime } from "@/lib/dateFormat";
 import { usageHasFeature } from "@/lib/planFeatures";
+import { OrderPrintProgressCell } from "@/lib/sellerOrderPrintStatus";
 
 export type SellerOrderListItem = {
   id: string;
@@ -52,6 +53,7 @@ export type SellerOrderListItem = {
   imageCount: number;
   totalImages: number;
   printedImages: number;
+  unprintedImages: number;
 };
 
 type OrdersListResponse = {
@@ -466,6 +468,7 @@ function OrdersListContent() {
   const hasFilters =
     Boolean(searchParams.get("search")?.trim()) ||
     Boolean(searchParams.get("status")?.trim()) ||
+    Boolean(searchParams.get("printStatus")?.trim()) ||
     Boolean(searchParams.get("dateFrom")) ||
     Boolean(searchParams.get("dateTo")) ||
     Boolean(
@@ -486,15 +489,24 @@ function OrdersListContent() {
   const sortOrderCol =
     searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
+  const printStatusParam = searchParams.get("printStatus");
+  const needsPrintingActive = printStatusParam === "needs_printing";
+  const fullyPrintedActive = printStatusParam === "fully_printed";
+
   const statusParam = searchParams.get("status");
   const statusFilterLabels = useMemo(
     () => statusFilterSelectionLabels(statusParam),
     [statusParam],
   );
 
-  function toggleSort(column: "createdAt" | "status") {
+  function toggleSort(column: "createdAt" | "status" | "unprintedImages") {
     replaceQuery((q) => {
-      const prevBy = q.get("sortBy") === "status" ? "status" : "createdAt";
+      const prevBy =
+        q.get("sortBy") === "status"
+          ? "status"
+          : q.get("sortBy") === "unprintedImages"
+            ? "unprintedImages"
+            : "createdAt";
       const prevOrder = q.get("sortOrder") === "asc" ? "asc" : "desc";
       if (column !== prevBy) {
         q.set("sortBy", column);
@@ -502,6 +514,18 @@ function OrdersListContent() {
       } else {
         q.set("sortBy", column);
         q.set("sortOrder", prevOrder === "asc" ? "desc" : "asc");
+      }
+      q.set("page", "1");
+    });
+  }
+
+  function togglePrintStatusFilter(value: "needs_printing" | "fully_printed") {
+    replaceQuery((q) => {
+      const current = q.get("printStatus");
+      if (current === value) {
+        q.delete("printStatus");
+      } else {
+        q.set("printStatus", value);
       }
       q.set("page", "1");
     });
@@ -616,6 +640,25 @@ function OrdersListContent() {
               className={`${quickBtn} border-border bg-background text-foreground hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40`}
             >
               Clear
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">Print</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => togglePrintStatusFilter("needs_printing")}
+              className={needsPrintingActive ? quickBtnActive : quickBtnIdle}
+            >
+              Needs printing
+            </button>
+            <button
+              type="button"
+              onClick={() => togglePrintStatusFilter("fully_printed")}
+              className={fullyPrintedActive ? quickBtnActive : quickBtnIdle}
+            >
+              Fully printed
             </button>
           </div>
         </div>
@@ -851,7 +894,20 @@ function OrdersListContent() {
                             : null}
                         </button>
                       </th>
-                      <th className="px-4 py-3 font-medium">Images</th>
+                      <th className="px-4 py-3 font-medium">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+                          onClick={() => toggleSort("unprintedImages")}
+                        >
+                          Images
+                          {sortByParam === "unprintedImages"
+                            ? sortOrderCol === "asc"
+                              ? " ↑"
+                              : " ↓"
+                            : null}
+                        </button>
+                      </th>
                       <th className="px-4 py-3 font-medium">Actions</th>
                     </tr>
                   </thead>
@@ -883,8 +939,11 @@ function OrdersListContent() {
                         <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                           {formatDate(o.createdAt)}
                         </td>
-                        <td className="px-4 py-3 tabular-nums text-foreground">
-                          {o.imageCount}
+                        <td className="px-4 py-3">
+                          <OrderPrintProgressCell
+                            printedImages={o.printedImages}
+                            totalImages={o.totalImages}
+                          />
                         </td>
                         <td className="px-4 py-3">
                           <Link
@@ -935,9 +994,10 @@ function OrdersListContent() {
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Images</p>
-                          <p className="tabular-nums text-foreground">
-                            {o.imageCount}
-                          </p>
+                          <OrderPrintProgressCell
+                            printedImages={o.printedImages}
+                            totalImages={o.totalImages}
+                          />
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">
