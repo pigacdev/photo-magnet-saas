@@ -46,6 +46,13 @@ model Organization {
   resendFromName       String?  @map("resend_from_name")
   /// Set when Pro Resend settings are first saved.
   resendConfiguredAt   DateTime? @map("resend_configured_at")
+  /// Active early-access promo window (60-day launch pricing).
+  isEarlyAccess              Boolean   @default(false)
+  earlyAccessExpiresAt       DateTime?
+  /// Platform owner toggle: transition to hobby_loyalty / pro_loyalty at expiry.
+  grantLifetimeDiscount      Boolean   @default(false)
+  /// Prevent duplicate 7-day heads-up emails.
+  earlyAccessHeadsUpSentAt   DateTime?
   orders               Order[]
   customers            Customer[]
   user                 User     @relation(fields: [id], references: [id], onDelete: Cascade)
@@ -82,6 +89,14 @@ model ProcessedStripeEvent {
 model ProcessedClerkEvent {
   id        String   @id
   createdAt DateTime @default(now())
+}
+
+/// Singleton row (id=1) tracking early-access seat consumption.
+model EarlyAccessCounter {
+  id            Int       @id @default(1)
+  seatsTaken    Int       @default(0)
+  /// Set when early plans are hidden and regular hobby/pro are made public.
+  plansFlippedAt DateTime?
 }
 
 model User {

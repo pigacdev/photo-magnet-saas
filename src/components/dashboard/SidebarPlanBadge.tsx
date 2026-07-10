@@ -50,7 +50,7 @@ export function SidebarPlanBadge({ user, usage }: SidebarPlanBadgeProps) {
 
         {usage && label ? (
           <div className="mt-2 w-full">
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
               <span
                 className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
                   usage.plan === "PRO"
@@ -62,6 +62,11 @@ export function SidebarPlanBadge({ user, usage }: SidebarPlanBadgeProps) {
               >
                 {label}
               </span>
+              {usage.isOnFreeTrial ? (
+                <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                  Free trial
+                </span>
+              ) : null}
             </div>
 
             {showMonthlyUsageMeter(usage) ? (

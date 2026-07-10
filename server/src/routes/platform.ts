@@ -7,6 +7,10 @@ import {
   fetchPlatformOverview,
   fetchPlatformTenants,
 } from "../lib/platformMetrics";
+import {
+  fetchPlatformEarlyAccess,
+  setGrantLifetimeDiscount,
+} from "../lib/platformEarlyAccess";
 
 export const platformRouter = Router();
 
@@ -57,3 +61,28 @@ platformRouter.get("/tenants", async (req: Request, res: Response) => {
   });
   res.json(result);
 });
+
+/** GET /api/platform/early-access — early-access subscribers. */
+platformRouter.get("/early-access", async (_req: Request, res: Response) => {
+  const result = await fetchPlatformEarlyAccess();
+  res.json(result);
+});
+
+/** PATCH /api/platform/early-access/:orgId — toggle grantLifetimeDiscount. */
+platformRouter.patch(
+  "/early-access/:orgId",
+  async (req: Request, res: Response) => {
+    const orgId = req.params.orgId;
+    const body = req.body as { grantLifetimeDiscount?: unknown };
+    if (typeof body.grantLifetimeDiscount !== "boolean") {
+      res.status(400).json({ error: "grantLifetimeDiscount must be a boolean" });
+      return;
+    }
+    const ok = await setGrantLifetimeDiscount(orgId, body.grantLifetimeDiscount);
+    if (!ok) {
+      res.status(404).json({ error: "Early-access organization not found" });
+      return;
+    }
+    res.json({ ok: true, grantLifetimeDiscount: body.grantLifetimeDiscount });
+  },
+);

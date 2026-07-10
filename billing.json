@@ -1,76 +1,293 @@
 {
   "billing": {
-    "enabled": true,
-    "user": {
-      "enabled": true
-    },
-    "features": [
-      { "slug": "print_ready_pdfs", "name": "Print-ready PDFs" },
-      { "slug": "analytics_basic", "name": "Basic analytics" },
-      { "slug": "analytics_advanced", "name": "Advanced analytics" },
-      { "slug": "analytics_event", "name": "Event analytics" },
-      { "slug": "calendar", "name": "Event calendar" },
-      { "slug": "custom_branding", "name": "Custom print branding" },
-      { "slug": "email_notifications", "name": "Order email notifications" },
-      { "slug": "manual_send_email", "name": "Send email to customers" },
-      { "slug": "support", "name": "Customer Support" },
-      { "slug": "priority_support", "name": "Priority customer support" },
-      { "slug": "orders_export_csv", "name": "Orders CSV export" },
-      { "slug": "customers", "name": "Customer management" },
-      { "slug": "qr_ordering", "name": "QR code ordering" },
-      { "slug": "vacation_mode", "name": "Storefront vacation mode" }
-    ],
-    "plans": [
-      {
-        "slug": "free_user",
-        "name": "Free",
-        "amount": 0,
-        "currency": "eur",
-        "payer_type": "user",
-        "is_recurring": false,
-        "features": ["print_ready_pdfs", "analytics_basic", "qr_ordering"]
+    "features": {
+      "10_orders_month": {
+        "avatar_url": "",
+        "description": "10 orders / month",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "10 orders / month",
+        "publicly_visible": true
       },
-      {
-        "slug": "hobby",
-        "name": "Hobby",
-        "amount": 900,
-        "currency": "eur",
-        "payer_type": "user",
-        "is_recurring": true,
-        "features": [
-          "analytics_advanced",
-          "analytics_event",
-          "calendar",
-          "custom_branding",
-          "email_notifications",
-          "manual_send_email",
-          "qr_ordering",
-          "support",
-          "vacation_mode"
-        ]
+      "1_event_month": {
+        "avatar_url": "",
+        "description": "1 Event / month",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "1 Event / month",
+        "publicly_visible": true
       },
-      {
-        "slug": "pro",
-        "name": "Pro",
-        "amount": 2900,
-        "currency": "eur",
-        "payer_type": "user",
-        "is_recurring": true,
-        "features": [
-          "analytics_advanced",
-          "analytics_event",
-          "calendar",
-          "custom_branding",
-          "email_notifications",
-          "manual_send_email",
-          "orders_export_csv",
-          "customers",
-          "priority_support",
-          "qr_ordering",
-          "support",
-          "vacation_mode"
-        ]
+      "1_storefront": {
+        "avatar_url": "",
+        "description": "1 Storefront",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "1 Storefront",
+        "publicly_visible": true
+      },
+      "50_orders_month": {
+        "avatar_url": "",
+        "description": "50 orders / month",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "50 orders / month",
+        "publicly_visible": true
+      },
+      "5_events_month": {
+        "avatar_url": "",
+        "description": "5 Events / Month",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "5 Events / Month",
+        "publicly_visible": true
+      },
+      "advanced_analytics": {
+        "avatar_url": "",
+        "description": "Advanced analytics",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Advanced analytics",
+        "publicly_visible": true
+      },
+      "basic_analytics": {
+        "avatar_url": "",
+        "description": "Basic analytics",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Basic analytics",
+        "publicly_visible": true
+      },
+      "custom_print_branding": {
+        "avatar_url": "",
+        "description": "Custom branding on PDFs",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Custom print branding",
+        "publicly_visible": true
+      },
+      "customer_support": {
+        "avatar_url": "",
+        "description": "Customer Support",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Customer Support",
+        "publicly_visible": true
+      },
+      "customers": {
+        "avatar_url": "",
+        "description": "Customer management",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "customers",
+        "publicly_visible": true
+      },
+      "event_analytics": {
+        "avatar_url": "",
+        "description": "Event analytics",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Event analytics",
+        "publicly_visible": true
+      },
+      "event_calendar": {
+        "avatar_url": "",
+        "description": "Event calendar",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Event calendar",
+        "publicly_visible": true
+      },
+      "order_email_notifications": {
+        "avatar_url": "",
+        "description": "Order email notifications",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Order email notifications",
+        "publicly_visible": true
+      },
+      "orders_csv_export": {
+        "avatar_url": "",
+        "description": "Orders CSV export",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Orders CSV export",
+        "publicly_visible": true
+      },
+      "print_ready_pdfs": {
+        "avatar_url": "",
+        "description": "Print-ready PDFs",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Print-ready PDFs",
+        "publicly_visible": true
+      },
+      "priority_customer_support": {
+        "avatar_url": "",
+        "description": "Get fast answers from our support team",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Priority customer support",
+        "publicly_visible": true
+      },
+      "qr_ordering": {
+        "avatar_url": "",
+        "description": "Your customers can scan QR code for making an order",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "QR ordering",
+        "publicly_visible": true
+      },
+      "support_tickets": {
+        "avatar_url": "",
+        "description": "Support tickets",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Support tickets",
+        "publicly_visible": true
+      },
+      "unlimited_events": {
+        "avatar_url": "",
+        "description": "Unlimited Events",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Unlimited Events",
+        "publicly_visible": true
+      },
+      "unlimited_orders": {
+        "avatar_url": "",
+        "description": "Unlimited orders",
+        "include_in_jwt": true,
+        "jwt_value": "",
+        "name": "Unlimited orders",
+        "publicly_visible": true
       }
-    ]
+    },
+    "free_trial_requires_payment_method": true,
+    "organization_enabled": false,
+    "user_enabled": true,
+    "plans": {
+      "free_user": {
+        "amount": 0,
+        "annual_monthly_amount": 0,
+        "currency": "",
+        "description": "Perfect for trying Magnetoo at your first event.",
+        "features": [
+          "10_orders_month",
+          "1_event_month",
+          "1_storefront",
+          "qr_ordering",
+          "print_ready_pdfs",
+          "basic_analytics"
+        ],
+        "free_trial_days": null,
+        "free_trial_enabled": false,
+        "is_recurring": true,
+        "name": "Free",
+        "payer_type": "user",
+        "publicly_visible": true
+      },
+      "hobby": {
+        "amount": 1200,
+        "annual_monthly_amount": 900,
+        "currency": "usd",
+        "description": "For side hustlers and regular event sellers.",
+        "features": [
+          "50_orders_month",
+          "5_events_month",
+          "1_storefront",
+          "qr_ordering",
+          "print_ready_pdfs",
+          "advanced_analytics",
+          "custom_print_branding",
+          "order_email_notifications",
+          "event_analytics",
+          "event_calendar",
+          "customer_support"
+        ],
+        "free_trial_days": 60,
+        "free_trial_enabled": true,
+        "is_recurring": true,
+        "name": "Hobby",
+        "payer_type": "user",
+        "publicly_visible": true
+      },
+      "pro": {
+        "amount": 3400,
+        "annual_monthly_amount": 2900,
+        "currency": "usd",
+        "description": "For professional vendors and growing businesses.",
+        "features": [
+          "unlimited_orders",
+          "unlimited_events",
+          "1_storefront",
+          "qr_ordering",
+          "print_ready_pdfs",
+          "advanced_analytics",
+          "custom_print_branding",
+          "order_email_notifications",
+          "event_analytics",
+          "event_calendar",
+          "orders_csv_export",
+          "priority_customer_support"
+        ],
+        "free_trial_days": 60,
+        "free_trial_enabled": true,
+        "is_recurring": true,
+        "name": "Pro",
+        "payer_type": "user",
+        "publicly_visible": true
+      },
+      "hobby_loyalty": {
+        "amount": 720,
+        "annual_monthly_amount": 720,
+        "currency": "usd",
+        "description": "Hobby loyalty pricing (20% off) for early-access graduates.",
+        "features": [
+          "50_orders_month",
+          "5_events_month",
+          "1_storefront",
+          "qr_ordering",
+          "print_ready_pdfs",
+          "advanced_analytics",
+          "custom_print_branding",
+          "order_email_notifications",
+          "event_analytics",
+          "event_calendar",
+          "customer_support"
+        ],
+        "free_trial_days": null,
+        "free_trial_enabled": false,
+        "is_recurring": true,
+        "name": "Hobby Loyalty",
+        "payer_type": "user",
+        "publicly_visible": false
+      },
+      "pro_loyalty": {
+        "amount": 2320,
+        "annual_monthly_amount": 2320,
+        "currency": "usd",
+        "description": "Pro loyalty pricing (20% off) for early-access graduates.",
+        "features": [
+          "unlimited_orders",
+          "unlimited_events",
+          "1_storefront",
+          "qr_ordering",
+          "print_ready_pdfs",
+          "advanced_analytics",
+          "custom_print_branding",
+          "order_email_notifications",
+          "event_analytics",
+          "event_calendar",
+          "orders_csv_export",
+          "priority_customer_support"
+        ],
+        "free_trial_days": null,
+        "free_trial_enabled": false,
+        "is_recurring": true,
+        "name": "Pro Loyalty",
+        "payer_type": "user",
+        "publicly_visible": false
+      }
+    }
   }
 }

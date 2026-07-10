@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { resolveAuthUser } from "../lib/clerkSession";
 import { buildOrganizationUsage } from "../lib/organizationUsage";
 import { syncOrganizationBillingFromClerk } from "../../../src/lib/clerkBillingSync";
+import { getEarlyAccessStatus } from "../../../src/lib/earlyAccessDb";
 import { ensureSellerOrganization } from "../../../src/lib/clerkUserSync";
 
 export const authRouter = Router();
@@ -37,10 +38,21 @@ authRouter.get("/me", async (req, res) => {
     console.warn("[auth/me] Clerk billing sync failed", err);
   }
 
-  const organization = await buildOrganizationUsage(user.id);
+  const [organization, earlyAccessBase, orgEarly] = await Promise.all([
+    buildOrganizationUsage(user.id),
+    getEarlyAccessStatus(),
+    prisma.organization.findUnique({
+      where: { id: user.id },
+      select: { isEarlyAccess: true },
+    }),
+  ]);
 
   res.json({
     user,
     organization,
+    earlyAccess: {
+      ...earlyAccessBase,
+      userIsEarlyAccess: orgEarly?.isEarlyAccess ?? false,
+    },
   });
 });

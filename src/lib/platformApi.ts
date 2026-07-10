@@ -79,6 +79,26 @@ export const USAGE_FILTER_LABELS: Record<PlatformTenantUsageFilter, string> = {
   onboardingIncomplete: "Onboarding incomplete",
 };
 
+export type PlatformEarlyAccessRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  plan: "FREE" | "HOBBY" | "PRO";
+  clerkPlanSlug: string | null;
+  earlyAccessExpiresAt: string | null;
+  grantLifetimeDiscount: boolean;
+  eventCount: number;
+  orderCount: number;
+  lastOrderAt: string | null;
+};
+
+export type PlatformEarlyAccessResponse = {
+  rows: PlatformEarlyAccessRow[];
+  seatsTaken: number;
+  seatLimit: number;
+  plansFlippedAt: string | null;
+};
+
 export function fetchPlatformOverview(): Promise<PlatformOverview> {
   return api<PlatformOverview>("/api/platform/overview");
 }
@@ -102,4 +122,18 @@ export function fetchPlatformTenants(params: {
   return api<PlatformTenantsResponse>(
     `/api/platform/tenants${qs ? `?${qs}` : ""}`,
   );
+}
+
+export function fetchPlatformEarlyAccess(): Promise<PlatformEarlyAccessResponse> {
+  return api<PlatformEarlyAccessResponse>("/api/platform/early-access");
+}
+
+export function patchPlatformEarlyAccessDiscount(
+  orgId: string,
+  grantLifetimeDiscount: boolean,
+): Promise<{ ok: boolean; grantLifetimeDiscount: boolean }> {
+  return api(`/api/platform/early-access/${orgId}`, {
+    method: "PATCH",
+    body: { grantLifetimeDiscount },
+  });
 }

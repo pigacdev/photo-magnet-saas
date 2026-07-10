@@ -1,32 +1,50 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PricingTable } from "@clerk/nextjs";
 import "./billing-plans.css";
 import {
   getMe,
+  getCachedEarlyAccessStatus,
   getCachedOrganizationUsage,
   invalidateAuthCache,
   type User,
   type OrganizationUsage,
 } from "@/lib/auth";
 import { BillingPlanFeatureLists } from "@/components/dashboard/BillingPlanFeatureLists";
+import { BillingEarlyAccessPlanBanners } from "@/components/dashboard/BillingEarlyAccessPlanBanners";
+import { BillingSubscriptionSuccessModal } from "@/components/dashboard/BillingSubscriptionSuccessModal";
 import { UserProfileSummary } from "@/components/dashboard/UserProfileSummary";
+import type { EarlyAccessStatus } from "@/lib/earlyAccessUi";
 
 function BillingContent() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const reason = searchParams.get("reason");
   const success = searchParams.get("success");
   const [user, setUser] = useState<User | null>(null);
   const [usage, setUsage] = useState<OrganizationUsage | null>(null);
+  const [earlyAccess, setEarlyAccess] = useState<EarlyAccessStatus | null>(
+    () => getCachedEarlyAccessStatus(),
+  );
+  const [successModalOpen, setSuccessModalOpen] = useState(
+    success === "true",
+  );
+
+  function dismissSuccessModal() {
+    setSuccessModalOpen(false);
+    router.replace(pathname);
+  }
 
   function refreshAccount() {
     invalidateAuthCache();
     return getMe().then((u) => {
       setUser(u);
       setUsage(getCachedOrganizationUsage());
+      setEarlyAccess(getCachedEarlyAccessStatus());
     });
   }
 
@@ -36,17 +54,17 @@ function BillingContent() {
 
   useEffect(() => {
     if (success === "true") {
+      setSuccessModalOpen(true);
       void refreshAccount();
     }
   }, [success]);
 
   return (
     <div className="dashboard-page mx-auto max-w-6xl">
-      {success === "true" && (
-        <p className="mb-4 text-sm text-green-600">
-          Subscription updated. It may take a moment for usage limits to sync.
-        </p>
-      )}
+      <BillingSubscriptionSuccessModal
+        open={successModalOpen}
+        onClose={dismissSuccessModal}
+      />
       {reason === "limit" && (
         <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           Monthly order or event limit reached. Upgrade to keep accepting orders or
@@ -88,7 +106,10 @@ function BillingContent() {
           Subscription prices are billed in EUR. Your order currency (chosen at
           setup) applies to customer magnet pricing only.
         </p>
-        <div className="billing-plans-layout mt-4">
+        <div
+          className={`billing-plans-layout mt-4${earlyAccess?.isOpen ? " billing-plans-layout--early-access" : ""}`}
+        >
+          <BillingEarlyAccessPlanBanners status={earlyAccess} />
           <div className="clerk-pricing-table">
             <PricingTable
               for="user"
@@ -104,7 +125,9 @@ function BillingContent() {
               }}
             />
           </div>
-          <BillingPlanFeatureLists />
+          <BillingPlanFeatureLists
+            earlyAccessOpen={earlyAccess?.isOpen ?? false}
+          />
         </div>
       </section>
 

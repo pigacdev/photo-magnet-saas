@@ -10,6 +10,11 @@ import {
   isFreeClerkPlanSlug,
   resolvePlanEntitlements,
 } from "./planCatalog";
+import { applyEarlyAccessSignup, getEarlyAccessStatus } from "./earlyAccessDb";
+import {
+  isEarlyAccessEligiblePlanSlug,
+  isTrialSubscriptionItem,
+} from "./earlyAccess";
 import { maybeApplyUsagePeriodAnchor } from "./usagePeriodAnchor";
 
 type BillingPayer = {
@@ -24,6 +29,7 @@ type BillingPlanRef = {
 type SubscriptionItem = {
   plan?: BillingPlanRef;
   status?: string;
+  is_free_trial?: boolean;
   period_start?: number;
   period_end?: number | null;
 };
@@ -264,6 +270,13 @@ export async function syncOrganizationBillingFromClerk(
       return;
     }
 
+    const items = subscriptionItems(sub);
+    await maybeApplyEarlyAccessTrialSignup(
+      orgId,
+      slug,
+      sub.id ?? null,
+      items,
+    );
     await applyPaidPlan(orgId, slug, sub.id, period);
     return;
   }
@@ -278,6 +291,42 @@ export async function syncOrganizationBillingFromClerk(
       await revertToFreePlan(orgId);
     }
   }
+}
+
+function findSubscriptionItemForSlug(
+  items: SubscriptionItem[],
+  slug: string,
+): SubscriptionItem | null {
+  const normalized = slug.toLowerCase();
+  for (const item of items) {
+    if (item.plan?.slug?.toLowerCase() === normalized) return item;
+  }
+  return items[0] ?? null;
+}
+
+async function maybeApplyEarlyAccessTrialSignup(
+  orgId: string,
+  slug: string,
+  clerkSubscriptionId: string | null,
+  items: SubscriptionItem[],
+): Promise<void> {
+  const earlyAccessStatus = await getEarlyAccessStatus();
+  if (!earlyAccessStatus.isOpen) return;
+  if (!isEarlyAccessEligiblePlanSlug(slug)) return;
+
+  const item = findSubscriptionItemForSlug(items, slug);
+  if (!isTrialSubscriptionItem(item ?? undefined)) return;
+
+  const period = item
+    ? periodFieldsFromSource(item, { preferPaidPlan: true })
+    : undefined;
+
+  await applyEarlyAccessSignup({
+    orgId,
+    clerkPlanSlug: slug,
+    clerkSubscriptionId,
+    trialEndsAt: period?.currentPeriodEnd,
+  });
 }
 
 export async function applyClerkBillingEvent(evt: WebhookEvent): Promise<void> {
@@ -313,6 +362,13 @@ export async function applyClerkBillingEvent(evt: WebhookEvent): Promise<void> {
       }
 
       await applyPaidPlan(orgId, slug, null, period);
+
+      if (
+        evt.type === "subscriptionItem.active" ||
+        evt.type === "subscriptionItem.updated"
+      ) {
+        await maybeApplyEarlyAccessTrialSignup(orgId, slug, null, [data]);
+      }
       return;
     }
 
@@ -333,11 +389,29 @@ export async function applyClerkBillingEvent(evt: WebhookEvent): Promise<void> {
     }
 
     const period = periodFieldsFromSource(data);
+
+    if (
+      evt.type === "subscription.created" ||
+      evt.type === "subscription.active" ||
+      evt.type === "subscription.updated"
+    ) {
+      await maybeApplyEarlyAccessTrialSignup(
+        orgId,
+        slug,
+        data.id ?? null,
+        data.items ?? [],
+      );
+    }
+
     await applyPaidPlan(orgId, slug, data.id ?? null, period);
     return;
   }
 
   if (evt.type === "subscription.pastDue") {
+    return;
+  }
+
+  if (evt.type === "subscriptionItem.freeTrialEnding") {
     return;
   }
 

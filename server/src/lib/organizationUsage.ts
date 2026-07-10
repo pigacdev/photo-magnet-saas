@@ -21,6 +21,9 @@ export type OrganizationUsagePayload = {
   currentPeriodEnd: string;
   subscriptionRenewsAt: string | null;
   clerkPlanSlug?: string | null;
+  isOnFreeTrial: boolean;
+  /** ISO end of early-access trial; set only while `isOnFreeTrial` is true. */
+  freeTrialEndsAt: string | null;
   currency: string | null;
   initialSetupAt: string | null;
   dateFormat: DateFormat;
@@ -37,6 +40,8 @@ const orgSelect = {
   currentPeriodEnd: true,
   subscriptionPeriodEnd: true,
   clerkPlanSlug: true,
+  isEarlyAccess: true,
+  earlyAccessExpiresAt: true,
   currency: true,
   initialSetupAt: true,
   dateFormat: true,
@@ -53,12 +58,20 @@ function baseUsage(org: {
   currentPeriodEnd: Date;
   subscriptionPeriodEnd: Date | null;
   clerkPlanSlug?: string | null;
+  isEarlyAccess: boolean;
+  earlyAccessExpiresAt: Date | null;
   currency: string | null;
   initialSetupAt: Date | null;
   dateFormat: string | null;
   sizeUnit: string | null;
   name: string | null;
 }): OrganizationUsagePayload {
+  const isOnFreeTrial =
+    org.isEarlyAccess &&
+    org.earlyAccessExpiresAt != null &&
+    org.earlyAccessExpiresAt > new Date() &&
+    (org.plan === "HOBBY" || org.plan === "PRO");
+
   return {
     plan: org.plan,
     planLabel: planDisplayName(org.plan),
@@ -69,6 +82,11 @@ function baseUsage(org: {
     currentPeriodEnd: org.currentPeriodEnd.toISOString(),
     subscriptionRenewsAt: org.subscriptionPeriodEnd?.toISOString() ?? null,
     clerkPlanSlug: org.clerkPlanSlug,
+    isOnFreeTrial,
+    freeTrialEndsAt:
+      isOnFreeTrial && org.earlyAccessExpiresAt
+        ? org.earlyAccessExpiresAt.toISOString()
+        : null,
     currency: org.currency,
     initialSetupAt: org.initialSetupAt?.toISOString() ?? null,
     dateFormat: normalizeDateFormat(org.dateFormat) ?? DEFAULT_DATE_FORMAT,

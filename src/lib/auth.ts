@@ -1,4 +1,5 @@
 import { api } from "./api";
+import type { EarlyAccessStatus } from "./earlyAccessUi";
 import {
   DEFAULT_DATE_FORMAT,
   type DateFormat,
@@ -26,6 +27,10 @@ export type OrganizationUsage = {
   /** Clerk subscription payment renewal (ISO); null on Free or when not synced. */
   subscriptionRenewsAt: string | null;
   clerkPlanSlug?: string | null;
+  /** Active early-access free trial (Hobby/Pro before earlyAccessExpiresAt). */
+  isOnFreeTrial?: boolean;
+  /** ISO end of early-access trial; present only while on free trial. */
+  freeTrialEndsAt?: string | null;
   currency: string | null;
   initialSetupAt: string | null;
   dateFormat: DateFormat;
@@ -49,11 +54,13 @@ export function getDisplayPreferences(): DisplayPreferences {
 type AuthResponse = {
   user: User;
   organization: OrganizationUsage | null;
+  earlyAccess?: EarlyAccessStatus | null;
   isPlatformOwner?: boolean;
 };
 
 let cachedUser: User | null | undefined;
 let cachedOrganization: OrganizationUsage | null | undefined;
+let cachedEarlyAccess: EarlyAccessStatus | null | undefined;
 let cachedIsPlatformOwner: boolean | undefined;
 const usageListeners = new Set<() => void>();
 
@@ -61,12 +68,18 @@ function setCache(
   user: User | null,
   organization?: OrganizationUsage | null,
   isPlatformOwner?: boolean,
+  earlyAccess?: EarlyAccessStatus | null,
 ) {
   cachedUser = user;
   if (organization !== undefined) {
     cachedOrganization = organization;
   } else if (user === null) {
     cachedOrganization = null;
+  }
+  if (earlyAccess !== undefined) {
+    cachedEarlyAccess = earlyAccess;
+  } else if (user === null) {
+    cachedEarlyAccess = null;
   }
   if (isPlatformOwner !== undefined) {
     cachedIsPlatformOwner = isPlatformOwner;
@@ -86,6 +99,7 @@ export function subscribeOrganizationUsage(listener: () => void): () => void {
 export function invalidateAuthCache(): void {
   cachedUser = undefined;
   cachedOrganization = undefined;
+  cachedEarlyAccess = undefined;
   cachedIsPlatformOwner = undefined;
 }
 
@@ -106,6 +120,10 @@ export function getCachedOrganizationUsage(): OrganizationUsage | null {
   return cachedOrganization ?? null;
 }
 
+export function getCachedEarlyAccessStatus(): EarlyAccessStatus | null {
+  return cachedEarlyAccess ?? null;
+}
+
 export function getCachedUser(): User | null {
   return cachedUser ?? null;
 }
@@ -119,6 +137,7 @@ export async function getMe(): Promise<User | null> {
       data.user,
       data.organization ?? null,
       data.isPlatformOwner ?? false,
+      data.earlyAccess ?? null,
     );
     return data.user;
   } catch {

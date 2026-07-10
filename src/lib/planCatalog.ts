@@ -1,7 +1,13 @@
 import type { Plan } from "@/generated/prisma/client";
 
 /** Clerk Dashboard User Plan slug → app limits. Keep slugs in sync with Billing → Plans. */
-export type PlanSlug = "free" | "free_user" | "hobby" | "pro";
+export type PlanSlug =
+  | "free"
+  | "free_user"
+  | "hobby"
+  | "pro"
+  | "hobby_loyalty"
+  | "pro_loyalty";
 
 export const FREE_PRINT_BRAND_TEXT = "Magnetoo Studio";
 
@@ -63,11 +69,41 @@ export const PLAN_ENTITLEMENTS: Record<string, PlanEntitlements> = {
     label: "Hobby",
     features: HOBBY_FEATURES,
   },
+  /** @deprecated Legacy early-access slug; maps to Hobby entitlements. */
+  early_hobby: {
+    plan: "HOBBY",
+    orderLimit: 50,
+    eventLimit: 5,
+    label: "Hobby",
+    features: HOBBY_FEATURES,
+  },
+  hobby_loyalty: {
+    plan: "HOBBY",
+    orderLimit: 50,
+    eventLimit: 5,
+    label: "Hobby Loyalty",
+    features: HOBBY_FEATURES,
+  },
   pro: {
     plan: "PRO",
     orderLimit: UNLIMITED_ENTITLEMENT,
     eventLimit: UNLIMITED_ENTITLEMENT,
     label: "Pro",
+    features: PRO_FEATURES,
+  },
+  /** @deprecated Legacy early-access slug; maps to Pro entitlements. */
+  early_pro: {
+    plan: "PRO",
+    orderLimit: UNLIMITED_ENTITLEMENT,
+    eventLimit: UNLIMITED_ENTITLEMENT,
+    label: "Pro",
+    features: PRO_FEATURES,
+  },
+  pro_loyalty: {
+    plan: "PRO",
+    orderLimit: UNLIMITED_ENTITLEMENT,
+    eventLimit: UNLIMITED_ENTITLEMENT,
+    label: "Pro Loyalty",
     features: PRO_FEATURES,
   },
 };

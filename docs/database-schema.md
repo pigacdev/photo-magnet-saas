@@ -39,6 +39,20 @@ Seller tenant (1:1 with User; `id` = `user.id`). Billing limits + magnet order c
 - **size_unit** (`mm` | `cm` | `in`, nullable — UI display only; shape dimensions remain stored in mm)
 - **name** (nullable — seller business/shop display name; used in customer email branding)
 - stripe_customer_id, clerk_subscription_id (nullable)
+- **is_early_access** (boolean, default false)
+- **early_access_expires_at** (nullable — 60-day launch window end)
+- **grant_lifetime_discount** (boolean, default false — platform owner toggle)
+- **early_access_heads_up_sent_at** (nullable — dedupe 7-day notice email)
+
+---
+
+## EarlyAccessCounter
+
+Singleton row (`id = 1`) for launch seat tracking.
+
+- id (int, always 1)
+- seats_taken (int, default 0)
+- plans_flipped_at (nullable — when early plans were hidden in Clerk)
 
 ---
 

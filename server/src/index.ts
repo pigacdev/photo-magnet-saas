@@ -107,6 +107,7 @@ app.use(errorHandler);
 
 // Load after Express is configured; schedules when ENABLE_MEDIA_CLEANUP_CRON=true
 void import("./cron/mediaCleanupCron");
+void import("./cron/billingCron");
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

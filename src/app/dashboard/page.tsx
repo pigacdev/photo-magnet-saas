@@ -14,13 +14,17 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import {
+  getCachedEarlyAccessStatus,
   getCachedOrganizationUsage,
   getDisplayPreferences,
+  getMe,
   subscribeOrganizationUsage,
 } from "@/lib/auth";
 import { formatDisplayMonthDay } from "@/lib/dateFormat";
 import { PlanUsageAlertBanner } from "@/components/dashboard/PlanUsageAlertBanner";
+import { BillingEarlyAccessBanner } from "@/components/dashboard/BillingEarlyAccessBanner";
 import { storefrontNavHref } from "@/components/dashboard/dashboardNav";
+import type { EarlyAccessStatus } from "@/lib/earlyAccessUi";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
 import { useChartTheme } from "@/hooks/useChartTheme";
 import { usageHasFeature } from "@/lib/planFeatures";
@@ -344,11 +348,18 @@ export default function DashboardPage() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [trendMode, setTrendMode] = useState<"days" | "months">("days");
   const [usage, setUsage] = useState(() => getCachedOrganizationUsage());
+  const [earlyAccess, setEarlyAccess] = useState<EarlyAccessStatus | null>(
+    () => getCachedEarlyAccessStatus(),
+  );
   const orgCurrency = usage?.currency ?? stats?.currency ?? null;
 
   useEffect(() => {
+    if (getCachedEarlyAccessStatus() == null) {
+      void getMe().then(() => setEarlyAccess(getCachedEarlyAccessStatus()));
+    }
     return subscribeOrganizationUsage(() => {
       setUsage(getCachedOrganizationUsage());
+      setEarlyAccess(getCachedEarlyAccessStatus());
     });
   }, []);
 
@@ -375,6 +386,7 @@ export default function DashboardPage() {
     <div className="dashboard-page">
       <div>
         <PlanUsageAlertBanner />
+        {earlyAccess ? <BillingEarlyAccessBanner status={earlyAccess} /> : null}
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Dashboard
         </h1>

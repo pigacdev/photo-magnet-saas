@@ -584,3 +584,95 @@ export async function sendSupportTicketEmail(data: {
     html: data.html,
   });
 }
+
+function formatBillingDate(d: Date): string {
+  return d.toLocaleDateString("en-GB", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+export function buildEarlyAccessHeadsUpHtml(data: {
+  sellerName: string | null;
+  expiresAt: Date;
+  billingUrl: string;
+}): string {
+  const greeting = data.sellerName?.trim()
+    ? escapeHtml(data.sellerName.trim())
+    : "there";
+  const expires = escapeHtml(formatBillingDate(data.expiresAt));
+  const url = escapeHtml(data.billingUrl);
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:24px;background:#f9fafb;">
+  <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">Your early access ends soon</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:15px;">Hi ${greeting},</p>
+    <p style="margin:0 0 16px;font-size:15px;">Your 60-day free trial ends on <strong>${expires}</strong> (in about 7 days).</p>
+    <p style="margin:0 0 16px;font-size:15px;">After that date Clerk will charge your card at the standard plan price unless you've already been moved to loyalty pricing.</p>
+    <p style="margin:0 0 16px;font-size:15px;">You can review your plan anytime on the billing page:</p>
+    <p style="margin:0;"><a href="${url}" style="color:#2563eb;text-decoration:underline;">${url}</a></p>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendEarlyAccessHeadsUpEmail(data: {
+  to: string;
+  sellerName: string | null;
+  expiresAt: Date;
+  billingUrl: string;
+}): Promise<void> {
+  await sendEmail({
+    to: data.to,
+    from: platformFromAddress(),
+    subject: "Your Magnetoo early access ends soon",
+    html: buildEarlyAccessHeadsUpHtml(data),
+  });
+}
+
+export function buildEarlyAccessExpiryHtml(data: {
+  sellerName: string | null;
+  newPlanLabel: string;
+  hasLifetimeDiscount: boolean;
+  billingUrl: string;
+}): string {
+  const greeting = data.sellerName?.trim()
+    ? escapeHtml(data.sellerName.trim())
+    : "there";
+  const plan = escapeHtml(data.newPlanLabel);
+  const url = escapeHtml(data.billingUrl);
+  const discountNote = data.hasLifetimeDiscount
+    ? " As a thank-you, your subscription includes our loyalty pricing."
+    : "";
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:24px;background:#f9fafb;">
+  <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">Early access period ended</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:15px;">Hi ${greeting},</p>
+    <p style="margin:0 0 16px;font-size:15px;">Your 60-day free trial has ended. Your <strong>${plan}</strong> subscription continues at the standard price.${discountNote}</p>
+    <p style="margin:0 0 16px;font-size:15px;">Billing is handled by Clerk — check your billing page for the next charge date.</p>
+    <p style="margin:0;"><a href="${url}" style="color:#2563eb;text-decoration:underline;">View billing details</a> · ${url}</p>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendEarlyAccessExpiryEmail(data: {
+  to: string;
+  sellerName: string | null;
+  newPlanLabel: string;
+  hasLifetimeDiscount: boolean;
+  billingUrl: string;
+}): Promise<void> {
+  await sendEmail({
+    to: data.to,
+    from: platformFromAddress(),
+    subject: "Your Magnetoo early access has ended",
+    html: buildEarlyAccessExpiryHtml(data),
+  });
+}

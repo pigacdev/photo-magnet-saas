@@ -5,6 +5,7 @@ import { syncOrganizationBillingFromClerk } from "@/lib/clerkBillingSync";
 import { prisma } from "@/lib/prisma";
 import { buildOrganizationUsage } from "../../../../../server/src/lib/organizationUsage";
 import { isPlatformOwnerEmail } from "../../../../../server/src/lib/platformOwner";
+import { getEarlyAccessStatus } from "@/lib/earlyAccessDb";
 
 export const dynamic = "force-dynamic";
 
@@ -74,12 +75,23 @@ export async function GET() {
       console.warn("[GET /api/auth/me] Clerk billing sync failed", syncErr);
     }
 
-    const organization = await buildOrganizationUsage(user.id);
+    const [organization, earlyAccessBase, orgEarly] = await Promise.all([
+      buildOrganizationUsage(user.id),
+      getEarlyAccessStatus(),
+      prisma.organization.findUnique({
+        where: { id: user.id },
+        select: { isEarlyAccess: true },
+      }),
+    ]);
 
     return NextResponse.json({
       user,
       organization,
       isPlatformOwner: isPlatformOwnerEmail(email),
+      earlyAccess: {
+        ...earlyAccessBase,
+        userIsEarlyAccess: orgEarly?.isEarlyAccess ?? false,
+      },
     });
   } catch (err) {
     console.error("[GET /api/auth/me]", err);
