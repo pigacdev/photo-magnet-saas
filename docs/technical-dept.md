@@ -1,0 +1,65 @@
+# Technical debt register
+
+Living document for known risks, gaps, and follow-up work. Add new sections as other areas of the application are reviewed.
+
+**How to use this file**
+
+- Each item should state *what*, *why it matters*, and *suggested action*.
+- Prefer **Must verify/fix before…** for launch- or revenue-blocking items tied to a specific feature flag or rollout step.
+- Re-rank items when new evidence appears (deploy tests, incidents, support tickets).
+
+---
+
+## Early access & billing
+
+Context: 60-day free trials on Hobby/Pro for the first 20 sellers; optional platform-owner `grantLifetimeDiscount` → loyalty pricing via Clerk `price_transition`. See [`CLERK-BILLING.md`](./CLERK-BILLING.md).
+
+### Must verify/fix before enabling `grantLifetimeDiscount` in production
+
+These block turning on the lifetime-discount feature with confidence. Everything in later sections can ship for the core trial/seat flow; **do not rely on loyalty pricing until these are closed.**
+
+| ID | Item | Risk | Action |
+|----|------|------|--------|
+| EA-1 | **Loyalty cron may not see trialing subscription items** | `fetchActiveSubscriptionItem()` in `src/lib/clerkBillingAdmin.ts` only matches `active` or `past_due`, not `free_trial` / `trialing`. The loyalty job (`runEarlyAccessLoyaltyTransitionJob`) runs ~2 days before trial end, when the item is likely still trialing. If Clerk does not surface trialing items as `active`, **`grantLifetimeDiscount` is effectively a no-op** — the toggle sets a DB flag the cron never acts on. Silent failure via logged warnings on a revenue-affecting job. | **Launch-blocking for discount feature.** Write an integration test that runs `runEarlyAccessLoyaltyTransitionJob` (or `fetchActiveSubscriptionItem`) against a **real sandbox trialing** subscription item, not only mocks. Fix item selection to include trial statuses if needed. |
+| EA-2 | **Price transition timing during an active trial** | Loyalty cron calls Clerk `price_transition` while the subscription may still be trialing, assuming the first *paid* charge uses the discounted price and nothing bills immediately. If transition triggers **immediate proration/charge**, EU sellers could see an unexpected background charge ~2 days early, with 3DS/SCA possibly failing on an unauthenticated session. | **Verify in Clerk sandbox** on a trialing item: confirm transition is deferred to trial end (or first paid period), not an instant charge. Adjust timing or API usage if Clerk bills immediately. |
+| EA-3 | **`/api/auth/me` — which implementation actually runs?** | Two handlers exist: Express `server/src/routes/auth.ts` and Next.js `src/app/api/auth/me/route.ts`. `next.config.ts` rewrites `/api/*` to Express in **`afterFiles`**, but **filesystem App Router routes typically take precedence over `afterFiles` rewrites**. If the Next route wins, production may be serving the Next handler, not Express — the “keep in sync” note understates the risk; they may **already diverge** (e.g. `earlyAccess` on one side only). The “orphan” `src/app/api/billing/early-access-status/route.ts` may likewise be **live**, not dead, if Next routes win. | **Five-minute empirical check:** add a distinguishing log line or response header in each implementation, hit `/api/auth/me` (and `/api/billing/early-access-status`) in the deployed environment, confirm which answers. Then either delete/consolidate duplicates or document a single source of truth. |
+
+### General hardening — higher priority (post-trial launch OK; fix soon)
+
+| ID | Item | Risk | Action |
+|----|------|------|--------|
+| EA-4 | **Billing cron off by default** | `ENABLE_BILLING_CRON=false` in `.env.example`. Without `ENABLE_BILLING_CRON=true` on the API server: no heads-up emails, no loyalty transitions, no post-expiry cleanup. Easy to miss in deploy. | Document in runbooks; enforce in production env; consider startup warning if early-access orgs exist and cron is disabled. |
+| EA-5 | **Webhook + `/api/auth/me` double-entry race on signup** | `applyEarlyAccessSignup()` is invoked from **webhooks** and **`syncOrganizationBillingFromClerk` on `/api/auth/me`**. After checkout, webhook delivery is not instant; a user opening the dashboard can trigger sync concurrently. Idempotency is **read-then-write** (`findUnique` → `if (org?.isEarlyAccess) return` → `incrementEarlyAccessSeat()`), **not** an atomic `UPDATE … WHERE isEarlyAccess = false`. Two concurrent calls can both pass the read before either commits → **seat counter double-increment for one org** (distinct from the seat-19/20 concurrency race). | Use a single conditional update or DB transaction/unique constraint (e.g. only increment seat when flipping `isEarlyAccess` from false to true in one atomic step). Add a test for concurrent signup paths. |
+| EA-6 | **Cancel during trial — stale platform listing** | `revertToFreePlan()` does not clear `isEarlyAccess` / `earlyAccessExpiresAt`. Cleanup cron clears flags only after `earlyAccessExpiresAt` (~up to 24h+ staleness). **Consequence:** `/platform/early-access` can still list a **cancelled** org; owner may toggle `grantLifetimeDiscount` on a dead subscription. | On cancel webhook, clear early-access flags (or mark `cancelledAt`) immediately; exclude non-subscribed orgs from platform list. Confirm loyalty `price_transition` **fails gracefully** (logged, no unhandled throw) when subscription is gone. |
+| EA-7 | **No audit trail on `grantLifetimeDiscount`** | Manual, judgment-based decision per seller. No record of who toggled or when. | Log platform owner email + timestamp on PATCH; optional `EarlyAccessAudit` table if disputes matter later. Cheap now, useful for cohort review. |
+
+### General hardening — medium priority
+
+| ID | Item | Risk | Action |
+|----|------|------|--------|
+| EA-8 | **Seat counter never decrements** | Intentional scarcity: cancelled trials still consume a seat. Ops implication: 20 is a lifetime launch cap, not “20 concurrent trials.” | Document for support/ops; revisit only if product wants seat refill on cancel. |
+| EA-9 | **Seat 19/20 concurrency** | Atomic `incrementEarlyAccessSeat()` prevents two orgs qualifying for the same seat number, but concurrent signups can push `seatsTaken` slightly above 20. Only first 20 get `isEarlyAccess`. | Acceptable for launch; monitor `EarlyAccessCounter.seatsTaken` vs org count if investigating discrepancies. |
+| EA-10 | **`CLERK_PRICE_*` env drift** | Loyalty transitions depend on `CLERK_PRICE_HOBBY`, `CLERK_PRICE_PRO`, `CLERK_PRICE_HOBBY_LOYALTY`, `CLERK_PRICE_PRO_LOYALTY` matching live Clerk `cprice_*` IDs. Mismatch → transitions fail with console warnings only. | Validate on deploy; script or health check that compares env to Clerk API. |
+| EA-11 | **`setEarlyAccessPlansClosed` reads `billing.json` from disk** | Seat-20 flip PATCHes Clerk using local `billing.json`. Fragile if production API container lacks the file or it diverges from Clerk. | Ensure `billing.json` is deployed with API server, or patch from pulled Clerk config instead of repo file. |
+| EA-12 | **Trial countdown UI vs Clerk** | Header badge uses `earlyAccessExpiresAt` from DB, not live Clerk subscription. Usually aligned via webhooks; can drift if sync fails. | Optional: surface Clerk `period_end` in usage payload or refresh on billing page. |
+
+### General hardening — lower priority
+
+| ID | Item | Risk | Action |
+|----|------|------|--------|
+| EA-13 | **Duplicate `/api/auth/me` maintenance** | After EA-3 is resolved, either remove the unused handler or generate one from the other. Until then, every auth/me change needs dual review. | Consolidate to one implementation once precedence is known. |
+| EA-14 | **Orphan or ambiguous API routes** | `src/app/api/billing/early-access-status/route.ts` may be unused (client reads `earlyAccess` from `/api/auth/me`) or may be live depending on EA-3. Express has no matching route for that path if rewrites win. | Delete or add Express parity after EA-3; remove `fetchEarlyAccessStatus` indirection if redundant. |
+
+---
+
+## Other application areas
+
+*(Add new subsections here — e.g. image processing, orders, auth, platform dashboard.)*
+
+---
+
+## Changelog
+
+| Date | Change |
+|------|--------|
+| 2026-07-10 | Initial early-access & billing debt register (review + re-rank). |
