@@ -34,3 +34,13 @@ Review uses a **canvas** to draw the stored crop (`CroppedShapePreview`). Behavi
 | Absolute `https://` (e.g. public S3 object URL) | `anonymous` | Storage must respond with **CORS** so the image is a CORS-enabled resource: include `Access-Control-Allow-Origin` for your app origin (or `*` for public reads). If missing, the image load can fail or the canvas stays security-tainted. |
 
 Configure the bucket / CDN **before** relying on remote session image URLs in production.
+
+### Reset a test seller (dev/local only)
+
+Hard-delete a seller and all dependent rows (including orders) so you can sign up again with the same email:
+
+```bash
+npm run db:purge-user -- you@example.com
+```
+
+**Dev/local only** — refuses to run when `NODE_ENV=production`. Does not remove uploaded image blobs from disk or S3. Delete the Clerk user separately if you want a fully fresh Clerk signup.
