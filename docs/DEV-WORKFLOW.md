@@ -6,6 +6,7 @@
 ### Before coding:
 - Explain approach
 - Confirm understanding
+- Read `technical-dept.md` when the task touches billing, auth/API routes, cron jobs, or any area listed there
 
 ### During coding:
 - Implement only requested scope
@@ -14,6 +15,7 @@
 ### After coding:
 - Explain what was built
 - Highlight any assumptions
+- If technical debt was fixed or newly discovered: update `technical-dept.md` (and its changelog)
 
 ### Critical areas:
 - Cropping

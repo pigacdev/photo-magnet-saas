@@ -5,3 +5,5 @@
 - Never resize images inside PDF generation
 - Always use stored crop data to render final images
 - Ask if something is unclear before implementing
+- Before new features or non-trivial fixes: read `docs/technical-dept.md` for known risks in the affected area
+- When a change resolves technical debt: update `docs/technical-dept.md` in the same PR/commit (status, removal, re-rank, changelog)

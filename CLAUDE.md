@@ -13,6 +13,7 @@ Before writing any code:
    - database-schema.md
    - AI-RULES.md
    - DEV-WORKFLOW.md
+   - technical-dept.md
 
 2. These documents are the single source of truth.
 
@@ -24,6 +25,8 @@ Before writing any code:
 4. Always:
    - Follow image-processing-and-printing.md exactly
    - Respect database-schema.md structure
+   - Read **technical-dept.md** before implementing new features or fixing bugs in related areas — known risks and launch blockers live there
+   - When work **resolves** an item in technical-dept.md, update that file in the same change set (mark resolved, remove, or re-rank; add a changelog line)
    - Ask for clarification if anything is unclear
 
 5. Work in small steps:

@@ -2,6 +2,14 @@
 
 Living document for known risks, gaps, and follow-up work. Add new sections as other areas of the application are reviewed.
 
+## Agent obligations
+
+- **Before implementing** a new feature or fixing existing behavior: read this file (and the relevant section) so known risks, launch blockers, and prior decisions are in context.
+- **When resolving** an item: update this file in the **same** commit/PR — mark the row resolved (with date and brief note), remove it if fully obsolete, or re-rank if priority changed; add a line to **Changelog** at the bottom.
+- **When discovering** new debt during implementation: add a row under the appropriate section (or **Other application areas**).
+
+Referenced from `CLAUDE.md`, `docs/AI-RULES.md`, and `docs/DEV-WORKFLOW.md`.
+
 **How to use this file**
 
 - Each item should state *what*, *why it matters*, and *suggested action*.
