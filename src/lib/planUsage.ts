@@ -74,6 +74,11 @@ export function showMonthlyEventUsageMeter(usage: OrganizationUsage): boolean {
   return !hasUnlimitedEvents(eventLimitFor(usage));
 }
 
+/** True when at least one monthly cap (orders or events) applies to this org. */
+export function hasCappedMonthlyUsage(usage: OrganizationUsage): boolean {
+  return showMonthlyUsageMeter(usage) || showMonthlyEventUsageMeter(usage);
+}
+
 export function eventUsagePercentage(usage: OrganizationUsage): number {
   const limit = eventLimitFor(usage);
   if (hasUnlimitedEvents(limit) || limit <= 0) return 0;

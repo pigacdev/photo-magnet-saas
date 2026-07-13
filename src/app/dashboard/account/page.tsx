@@ -59,12 +59,6 @@ export default function AccountPage() {
             <dt className="text-muted-foreground">Email</dt>
             <dd className="mt-0.5 font-medium text-foreground">{user.email}</dd>
           </div>
-          <div>
-            <dt className="text-muted-foreground">Role</dt>
-            <dd className="mt-0.5 font-medium text-foreground">
-              {user.role === "ADMIN" ? "Admin" : "Staff"}
-            </dd>
-          </div>
         </dl>
         <p className="mt-4 text-sm text-muted-foreground">
           To change your name, email, or password, use{" "}

@@ -10,6 +10,7 @@ import {
   getPlanUsageLevel,
   showMonthlyEventUsageMeter,
   showMonthlyUsageMeter,
+  hasCappedMonthlyUsage,
   usageBarFillClassCompact,
   usagePercentage,
 } from "@/lib/planUsage";
@@ -19,12 +20,28 @@ function formatPeriodDate(iso: string): string {
   return formatDisplayDate(iso, getDisplayPreferences().dateFormat);
 }
 
+function usageResetLabel(usage: OrganizationUsage): string | null {
+  if (!hasCappedMonthlyUsage(usage)) return null;
+  if (!usage.currentPeriodEnd) return null;
+  const date = formatPeriodDate(usage.currentPeriodEnd);
+  return `Usage limits reset ${date}`;
+}
+
+export function subscriptionRenewLabel(usage: OrganizationUsage): string | null {
+  if (!usage.subscriptionRenewsAt) return null;
+  if (usage.plan !== "PRO" && usage.plan !== "HOBBY") return null;
+  const date = formatPeriodDate(usage.subscriptionRenewsAt);
+  return `Plan renews ${date}`;
+}
+
 export type UserProfileSummaryProps = {
   user: User;
   usage: OrganizationUsage | null;
   variant: "compact" | "full";
   onSubscriptionChange?: () => void;
   showIdentity?: boolean;
+  /** When false, subscription renewal is omitted (e.g. shown in a section header instead). */
+  showSubscriptionRenewal?: boolean;
 };
 
 export function UserProfileSummary({
@@ -32,6 +49,7 @@ export function UserProfileSummary({
   usage,
   variant,
   showIdentity = true,
+  showSubscriptionRenewal = true,
 }: UserProfileSummaryProps) {
   const percentage = usage ? usagePercentage(usage) : 0;
   const usageLevel = usage ? getPlanUsageLevel(usage) : "normal";
@@ -42,21 +60,9 @@ export function UserProfileSummary({
     ? (usage.planLabel ?? planDisplayName(usage.plan))
     : null;
 
-  function usageResetLabel(): string | null {
-    if (!usage?.currentPeriodEnd) return null;
-    const date = formatPeriodDate(usage.currentPeriodEnd);
-    return `Usage limits reset ${date}`;
-  }
-
-  function subscriptionRenewLabel(): string | null {
-    if (!usage?.subscriptionRenewsAt) return null;
-    if (usage.plan !== "PRO" && usage.plan !== "HOBBY") return null;
-    const date = formatPeriodDate(usage.subscriptionRenewsAt);
-    return `Plan renews ${date}`;
-  }
-
-  const usageResetText = usageResetLabel();
-  const subscriptionRenewText = subscriptionRenewLabel();
+  const usageResetText = usage ? usageResetLabel(usage) : null;
+  const subscriptionRenewText =
+    usage && showSubscriptionRenewal ? subscriptionRenewLabel(usage) : null;
 
   return (
     <div className={isCompact ? "px-1 py-1" : "space-y-4"}>
@@ -94,9 +100,15 @@ export function UserProfileSummary({
             >
               {planLabel}
             </span>
-            <span className={`text-muted-foreground ${isCompact ? "text-xs" : "text-sm"}`}>
-              {user.role === "ADMIN" ? "Admin" : "Staff"}
-            </span>
+            {usage.isOnFreeTrial ? (
+              <span
+                className={`inline-flex rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-900 dark:bg-amber-950/50 dark:text-amber-200 ${
+                  isCompact ? "text-xs" : "text-sm"
+                }`}
+              >
+                Free trial
+              </span>
+            ) : null}
           </div>
 
           {showMonthlyUsageMeter(usage) ? (

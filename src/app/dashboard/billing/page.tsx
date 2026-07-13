@@ -16,7 +16,7 @@ import {
 import { BillingPlanFeatureLists } from "@/components/dashboard/BillingPlanFeatureLists";
 import { BillingEarlyAccessPlanBanners } from "@/components/dashboard/BillingEarlyAccessPlanBanners";
 import { BillingSubscriptionSuccessModal } from "@/components/dashboard/BillingSubscriptionSuccessModal";
-import { UserProfileSummary } from "@/components/dashboard/UserProfileSummary";
+import { UserProfileSummary, subscriptionRenewLabel } from "@/components/dashboard/UserProfileSummary";
 import type { EarlyAccessStatus } from "@/lib/earlyAccessUi";
 
 function BillingContent() {
@@ -59,6 +59,8 @@ function BillingContent() {
     }
   }, [success]);
 
+  const planRenewsLabel = usage ? subscriptionRenewLabel(usage) : null;
+
   return (
     <div className="dashboard-page mx-auto max-w-6xl">
       <BillingSubscriptionSuccessModal
@@ -83,13 +85,21 @@ function BillingContent() {
 
       {user && usage && (
         <section className="mt-6 rounded-lg border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-foreground">Current plan</h2>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <h2 className="text-sm font-semibold text-foreground">Current plan</h2>
+            {planRenewsLabel ? (
+              <p className="text-sm font-semibold tabular-nums text-foreground">
+                {planRenewsLabel}
+              </p>
+            ) : null}
+          </div>
           <div className="mt-4">
             <UserProfileSummary
               user={user}
               usage={usage}
               variant="full"
               showIdentity={false}
+              showSubscriptionRenewal={false}
             />
           </div>
         </section>
