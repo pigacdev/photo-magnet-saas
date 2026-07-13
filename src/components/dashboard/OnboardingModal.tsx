@@ -102,7 +102,7 @@ export function OnboardingModal({ onCompleted }: OnboardingModalProps) {
         <p className="mt-2 text-sm text-muted-foreground">
           Set up your shop preferences. Currency applies to pricing, orders, and
           analytics. Date format and size unit affect display only. Subscription
-          billing stays in EUR.
+          billing is in USD.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">

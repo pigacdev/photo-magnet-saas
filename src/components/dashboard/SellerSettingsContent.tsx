@@ -47,7 +47,7 @@ export function SellerSettingsContent({
         <h2 className="text-sm font-semibold text-foreground">Order currency</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Applies to magnet pricing, customer orders, and your revenue analytics.
-          Subscription billing stays in EUR.
+          Subscription billing is in USD.
         </p>
         {currency ? (
           <>

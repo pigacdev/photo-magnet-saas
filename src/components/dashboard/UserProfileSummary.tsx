@@ -164,12 +164,6 @@ export function UserProfileSummary({
               {subscriptionRenewText && <p>{subscriptionRenewText}</p>}
             </div>
           )}
-
-          {!isCompact && (usage.plan === "PRO" || usage.plan === "HOBBY") && (
-            <p className="text-sm text-muted-foreground">
-              Change or cancel your subscription in Plans below.
-            </p>
-          )}
         </div>
       )}
     </div>

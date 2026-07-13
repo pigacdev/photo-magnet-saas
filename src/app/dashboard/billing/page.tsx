@@ -79,8 +79,10 @@ function BillingContent() {
       </h1>
 
       <p className="mt-2 text-sm text-muted-foreground">
-        Compare plans, upgrade, or manage your subscription. Payment methods,
-        invoices, and cancellation are handled in the plan manager below.
+        Compare plans and upgrade below. Payment methods, invoices, and
+        cancellation are handled in{" "}
+        <span className="font-medium text-foreground">Manage account</span> from
+        your profile menu.
       </p>
 
       {user && usage && (
@@ -106,16 +108,6 @@ function BillingContent() {
       )}
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold text-foreground">Plans</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Choose or change your plan below. Current plan shows monthly order and
-          event limits, when those limits reset, and when your paid subscription
-          renews.
-        </p>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Subscription prices are billed in EUR. Your order currency (chosen at
-          setup) applies to customer magnet pricing only.
-        </p>
         <div
           className={`billing-plans-layout mt-4${earlyAccess?.isOpen ? " billing-plans-layout--early-access" : ""}`}
         >
@@ -139,6 +131,10 @@ function BillingContent() {
             earlyAccessOpen={earlyAccess?.isOpen ?? false}
           />
         </div>
+        <p className="mt-4 text-xs text-muted-foreground">
+          Subscription prices are billed in USD. Your order currency (chosen at
+          setup) applies to customer magnet pricing only.
+        </p>
       </section>
 
       <p className="mt-6 text-sm text-muted-foreground">
