@@ -11,6 +11,11 @@ import {
   fetchPlatformEarlyAccess,
   setGrantLifetimeDiscount,
 } from "../lib/platformEarlyAccess";
+import {
+  PlatformNotificationError,
+  sendPlatformNotifications,
+  type PlatformNotificationSelection,
+} from "../lib/platformNotifications";
 
 export const platformRouter = Router();
 
@@ -61,6 +66,92 @@ platformRouter.get("/tenants", async (req: Request, res: Response) => {
     usageFilter,
   });
   res.json(result);
+});
+
+function parseNotificationSelection(
+  raw: unknown,
+): PlatformNotificationSelection | null {
+  if (!raw || typeof raw !== "object") return null;
+  const sel = raw as Record<string, unknown>;
+  const mode = sel.mode;
+  if (mode === "explicit") {
+    if (!Array.isArray(sel.userIds)) return null;
+    const userIds = sel.userIds.filter((id) => typeof id === "string") as string[];
+    return { mode: "explicit", userIds };
+  }
+  if (mode === "all_matching") {
+    const filters =
+      sel.filters && typeof sel.filters === "object"
+        ? (sel.filters as Record<string, unknown>)
+        : {};
+    const excludeUserIds = Array.isArray(sel.excludeUserIds)
+      ? (sel.excludeUserIds.filter((id) => typeof id === "string") as string[])
+      : undefined;
+    return {
+      mode: "all_matching",
+      filters: {
+        search: typeof filters.search === "string" ? filters.search : undefined,
+        usageFilter:
+          typeof filters.usageFilter === "string"
+            ? filters.usageFilter
+            : undefined,
+        sort: typeof filters.sort === "string" ? filters.sort : undefined,
+        order: typeof filters.order === "string" ? filters.order : undefined,
+      },
+      excludeUserIds,
+    };
+  }
+  return null;
+}
+
+/** POST /api/platform/notifications/send — bulk email to selected sellers. */
+platformRouter.post("/notifications/send", async (req: Request, res: Response) => {
+  const ownerEmail = (req as Request & { platformOwnerEmail?: string })
+    .platformOwnerEmail;
+  if (!ownerEmail) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const body = req.body as {
+    subject?: unknown;
+    html?: unknown;
+    includeOptedOut?: unknown;
+    selection?: unknown;
+  };
+
+  if (typeof body.subject !== "string" || typeof body.html !== "string") {
+    res.status(400).json({ error: "subject and html are required" });
+    return;
+  }
+  if (typeof body.includeOptedOut !== "boolean") {
+    res.status(400).json({ error: "includeOptedOut must be a boolean" });
+    return;
+  }
+
+  const selection = parseNotificationSelection(body.selection);
+  if (!selection) {
+    res.status(400).json({ error: "Invalid selection" });
+    return;
+  }
+
+  try {
+    const result = await sendPlatformNotifications({
+      subject: body.subject,
+      html: body.html,
+      includeOptedOut: body.includeOptedOut,
+      selection,
+      sentByEmail: ownerEmail,
+    });
+    res.json(result);
+  } catch (err) {
+    if (err instanceof PlatformNotificationError) {
+      res.status(err.statusCode).json({ error: err.message });
+      return;
+    }
+    console.error("[POST /api/platform/notifications/send]", err);
+    res.status(500).json({ error: "Failed to send notifications" });
+  }
 });
 
 /** GET /api/platform/early-access — early-access subscribers. */

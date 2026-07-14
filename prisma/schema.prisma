@@ -439,6 +439,22 @@ enum Plan {
   PRO
 }
 
+/// Platform owner bulk email send audit (subject + counts only; no body stored).
+model PlatformNotificationLog {
+  id                 String   @id @default(cuid())
+  sentByEmail        String
+  subject            String
+  recipientCount     Int
+  skippedOptOutCount Int
+  includeOptedOut    Boolean
+  selectionMode      String
+  filterSnapshot     Json?
+  createdAt          DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([sentByEmail])
+}
+
 /// Audit trail for GDPR erasure and DSAR actions.
 model PrivacyAuditLog {
   id             String   @id @default(uuid())

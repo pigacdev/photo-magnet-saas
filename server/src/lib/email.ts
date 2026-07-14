@@ -729,3 +729,38 @@ export async function sendEarlyAccessExpiryEmail(data: {
     transactional: false,
   });
 }
+
+export function buildPlatformNotificationHtml(data: {
+  bodyHtml: string;
+  recipientName?: string | null;
+}): string {
+  const greeting = data.recipientName?.trim()
+    ? escapeHtml(data.recipientName.trim())
+    : "there";
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:24px;background:#f9fafb;">
+  <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
+    <p style="margin:0 0 16px;color:#4b5563;font-size:15px;">Hi ${greeting},</p>
+    <div style="font-size:15px;">${data.bodyHtml}</div>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendPlatformNotificationEmail(data: {
+  to: string;
+  subject: string;
+  html: string;
+  includeOptedOut: boolean;
+}): Promise<void> {
+  await sendEmail({
+    to: data.to,
+    from: platformFromAddress(),
+    subject: data.subject,
+    html: data.html,
+    transactional: data.includeOptedOut,
+    marketing: !data.includeOptedOut,
+  });
+}

@@ -11,11 +11,26 @@ if (!connectionString || typeof connectionString !== "string") {
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
+function createPrismaClient(): PrismaClient {
+  return new PrismaClient({
     adapter: new PrismaPg({ connectionString }),
   });
+}
+
+function resolvePrismaClient(): PrismaClient {
+  const cached = globalForPrisma.prisma;
+  // Dev HMR can keep a stale singleton from before schema/client updates.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    cached &&
+    !("platformNotificationLog" in cached)
+  ) {
+    return createPrismaClient();
+  }
+  return cached ?? createPrismaClient();
+}
+
+export const prisma = resolvePrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

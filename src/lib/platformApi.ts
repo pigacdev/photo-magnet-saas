@@ -141,3 +141,35 @@ export function patchPlatformEarlyAccessDiscount(
     body: { grantLifetimeDiscount },
   });
 }
+
+export type PlatformNotificationSelection =
+  | { mode: "explicit"; userIds: string[] }
+  | {
+      mode: "all_matching";
+      filters: {
+        search?: string;
+        usageFilter?: string;
+        sort?: string;
+        order?: string;
+      };
+      excludeUserIds?: string[];
+    };
+
+export type PlatformNotificationSendResult = {
+  sent: number;
+  skippedOptOut: number;
+  failed: number;
+  errors: string[];
+};
+
+export function sendPlatformNotification(body: {
+  subject: string;
+  html: string;
+  includeOptedOut: boolean;
+  selection: PlatformNotificationSelection;
+}): Promise<PlatformNotificationSendResult> {
+  return api<PlatformNotificationSendResult>("/api/platform/notifications/send", {
+    method: "POST",
+    body,
+  });
+}

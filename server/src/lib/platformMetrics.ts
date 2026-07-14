@@ -381,18 +381,21 @@ export type PlatformTenantsResult = {
   pageSize: number;
 };
 
-type TenantSort = "createdAt" | "ordersThisMonth" | "settledRevenue";
-type TenantOrder = "asc" | "desc";
+export type TenantSort = "createdAt" | "ordersThisMonth" | "settledRevenue";
+export type TenantOrder = "asc" | "desc";
 
-export async function fetchPlatformTenants(opts: {
-  page: number;
-  pageSize: number;
+export type PlatformTenantFilters = {
   search?: string;
   sort: TenantSort;
   order: TenantOrder;
   usageFilter?: PlatformTenantUsageFilter;
-}): Promise<PlatformTenantsResult> {
-  const { page, pageSize, search, sort, order, usageFilter } = opts;
+};
+
+/** All sellers matching table filters (no pagination). */
+export async function resolveAllFilteredPlatformTenants(
+  opts: PlatformTenantFilters,
+): Promise<PlatformTenantRow[]> {
+  const { search, sort, order, usageFilter } = opts;
   const searchTrim = search?.trim();
 
   const searchClause = searchTrim
@@ -534,6 +537,15 @@ export async function fetchPlatformTenants(opts: {
     );
   });
 
+  return filteredRows;
+}
+
+export async function fetchPlatformTenants(opts: {
+  page: number;
+  pageSize: number;
+} & PlatformTenantFilters): Promise<PlatformTenantsResult> {
+  const { page, pageSize, ...filters } = opts;
+  const filteredRows = await resolveAllFilteredPlatformTenants(filters);
   const total = filteredRows.length;
   const start = (page - 1) * pageSize;
   const tenants = filteredRows.slice(start, start + pageSize);

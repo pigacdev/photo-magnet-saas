@@ -15,12 +15,15 @@ import {
   fetchPlatformOverview,
   fetchPlatformTenants,
   USAGE_FILTER_LABELS,
+  type PlatformNotificationSelection,
+  type PlatformNotificationSendResult,
   type PlatformOverview,
   type PlatformTenant,
   type PlatformTenantUsageFilter,
   type TenantOrder,
   type TenantSort,
 } from "@/lib/platformApi";
+import { PlatformBulkEmailModal } from "@/components/platform/PlatformBulkEmailModal";
 import { getDisplayPreferences } from "@/lib/auth";
 import { formatDisplayMonthDay } from "@/lib/dateFormat";
 import {
@@ -342,7 +345,20 @@ export default function PlatformPage() {
   const [usageFilter, setUsageFilter] = useState<PlatformTenantUsageFilter | null>(
     null,
   );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [selectAllMatching, setSelectAllMatching] = useState(false);
+  const [excludeIds, setExcludeIds] = useState<Set<string>>(() => new Set());
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [sendResult, setSendResult] = useState<PlatformNotificationSendResult | null>(
+    null,
+  );
   const pageSize = 25;
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setSelectAllMatching(false);
+    setExcludeIds(new Set());
+  }, []);
 
   const toggleUsageFilter = useCallback((filter: PlatformTenantUsageFilter) => {
     setPage(1);
@@ -392,6 +408,102 @@ export default function PlatformPage() {
   useEffect(() => {
     loadTenants();
   }, [loadTenants]);
+
+  useEffect(() => {
+    clearSelection();
+  }, [search, usageFilter, sort, order, clearSelection]);
+
+  function isRowSelected(id: string): boolean {
+    if (selectAllMatching) return !excludeIds.has(id);
+    return selectedIds.has(id);
+  }
+
+  function toggleRow(id: string) {
+    if (selectAllMatching) {
+      setExcludeIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      return;
+    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const pageAllSelected =
+    tenants.length > 0 && tenants.every((t) => isRowSelected(t.id));
+
+  function togglePageSelection() {
+    if (pageAllSelected) {
+      if (selectAllMatching) {
+        setExcludeIds((prev) => {
+          const next = new Set(prev);
+          for (const t of tenants) next.add(t.id);
+          return next;
+        });
+      } else {
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          for (const t of tenants) next.delete(t.id);
+          return next;
+        });
+      }
+      return;
+    }
+    if (selectAllMatching) {
+      setExcludeIds((prev) => {
+        const next = new Set(prev);
+        for (const t of tenants) next.delete(t.id);
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const t of tenants) next.add(t.id);
+        return next;
+      });
+    }
+  }
+
+  function activateSelectAllMatching() {
+    setSelectAllMatching(true);
+    setSelectedIds(new Set());
+    setExcludeIds(new Set());
+  }
+
+  const selectionCount = selectAllMatching
+    ? tenantTotal - excludeIds.size
+    : selectedIds.size;
+
+  const canSelectAllMatching =
+    !selectAllMatching && tenantTotal > 0 && selectionCount < tenantTotal;
+
+  function buildSelection(): PlatformNotificationSelection {
+    if (selectAllMatching) {
+      return {
+        mode: "all_matching",
+        filters: {
+          search: search || undefined,
+          usageFilter: usageFilter ?? undefined,
+          sort,
+          order,
+        },
+        excludeUserIds: excludeIds.size > 0 ? [...excludeIds] : undefined,
+      };
+    }
+    return { mode: "explicit", userIds: [...selectedIds] };
+  }
+
+  function handleEmailSent(result: PlatformNotificationSendResult) {
+    setSendResult(result);
+    clearSelection();
+  }
 
   function formatMoney(n: number) {
     return new Intl.NumberFormat(undefined, {
@@ -618,10 +730,86 @@ export default function PlatformPage() {
           </form>
         </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-blue-50/80 px-4 py-3 dark:bg-blue-950/20">
+          <p className="text-sm font-medium text-foreground tabular-nums">
+            {selectAllMatching
+              ? `All ${selectionCount} matching seller${selectionCount === 1 ? "" : "s"} selected`
+              : `${selectionCount} seller${selectionCount === 1 ? "" : "s"} selected`}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {canSelectAllMatching ? (
+              <button
+                type="button"
+                onClick={activateSelectAllMatching}
+                disabled={tenantLoading || tenantTotal === 0}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface disabled:opacity-50"
+              >
+                Select all ({tenantTotal})
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setEmailModalOpen(true)}
+              disabled={selectionCount === 0}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            >
+              Email selected
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              disabled={selectionCount === 0}
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface disabled:opacity-50"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        {sendResult ? (
+          <div
+            className={`border-b px-4 py-3 text-sm ${
+              sendResult.failed > 0
+                ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
+                : "border-green-200 bg-green-50 text-green-900 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-200"
+            }`}
+          >
+            Sent to {sendResult.sent} seller{sendResult.sent === 1 ? "" : "s"}
+            {sendResult.skippedOptOut > 0
+              ? ` (${sendResult.skippedOptOut} skipped due to marketing opt-out)`
+              : ""}
+            {sendResult.failed > 0 ? ` · ${sendResult.failed} failed` : ""}.
+            <button
+              type="button"
+              onClick={() => setSendResult(null)}
+              className="ml-3 font-medium underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[960px] text-left text-sm">
             <thead>
               <tr className="border-b border-border bg-surface/50 text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="w-10 px-4 py-3 font-medium">
+                  <input
+                    type="checkbox"
+                    checked={pageAllSelected}
+                    ref={(el) => {
+                      if (el) {
+                        el.indeterminate =
+                          !pageAllSelected &&
+                          tenants.some((t) => isRowSelected(t.id));
+                      }
+                    }}
+                    onChange={togglePageSelection}
+                    disabled={tenantLoading || tenants.length === 0}
+                    aria-label="Select all sellers on this page"
+                    className="size-4 rounded border-border"
+                  />
+                </th>
                 <th className="px-4 py-3 font-medium">Seller</th>
                 <th className="px-4 py-3 font-medium">Plan</th>
                 <th className="px-4 py-3 font-medium">Signed up</th>
@@ -636,13 +824,13 @@ export default function PlatformPage() {
             <tbody>
               {tenantLoading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                     Loading sellers…
                   </td>
                 </tr>
               ) : tenants.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                     {usageFilter
                       ? "No sellers match this filter."
                       : "No sellers found."}
@@ -658,6 +846,15 @@ export default function PlatformPage() {
                         : ""
                     }`}
                   >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={isRowSelected(t.id)}
+                        onChange={() => toggleRow(t.id)}
+                        aria-label={`Select ${t.email}`}
+                        className="size-4 rounded border-border"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-foreground">{t.email}</p>
                       <p className="text-xs text-muted-foreground">
@@ -742,6 +939,14 @@ export default function PlatformPage() {
           </div>
         ) : null}
       </div>
+
+      <PlatformBulkEmailModal
+        open={emailModalOpen}
+        recipientCount={selectionCount}
+        selection={buildSelection()}
+        onClose={() => setEmailModalOpen(false)}
+        onSent={handleEmailSent}
+      />
     </div>
   );
 }
