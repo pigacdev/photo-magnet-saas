@@ -15,8 +15,16 @@ export const PLATFORM_NAV_ITEMS: ReadonlyArray<{
 ];
 
 export function isPlatformNavActive(pathname: string, href: string): boolean {
+  if (pathname === href) return true;
+
   if (href === "/platform") {
-    return pathname === "/platform" || pathname.startsWith("/platform/");
+    if (!pathname.startsWith("/platform/")) return false;
+    return !PLATFORM_NAV_ITEMS.some(
+      (item) =>
+        item.href !== href &&
+        (pathname === item.href || pathname.startsWith(`${item.href}/`)),
+    );
   }
-  return pathname.startsWith(href);
+
+  return pathname.startsWith(`${href}/`);
 }

@@ -16,6 +16,7 @@ type Props = {
   copies: number;
   printed: boolean;
   selected: boolean;
+  removed?: boolean;
   onToggle: () => void;
 };
 
@@ -25,10 +26,27 @@ export function OrderImageSelectCard({
   copies,
   printed,
   selected,
+  removed = false,
   onToggle,
 }: Props) {
   const thumb = orderImageThumbSize(shape);
   const cardWidth = Math.max(thumb.width, CARD_MIN_WIDTH_PX);
+
+  if (removed) {
+    return (
+      <div
+        className="flex shrink-0 flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-surface/50 p-2 opacity-60"
+        style={{ width: cardWidth }}
+      >
+        <div
+          className="flex items-center justify-center rounded-lg bg-surface text-xs text-muted-foreground"
+          style={{ width: thumb.width, height: thumb.height }}
+        >
+          Removed
+        </div>
+      </div>
+    );
+  }
 
   return (
     <button

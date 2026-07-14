@@ -135,6 +135,15 @@ function BillingContent() {
           Subscription prices are billed in USD. Your order currency (chosen at
           setup) applies to customer magnet pricing only.
         </p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          When you use Magnetoo to collect buyer orders, our{" "}
+          <Link href="/privacy" className="text-primary underline">
+            Privacy Policy
+          </Link>{" "}
+          and the Data Processing Agreement in{" "}
+          <code className="rounded bg-surface px-1">docs/legal/DPA.md</code> apply
+          to buyer data you process through the platform.
+        </p>
       </section>
 
       <p className="mt-6 text-sm text-muted-foreground">

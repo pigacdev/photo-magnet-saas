@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { SignIn } from "@clerk/nextjs";
+import { LegalFooter } from "@/components/LegalFooter";
 
 export default async function SignInPage() {
   const { userId } = await auth();
@@ -9,8 +10,11 @@ export default async function SignInPage() {
   }
 
   return (
-    <div className="flex min-h-full flex-1 items-center justify-center p-6">
-      <SignIn fallbackRedirectUrl="/dashboard" signUpUrl="/sign-up" />
+    <div className="flex min-h-full flex-1 flex-col">
+      <div className="flex flex-1 items-center justify-center p-6">
+        <SignIn fallbackRedirectUrl="/dashboard" signUpUrl="/sign-up" />
+      </div>
+      <LegalFooter compact />
     </div>
   );
 }

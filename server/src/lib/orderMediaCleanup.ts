@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import type { OrderStatus } from "../../../src/generated/prisma/client";
 import { ORDER_MEDIA_RETENTION_DAYS } from "../config/mediaRetention";
 import { s3Config } from "../config/s3";
 import { prisma } from "./prisma";
@@ -44,15 +45,17 @@ export type CleanupOrderMediaResult = {
 /**
  * Fully settled orders: status PAID or later in workflow.
  */
-const PAID_ELIGIBLE_STATUSES = new Set([
+const PAID_ELIGIBLE_STATUSES: OrderStatus[] = [
   "PAID",
   "IN_PRODUCTION",
   "SHIPPED",
   "COMPLETED",
-]);
+];
+
+const PAID_ELIGIBLE_STATUS_SET = new Set<string>(PAID_ELIGIBLE_STATUSES);
 
 function isFullyPaidEligibleOrder(row: { status: string }): boolean {
-  return PAID_ELIGIBLE_STATUSES.has(row.status);
+  return PAID_ELIGIBLE_STATUS_SET.has(row.status);
 }
 
 function isS3HeadNotFound(e: unknown): boolean {
@@ -251,7 +254,7 @@ export async function cleanupOrderMedia(
   const errors: OrderMediaCleanupError[] = [];
 
   const paidStatusOrders = await prisma.order.findMany({
-    where: { status: PAID_ELIGIBLE_STATUS },
+    where: { status: { in: [...PAID_ELIGIBLE_STATUSES] } },
     select: {
       id: true,
       createdAt: true,
@@ -419,7 +422,7 @@ export async function cleanupOrderMedia(
   }
 
   const pruneOutcome = await pruneEmptyOrderMediaDirectories();
-  let foldersDeleted = pruneOutcome.foldersDeleted;
+  const foldersDeleted = pruneOutcome.foldersDeleted;
   errors.push(...pruneOutcome.errors);
 
   console.info(

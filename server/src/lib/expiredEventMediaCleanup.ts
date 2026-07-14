@@ -1,4 +1,5 @@
 import { EVENT_MEDIA_RETENTION_HOURS_AFTER_END } from "../config/mediaRetention";
+import type { OrderStatus } from "../../../src/generated/prisma/client";
 import { prisma } from "./prisma";
 import {
   collectOrderImageMediaUrls,
@@ -11,15 +12,17 @@ import {
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 
-const PAID_ORDER_STATUSES = new Set([
+const PAID_ORDER_STATUSES: OrderStatus[] = [
   "PAID",
   "IN_PRODUCTION",
   "SHIPPED",
   "COMPLETED",
-]);
+];
+
+const PAID_ORDER_STATUS_SET = new Set<string>(PAID_ORDER_STATUSES);
 
 function isEventOrderFullyPaid(row: { status: string }): boolean {
-  return PAID_ORDER_STATUSES.has(row.status);
+  return PAID_ORDER_STATUS_SET.has(row.status);
 }
 
 export type CleanupExpiredEventMediaOptions = {
@@ -78,7 +81,7 @@ export async function cleanupExpiredEventMedia(
           where: {
             contextType: "EVENT",
             contextId: { in: eligibleEventIds },
-            status: PAID_ORDER_STATUS,
+            status: { in: [...PAID_ORDER_STATUSES] },
           },
           select: {
             id: true,

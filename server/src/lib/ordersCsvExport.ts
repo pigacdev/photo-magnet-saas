@@ -1,6 +1,19 @@
 import { csvEscape } from "./csvEscape";
 import { orderStatusDisplayLabel } from "./orderStatus";
+import type { OrderStatus } from "../../../src/generated/prisma/client";
 import type { SellerOrderListMappedRow } from "./sellerOrderListQuery";
+
+export type OrdersExportCsvRow = {
+  id: string;
+  shortCode?: string | null;
+  status: OrderStatus;
+  totalPrice: { toString(): string };
+  currency?: string | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  createdAt: Date;
+};
 
 function formatOrderReference(order: {
   id: string;
@@ -22,7 +35,9 @@ const CSV_HEADER = [
   "customer_phone",
 ].join(",");
 
-export function buildOrdersExportCsv(rows: SellerOrderListMappedRow[]): string {
+export function buildOrdersExportCsv(
+  rows: Array<{ row: OrdersExportCsvRow }> | SellerOrderListMappedRow[],
+): string {
   const lines: string[] = [CSV_HEADER];
 
   for (const { row } of rows) {

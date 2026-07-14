@@ -13,6 +13,7 @@ import {
   parseSendOrderEmailsInput,
 } from "../lib/parseOrderNotificationSettings";
 import { planHasFeature } from "../lib/planCatalog";
+import { logAuditEvent } from "../lib/privacyAuditLog";
 import { featureRequiredMessage } from "../lib/planFeatures";
 
 async function sellerPlan(userId: string) {
@@ -316,7 +317,7 @@ storefrontsRouter.patch("/:id", async (req, res) => {
 
 storefrontsRouter.delete("/:id", async (req, res) => {
   const userId = req.user!.userId;
-  const { id } = req.params;
+  const id = String(req.params.id ?? "");
 
   if (req.user!.role !== "ADMIN") {
     res.status(403).json({ error: "Only admins can delete storefronts" });
@@ -332,9 +333,25 @@ storefrontsRouter.delete("/:id", async (req, res) => {
     return;
   }
 
+  const [seller, orderCount] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { email: true } }),
+    prisma.order.count({
+      where: { contextType: "STOREFRONT", contextId: id },
+    }),
+  ]);
+
   await prisma.storefront.update({
     where: { id },
     data: { deletedAt: new Date() },
+  });
+
+  await logAuditEvent({
+    action: "storefront_deleted",
+    actorEmail: seller?.email,
+    organizationId: userId,
+    targetType: "storefront",
+    targetId: id,
+    metadata: { name: existing.name, orderCount },
   });
 
   res.json({ success: true });

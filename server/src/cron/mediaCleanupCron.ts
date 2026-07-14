@@ -145,4 +145,43 @@ if (!ENABLE_CRON) {
       summarizeExpiredEventMedia,
     );
   });
+
+  // Account erasure hard purge (daily 04:00)
+  cron.schedule("0 4 * * *", () => {
+    void runJob(
+      "account-erasure-purge",
+      async () => {
+        const { runScheduledAccountErasurePurge } = await import(
+          "../lib/accountErasure"
+        );
+        const result = await runScheduledAccountErasurePurge();
+        return {
+          dryRun: false,
+          errors: result.errors.map((message) => ({ message })),
+          purged: result.purged,
+        };
+      },
+      (r) => ({ purged: (r as { purged?: number }).purged ?? 0 }),
+    );
+  });
+
+  // PII retention anonymization (daily 04:30)
+  cron.schedule("30 4 * * *", () => {
+    void runJob(
+      "pii-retention",
+      async () => {
+        const { runOrderPiiRetention } = await import("../lib/piiRetention");
+        const result = await runOrderPiiRetention({ dryRun: false });
+        return {
+          dryRun: false,
+          errors: [],
+          ...result,
+        };
+      },
+      (r) => ({
+        ordersAnonymized: (r as { ordersAnonymized?: number }).ordersAnonymized,
+        customersPurged: (r as { customersPurged?: number }).customersPurged,
+      }),
+    );
+  });
 }

@@ -46,5 +46,7 @@ export async function requirePlatformOwner(
     return;
   }
 
+  (req as Request & { platformOwnerEmail?: string }).platformOwnerEmail = email;
+
   next();
 }

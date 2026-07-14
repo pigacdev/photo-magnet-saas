@@ -13,7 +13,11 @@ import { resolveAuthUser, type AuthUser } from "../lib/clerkSession";
 import { authenticate, requireRole } from "../middleware/auth";
 import { clearSessionCookie } from "../lib/orderSessionApi";
 import { ORDER_IMAGE_LIST_ORDER_BY } from "../lib/magnetImageOrderBy";
-import { validateOrderCustomerBody } from "../lib/orderCustomerValidation";
+import {
+  validateOrderCustomerBody,
+  validateCheckoutConsent,
+  checkoutConsentFields,
+} from "../lib/orderCustomerValidation";
 import {
   checkOrgOrderLimit,
   type PrepareCommitError,
@@ -1033,6 +1037,13 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
     return;
   }
 
+  const consentCheck = validateCheckoutConsent(body);
+  if ("error" in consentCheck) {
+    res.status(400).json({ error: consentCheck.error });
+    return;
+  }
+  const consent = checkoutConsentFields();
+
   if (
     sessionRow.contextType === "STOREFRONT" &&
     validated.data.shippingType === "pickup"
@@ -1107,6 +1118,7 @@ ordersRouter.post("/finalize", async (req: Request, res: Response) => {
     const result = await runOrderCommitTransaction(
       prepared,
       toOrderCustomerInsertFromValidated(validated.data, eventPaymentPreference),
+      consent,
     );
     if (result.kind === "IDEMPOTENT") {
       console.info("[order.finalize] idempotent", {
@@ -1395,7 +1407,7 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
     return;
   }
 
-  let sellerUser: AuthUser | null = await resolveAuthUser(req);
+  const sellerUser: AuthUser | null = await resolveAuthUser(req);
 
   if (sellerUser) {
     let order = await prisma.order.findFirst({
@@ -1469,8 +1481,11 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
           return {
             id: img.id,
             renderedUrl:
-              img.mediaDeletedAt != null ? null : img.renderedUrl,
+              img.mediaDeletedAt != null || img.deletedAt != null
+                ? null
+                : img.renderedUrl,
             mediaDeletedAt: img.mediaDeletedAt?.toISOString() ?? null,
+            deletedAt: img.deletedAt?.toISOString() ?? null,
             position: img.position,
             shapeId: img.shapeId,
             shapeType: sh?.shapeType ?? "SQUARE",
@@ -1577,3 +1592,53 @@ ordersRouter.get("/:id", async (req: Request, res: Response) => {
     orderSummary,
   });
 });
+
+/** DELETE /api/orders/:orderId/images/:imageId — GDPR delete single image */
+ordersRouter.delete(
+  "/:orderId/images/:imageId",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const orderId = String(req.params.orderId ?? "");
+    const imageId = String(req.params.imageId ?? "");
+    const seller = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    const { deleteSingleOrderImage } = await import("../lib/orderImageDeletion");
+    const result = await deleteSingleOrderImage({
+      organizationId: userId,
+      orderId,
+      imageId,
+      actorEmail: seller?.email,
+    });
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.json({ ok: true });
+  },
+);
+
+/** DELETE /api/orders/:orderId/images — GDPR delete all order images */
+ordersRouter.delete(
+  "/:orderId/images",
+  authenticate,
+  requireRole("ADMIN", "STAFF"),
+  async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const orderId = String(req.params.orderId ?? "");
+    const seller = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    const { deleteAllOrderImages } = await import("../lib/orderImageDeletion");
+    const result = await deleteAllOrderImages({
+      organizationId: userId,
+      orderId,
+      actorEmail: seller?.email,
+    });
+    res.json(result);
+  },
+);

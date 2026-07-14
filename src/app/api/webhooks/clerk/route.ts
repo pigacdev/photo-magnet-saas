@@ -5,6 +5,7 @@ import {
   ensureSellerUser,
   softDeleteSellerByClerkId,
 } from "@/lib/clerkUserSync";
+import { CURRENT_POLICY_VERSION } from "@/lib/legalConstants";
 import { applyClerkBillingEvent } from "@/lib/clerkBillingSync";
 import {
   isClerkEventProcessed,
@@ -17,6 +18,20 @@ function webhookSigningSecret(): string | undefined {
     process.env.CLERK_WEBHOOK_SECRET?.trim() ||
     undefined
   );
+}
+
+function parseClerkLegalAccepted(data: Record<string, unknown>): {
+  legalAcceptedAt: Date | null;
+  legalVersion: string | null;
+} {
+  const raw = data.legal_accepted_at;
+  if (typeof raw === "number" && raw > 0) {
+    return {
+      legalAcceptedAt: new Date(raw),
+      legalVersion: CURRENT_POLICY_VERSION,
+    };
+  }
+  return { legalAcceptedAt: null, legalVersion: null };
 }
 
 export async function POST(req: NextRequest) {
@@ -49,10 +64,13 @@ export async function POST(req: NextRequest) {
 
       if (primaryEmail) {
         const name = displayNameFromClerk(username, first_name, last_name);
+        const legal = parseClerkLegalAccepted(evt.data as Record<string, unknown>);
         await ensureSellerUser({
           clerkId: id,
           email: primaryEmail,
           name,
+          legalAcceptedAt: legal.legalAcceptedAt,
+          legalVersion: legal.legalVersion,
         });
       }
     }

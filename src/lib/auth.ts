@@ -14,6 +14,10 @@ export type User = {
   email: string;
   name: string | null;
   role: "ADMIN" | "STAFF";
+  legalAcceptedAt?: string | null;
+  legalVersion?: string | null;
+  needsLegalReconsent?: boolean;
+  erasureScheduledAt?: string | null;
 };
 
 export type OrganizationUsage = {

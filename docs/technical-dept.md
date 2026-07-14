@@ -66,8 +66,28 @@ These block turning on the lifetime-discount feature with confidence. Everything
 
 ---
 
+## GDPR / privacy
+
+Context: GDPR compliance work (legal pages, consent, DSAR/erasure, retention). See `docs/legal/` and public routes `/privacy`, `/terms`, `/cookies`. **Audit lookup:** [docs/legal/audit-log.md](./legal/audit-log.md).
+
+| ID | Item | Risk | Action |
+|----|------|------|--------|
+| GDPR-1 | **Clerk Legal Acceptance must be enabled in Dashboard** | Sign-up may not capture contractual agreement until Clerk legal URLs are configured | Follow [docs/CLERK-LEGAL-SETUP.md](./CLERK-LEGAL-SETUP.md) before production |
+| GDPR-2 | **Legal entity address in code is placeholder** | `LEGAL_ENTITY.address` in `src/lib/legalConstants.ts` must match registered business before launch | Update constants + Privacy/Imprint pages |
+| GDPR-3 | **Customer ZIP export via `<a href>`** | Export link in CRM modal may fail without auth header in some browsers | Prefer authenticated fetch (same as account export) if reported |
+| GDPR-4 | **Storefront media retention** | Storefront orders have no auto media expiry policy yet | Implement when product defines storefront lifecycle |
+
+**Resolved in 2026-07-14 GDPR implementation:** legal pages/footer, checkout consent, seller re-consent gate, cookie notice, buyer PII erasure + export, image deletion (3 scopes), account erasure with grace period, platform owner danger zone, PII retention cron, email legal footers, audit log table, `PAID_ELIGIBLE_STATUS` cleanup bug.
+
+**Resolved 2026-07-14 (deletion audit logging):** dual-write `[audit]` console lines + `PrivacyAuditLog`, `organizationId` column, logging for event/storefront/customer delete, data exports, Clerk webhook erasure; deduped customer image batch logs.
+
+---
+
 ## Changelog
 
 | Date | Change |
 |------|--------|
+| 2026-07-14 | Platform Overview: pending-erasure sellers stay visible with badge + filter; cancel via Manage. |
+| 2026-07-14 | Deletion audit logging: dual-write `[audit]` console + `PrivacyAuditLog`, `organizationId`, gaps filled (event/storefront/customer delete, exports, Clerk webhook). |
+| 2026-07-14 | GDPR/privacy section + implementation changelog. |
 | 2026-07-10 | Initial early-access & billing debt register (review + re-rank). |

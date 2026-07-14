@@ -1,10 +1,13 @@
 import { prisma } from "./prisma";
 import { defaultBillingPeriodEnd } from "./billingPeriod";
+import { logAuditEvent } from "../../server/src/lib/privacyAuditLog";
 
 export type EnsureSellerUserInput = {
   clerkId: string;
   email: string;
   name?: string | null;
+  legalAcceptedAt?: Date | null;
+  legalVersion?: string | null;
 };
 
 export type SellerUserRecord = {
@@ -59,14 +62,27 @@ export async function ensureSellerUser(
     select: { id: true, email: true, name: true, role: true },
   });
   if (byClerkId) {
+    const legalPatch =
+      input.legalAcceptedAt != null
+        ? {
+            legalAcceptedAt: input.legalAcceptedAt,
+            legalVersion: input.legalVersion ?? null,
+          }
+        : {};
     if (name && byClerkId.name !== name) {
       const updated = await prisma.user.update({
         where: { id: byClerkId.id },
-        data: { name },
+        data: { name, ...legalPatch },
         select: { id: true, email: true, name: true, role: true },
       });
       await ensureSellerOrganization(updated.id);
       return updated;
+    }
+    if (Object.keys(legalPatch).length > 0) {
+      await prisma.user.update({
+        where: { id: byClerkId.id },
+        data: legalPatch,
+      });
     }
     await ensureSellerOrganization(byClerkId.id);
     return byClerkId;
@@ -83,6 +99,12 @@ export async function ensureSellerUser(
       data: {
         clerkId: input.clerkId,
         name: name ?? byEmail.name,
+        ...(input.legalAcceptedAt != null
+          ? {
+              legalAcceptedAt: input.legalAcceptedAt,
+              legalVersion: input.legalVersion ?? null,
+            }
+          : {}),
       },
       select: { id: true, email: true, name: true, role: true },
     });
@@ -98,6 +120,12 @@ export async function ensureSellerUser(
         clerkId: input.clerkId,
         email,
         name,
+        ...(input.legalAcceptedAt != null
+          ? {
+              legalAcceptedAt: input.legalAcceptedAt,
+              legalVersion: input.legalVersion ?? null,
+            }
+          : {}),
       },
       select: { id: true, email: true, name: true, role: true },
     });
@@ -121,8 +149,27 @@ export async function softDeleteSellerByClerkId(clerkId: string): Promise<void> 
   });
   if (!user) return;
 
-  await prisma.user.update({
+  const graceDays = 30;
+  const scheduledAt = new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000);
+  const row = await prisma.user.update({
     where: { id: user.id },
-    data: { deletedAt: new Date(), clerkId: null },
+    data: {
+      deletedAt: new Date(),
+      erasureScheduledAt: scheduledAt,
+    },
+    select: { id: true, email: true, erasureScheduledAt: true },
+  });
+
+  await logAuditEvent({
+    action: "account_erasure_scheduled",
+    actorEmail: "system:clerk",
+    organizationId: row.id,
+    targetType: "user",
+    targetId: row.id,
+    metadata: {
+      reason: "clerk_webhook",
+      email: row.email,
+      erasureScheduledAt: row.erasureScheduledAt?.toISOString(),
+    },
   });
 }

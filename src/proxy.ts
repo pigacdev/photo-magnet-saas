@@ -11,6 +11,11 @@ const isPublicRoute = createRouteMatcher([
   "/order(.*)",
   "/event(.*)",
   "/store(.*)",
+  "/privacy",
+  "/terms",
+  "/cookies",
+  "/subprocessors",
+  "/imprint",
   "/api/webhooks(.*)",
   // Buyer (anonymous) APIs — Express enforces session cookie where needed
   "/api/public(.*)",

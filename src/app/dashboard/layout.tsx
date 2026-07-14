@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { OnboardingModal } from "@/components/dashboard/OnboardingModal";
+import { LegalReconsentModal } from "@/components/dashboard/LegalReconsentModal";
 import { UnsavedChangesProvider } from "@/components/dashboard/UnsavedChangesProvider";
 
 export default function DashboardLayout({
@@ -83,8 +84,18 @@ export default function DashboardLayout({
   if (!user) return null;
 
   const needsOnboarding = usage != null && usage.currency == null;
+  const needsLegalReconsent = user.needsLegalReconsent === true;
 
   async function handleOnboardingCompleted() {
+    invalidateAuthCache();
+    const u = await getMe();
+    if (u) {
+      setUser(u);
+      setUsage(getCachedOrganizationUsage());
+    }
+  }
+
+  async function handleLegalReconsentCompleted() {
     invalidateAuthCache();
     const u = await getMe();
     if (u) {
@@ -100,6 +111,9 @@ export default function DashboardLayout({
           {children}
         </DashboardShell>
       </UnsavedChangesProvider>
+      {needsLegalReconsent && !needsOnboarding ? (
+        <LegalReconsentModal onCompleted={handleLegalReconsentCompleted} />
+      ) : null}
       {needsOnboarding ? (
         <OnboardingModal onCompleted={handleOnboardingCompleted} />
       ) : null}

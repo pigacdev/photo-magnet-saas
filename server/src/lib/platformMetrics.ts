@@ -137,7 +137,8 @@ export type PlatformTenantUsageFilter =
   | "nearEventLimit"
   | "orderLimitReached"
   | "eventLimitReached"
-  | "onboardingIncomplete";
+  | "onboardingIncomplete"
+  | "erasurePending";
 
 export function matchesTenantUsageFilter(
   tenant: {
@@ -145,6 +146,7 @@ export function matchesTenantUsageFilter(
     ordersThisMonth: number;
     eventsThisMonth: number;
     onboardingComplete: boolean;
+    erasureScheduledAt: string | null;
   },
   filter: PlatformTenantUsageFilter,
 ): boolean {
@@ -159,6 +161,8 @@ export function matchesTenantUsageFilter(
       return isEventLimitReached(tenant.eventsThisMonth, tenant.plan);
     case "onboardingIncomplete":
       return !tenant.onboardingComplete;
+    case "erasurePending":
+      return tenant.erasureScheduledAt != null;
   }
 }
 
@@ -188,6 +192,7 @@ export type PlatformOverview = {
   orderLimitReached: number;
   eventLimitReached: number;
   onboardingIncomplete: number;
+  pendingErasure: number;
 };
 
 export async function fetchPlatformOverview(): Promise<PlatformOverview> {
@@ -211,6 +216,7 @@ export async function fetchPlatformOverview(): Promise<PlatformOverview> {
     activeSellerGroups,
     orgsForLimits,
     onboardingIncomplete,
+    pendingErasure,
   ] = await Promise.all([
     prisma.user.count({ where: { deletedAt: null } }),
     prisma.organization.groupBy({
@@ -264,6 +270,9 @@ export async function fetchPlatformOverview(): Promise<PlatformOverview> {
         currency: null,
         user: { deletedAt: null },
       },
+    }),
+    prisma.user.count({
+      where: { erasureScheduledAt: { not: null } },
     }),
   ]);
 
@@ -340,6 +349,7 @@ export async function fetchPlatformOverview(): Promise<PlatformOverview> {
     orderLimitReached,
     eventLimitReached,
     onboardingIncomplete,
+    pendingErasure,
   };
 }
 
@@ -361,6 +371,7 @@ export type PlatformTenantRow = {
   storefrontCount: number;
   lastOrderAt: string | null;
   onboardingComplete: boolean;
+  erasureScheduledAt: string | null;
 };
 
 export type PlatformTenantsResult = {
@@ -384,22 +395,33 @@ export async function fetchPlatformTenants(opts: {
   const { page, pageSize, search, sort, order, usageFilter } = opts;
   const searchTrim = search?.trim();
 
-  const where = {
-    deletedAt: null,
-    ...(searchTrim
-      ? {
-          OR: [
-            { email: { contains: searchTrim, mode: "insensitive" as const } },
-            { name: { contains: searchTrim, mode: "insensitive" as const } },
-            {
-              organization: {
-                name: { contains: searchTrim, mode: "insensitive" as const },
-              },
+  const searchClause = searchTrim
+    ? {
+        OR: [
+          { email: { contains: searchTrim, mode: "insensitive" as const } },
+          { name: { contains: searchTrim, mode: "insensitive" as const } },
+          {
+            organization: {
+              name: { contains: searchTrim, mode: "insensitive" as const },
             },
+          },
+        ],
+      }
+    : null;
+
+  const visibilityClause =
+    usageFilter === "erasurePending"
+      ? { erasureScheduledAt: { not: null } }
+      : {
+          OR: [
+            { deletedAt: null },
+            { erasureScheduledAt: { not: null } },
           ],
-        }
-      : {}),
-  };
+        };
+
+  const where = searchClause
+    ? { AND: [visibilityClause, searchClause] }
+    : visibilityClause;
 
   const users = await prisma.user.findMany({
     where,
@@ -408,6 +430,7 @@ export async function fetchPlatformTenants(opts: {
       email: true,
       name: true,
       createdAt: true,
+      erasureScheduledAt: true,
       organization: {
         select: {
           plan: true,
@@ -490,6 +513,7 @@ export async function fetchPlatformTenants(opts: {
       storefrontCount: u._count.storefronts,
       lastOrderAt: lastOrder ? lastOrder.toISOString() : null,
       onboardingComplete: org?.currency != null,
+      erasureScheduledAt: u.erasureScheduledAt?.toISOString() ?? null,
     };
   });
 

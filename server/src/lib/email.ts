@@ -1,5 +1,6 @@
 import type { Prisma } from "../../../src/generated/prisma/client";
 import { Resend } from "resend";
+import { LEGAL_ENTITY } from "./legalConstants";
 
 /** Order row + images for seller notification (image count only; no thumbnails in HTML). */
 export type OrderForEmail = {
@@ -437,6 +438,36 @@ export function buildSellerToBuyerEmailHtml(data: {
 </html>`;
 }
 
+function appBaseUrl(): string {
+  return (
+    process.env.APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+}
+
+export function buildEmailLegalFooter(options?: {
+  transactional?: boolean;
+}): string {
+  const privacyUrl = `${appBaseUrl()}/privacy`;
+  const purpose = options?.transactional
+    ? `<p style="margin:0 0 8px;font-size:12px;color:#6B7280;">This email was sent to fulfil your order (transactional).</p>`
+    : "";
+  return `${purpose}<p style="margin:16px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;font-size:12px;color:#6B7280;line-height:1.5;">
+    ${escapeHtml(LEGAL_ENTITY.name)} · ${escapeHtml(LEGAL_ENTITY.address)}<br/>
+    <a href="mailto:${escapeHtml(LEGAL_ENTITY.contactEmail)}" style="color:#2563eb;">${escapeHtml(LEGAL_ENTITY.contactEmail)}</a>
+    · <a href="${escapeHtml(privacyUrl)}" style="color:#2563eb;">Privacy Policy</a>
+  </p>`;
+}
+
+function injectEmailLegalFooter(html: string, transactional?: boolean): string {
+  const footer = buildEmailLegalFooter({ transactional });
+  if (html.includes("</body>")) {
+    return html.replace("</body>", `${footer}</body>`);
+  }
+  return `${html}${footer}`;
+}
+
 export async function sendEmail(data: {
   to: string;
   from?: string;
@@ -445,6 +476,11 @@ export async function sendEmail(data: {
   html: string;
   attachments?: EmailAttachment[];
   resendApiKey?: string;
+  /** Skip legal footer (internal only). */
+  skipLegalFooter?: boolean;
+  transactional?: boolean;
+  /** Marketing-adjacent: adds List-Unsubscribe header. */
+  marketing?: boolean;
 }): Promise<void> {
   const key = data.resendApiKey?.trim() || process.env.RESEND_API_KEY?.trim();
   if (!key) {
@@ -452,13 +488,26 @@ export async function sendEmail(data: {
     return;
   }
 
+  const html = data.skipLegalFooter
+    ? data.html
+    : injectEmailLegalFooter(data.html, data.transactional ?? true);
+
   const resend = new Resend(key);
+  const unsubscribeUrl = `${appBaseUrl()}/dashboard/settings?unsubscribe=1`;
   await resend.emails.send({
     from: data.from?.trim() || defaultFromAddress(),
     to: data.to,
     ...(data.replyTo?.trim() ? { replyTo: data.replyTo.trim() } : {}),
     subject: data.subject,
-    html: data.html,
+    html,
+    ...(data.marketing
+      ? {
+          headers: {
+            "List-Unsubscribe": `<${unsubscribeUrl}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
+        }
+      : {}),
     ...(data.attachments?.length
       ? {
           attachments: data.attachments.map((a) => ({
@@ -630,6 +679,8 @@ export async function sendEarlyAccessHeadsUpEmail(data: {
     from: platformFromAddress(),
     subject: "Your Magnetoo early access ends soon",
     html: buildEarlyAccessHeadsUpHtml(data),
+    marketing: true,
+    transactional: false,
   });
 }
 
@@ -674,5 +725,7 @@ export async function sendEarlyAccessExpiryEmail(data: {
     from: platformFromAddress(),
     subject: "Your Magnetoo early access has ended",
     html: buildEarlyAccessExpiryHtml(data),
+    marketing: true,
+    transactional: false,
   });
 }

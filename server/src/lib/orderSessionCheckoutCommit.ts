@@ -405,6 +405,7 @@ export function toOrderCustomerInsertFromValidated(
 export async function runOrderCommitTransaction(
   prepared: PreparedOrderCommit,
   customer: OrderCustomerInsert,
+  consent?: { consentAcceptedAt: Date; consentVersion: string },
 ): Promise<CommitResult> {
   const {
     sessionRowId,
@@ -507,6 +508,12 @@ export async function runOrderCommitTransaction(
             ? Prisma.JsonNull
             : (customer.shippingAddress as Prisma.InputJsonValue),
       eventPaymentPreference: customer?.eventPaymentPreference ?? null,
+      ...(consent
+        ? {
+            consentAcceptedAt: consent.consentAcceptedAt,
+            consentVersion: consent.consentVersion,
+          }
+        : {}),
       ...(customerId ? { customer: { connect: { id: customerId } } } : {}),
     };
     await tx.order.create({ data: orderCreate });

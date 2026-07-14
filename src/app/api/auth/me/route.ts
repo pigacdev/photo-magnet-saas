@@ -5,6 +5,7 @@ import { syncOrganizationBillingFromClerk } from "@/lib/clerkBillingSync";
 import { prisma } from "@/lib/prisma";
 import { buildOrganizationUsage } from "../../../../../server/src/lib/organizationUsage";
 import { isPlatformOwnerEmail } from "../../../../../server/src/lib/platformOwner";
+import { needsLegalReconsent } from "../../../../../server/src/lib/legalConstants";
 import { getEarlyAccessStatus } from "@/lib/earlyAccessDb";
 
 export const dynamic = "force-dynamic";
@@ -56,7 +57,16 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
       where: { id: synced.id, deletedAt: null },
-      select: { id: true, email: true, name: true, role: true, clerkId: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        clerkId: true,
+        legalAcceptedAt: true,
+        legalVersion: true,
+        erasureScheduledAt: true,
+      },
     });
 
     if (!user) {
@@ -85,7 +95,19 @@ export async function GET() {
     ]);
 
     return NextResponse.json({
-      user,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        legalAcceptedAt: user.legalAcceptedAt?.toISOString() ?? null,
+        legalVersion: user.legalVersion,
+        needsLegalReconsent: needsLegalReconsent(
+          user.legalAcceptedAt,
+          user.legalVersion,
+        ),
+        erasureScheduledAt: user.erasureScheduledAt?.toISOString() ?? null,
+      },
       organization,
       isPlatformOwner: isPlatformOwnerEmail(email),
       earlyAccess: {

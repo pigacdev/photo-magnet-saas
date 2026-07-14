@@ -11,6 +11,7 @@ import {
   withBannerCacheBust,
 } from "../lib/eventBannerStorage";
 import { validateEventNameInput } from "../../../src/lib/eventName";
+import { logAuditEvent } from "../lib/privacyAuditLog";
 import {
   enrichEvent,
   isEventConfigurationComplete,
@@ -559,7 +560,7 @@ eventsRouter.delete("/:id/banner", async (req, res) => {
 
 eventsRouter.delete("/:id", async (req, res) => {
   const userId = req.user!.userId;
-  const { id } = req.params;
+  const id = String(req.params.id ?? "");
 
   if (req.user!.role !== "ADMIN") {
     res.status(403).json({ error: "Only admins can delete events" });
@@ -575,9 +576,25 @@ eventsRouter.delete("/:id", async (req, res) => {
     return;
   }
 
+  const [seller, orderCount] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { email: true } }),
+    prisma.order.count({
+      where: { contextType: "EVENT", contextId: id },
+    }),
+  ]);
+
   await prisma.event.update({
     where: { id },
     data: { deletedAt: new Date() },
+  });
+
+  await logAuditEvent({
+    action: "event_deleted",
+    actorEmail: seller?.email,
+    organizationId: userId,
+    targetType: "event",
+    targetId: id,
+    metadata: { name: existing.name, orderCount },
   });
 
   res.json({ success: true });

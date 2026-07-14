@@ -32,6 +32,7 @@ export type PlatformOverview = {
   orderLimitReached: number;
   eventLimitReached: number;
   onboardingIncomplete: number;
+  pendingErasure: number;
 };
 
 export type PlatformTenant = {
@@ -52,6 +53,7 @@ export type PlatformTenant = {
   storefrontCount: number;
   lastOrderAt: string | null;
   onboardingComplete: boolean;
+  erasureScheduledAt: string | null;
 };
 
 export type PlatformTenantsResponse = {
@@ -69,7 +71,8 @@ export type PlatformTenantUsageFilter =
   | "nearEventLimit"
   | "orderLimitReached"
   | "eventLimitReached"
-  | "onboardingIncomplete";
+  | "onboardingIncomplete"
+  | "erasurePending";
 
 export const USAGE_FILTER_LABELS: Record<PlatformTenantUsageFilter, string> = {
   nearOrderLimit: "Near order limit",
@@ -77,6 +80,7 @@ export const USAGE_FILTER_LABELS: Record<PlatformTenantUsageFilter, string> = {
   orderLimitReached: "Order limit reached",
   eventLimitReached: "Event limit reached",
   onboardingIncomplete: "Onboarding incomplete",
+  erasurePending: "Pending deletion",
 };
 
 export type PlatformEarlyAccessRow = {

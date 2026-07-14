@@ -123,7 +123,7 @@ export async function runEarlyAccessCleanupJob(): Promise<{
       plan: true,
       grantLifetimeDiscount: true,
       clerkPlanSlug: true,
-      user: { select: { email: true, name: true } },
+      user: { select: { email: true, name: true, marketingEmailsOptOut: true } },
     },
   });
 
@@ -140,13 +140,15 @@ export async function runEarlyAccessCleanupJob(): Promise<{
         },
       });
 
-      await sendEarlyAccessExpiryEmail({
-        to: org.user.email,
-        sellerName: org.user.name,
-        newPlanLabel: planDisplayName(org.plan),
-        hasLifetimeDiscount: org.grantLifetimeDiscount,
-        billingUrl: billingPageUrl(),
-      });
+      if (!org.user.marketingEmailsOptOut) {
+        await sendEarlyAccessExpiryEmail({
+          to: org.user.email,
+          sellerName: org.user.name,
+          newPlanLabel: planDisplayName(org.plan),
+          hasLifetimeDiscount: org.grantLifetimeDiscount,
+          billingUrl: billingPageUrl(),
+        });
+      }
 
       processed += 1;
     } catch (err) {
@@ -178,7 +180,7 @@ export async function runEarlyAccessHeadsUpJob(): Promise<{
     select: {
       id: true,
       earlyAccessExpiresAt: true,
-      user: { select: { email: true, name: true } },
+      user: { select: { email: true, name: true, marketingEmailsOptOut: true } },
     },
   });
 
@@ -188,12 +190,14 @@ export async function runEarlyAccessHeadsUpJob(): Promise<{
   for (const org of orgs) {
     if (!org.earlyAccessExpiresAt) continue;
     try {
-      await sendEarlyAccessHeadsUpEmail({
-        to: org.user.email,
-        sellerName: org.user.name,
-        expiresAt: org.earlyAccessExpiresAt,
-        billingUrl: billingPageUrl(),
-      });
+      if (!org.user.marketingEmailsOptOut) {
+        await sendEarlyAccessHeadsUpEmail({
+          to: org.user.email,
+          sellerName: org.user.name,
+          expiresAt: org.earlyAccessExpiresAt,
+          billingUrl: billingPageUrl(),
+        });
+      }
       await prisma.organization.update({
         where: { id: org.id },
         data: { earlyAccessHeadsUpSentAt: new Date() },

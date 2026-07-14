@@ -1,4 +1,5 @@
 import type { ContextType } from "../../../src/generated/prisma/client";
+import { CURRENT_POLICY_VERSION } from "./legalConstants";
 import {
   isStructuredShippingAddressComplete,
   parseShippingAddressFromJson,
@@ -122,6 +123,30 @@ export function isStorefrontCustomerComplete(order: {
     return parsed.kind === "locker" && parsed.lockerId.length > 0;
   }
   return false;
+}
+
+/** Buyer must explicitly accept Terms/Privacy before order finalize. */
+export function validateCheckoutConsent(body: unknown): { error: string } | { ok: true } {
+  if (!body || typeof body !== "object") {
+    return { error: "Invalid JSON body" };
+  }
+  const accepted = (body as { consentAccepted?: unknown }).consentAccepted;
+  if (accepted !== true) {
+    return {
+      error: "You must agree to the Privacy Policy and Terms of Service",
+    };
+  }
+  return { ok: true };
+}
+
+export function checkoutConsentFields(): {
+  consentAcceptedAt: Date;
+  consentVersion: string;
+} {
+  return {
+    consentAcceptedAt: new Date(),
+    consentVersion: CURRENT_POLICY_VERSION,
+  };
 }
 
 export function validateOrderCustomerBody(

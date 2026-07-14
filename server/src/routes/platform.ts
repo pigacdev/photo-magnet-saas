@@ -44,6 +44,7 @@ platformRouter.get("/tenants", async (req: Request, res: Response) => {
     "orderLimitReached",
     "eventLimitReached",
     "onboardingIncomplete",
+    "erasurePending",
   ] as const;
   const usageFilter = usageFilters.includes(
     usageFilterRaw as (typeof usageFilters)[number],
@@ -72,7 +73,7 @@ platformRouter.get("/early-access", async (_req: Request, res: Response) => {
 platformRouter.patch(
   "/early-access/:orgId",
   async (req: Request, res: Response) => {
-    const orgId = req.params.orgId;
+    const orgId = String(req.params.orgId ?? "").trim();
     const body = req.body as { grantLifetimeDiscount?: unknown };
     if (typeof body.grantLifetimeDiscount !== "boolean") {
       res.status(400).json({ error: "grantLifetimeDiscount must be a boolean" });
@@ -84,5 +85,91 @@ platformRouter.patch(
       return;
     }
     res.json({ ok: true, grantLifetimeDiscount: body.grantLifetimeDiscount });
+  },
+);
+
+/** GET /api/platform/tenants/:orgId — seller detail for platform owner. */
+platformRouter.get("/tenants/:orgId", async (req: Request, res: Response) => {
+  const orgId = String(req.params.orgId ?? "").trim();
+  const { prisma } = await import("../lib/prisma");
+  const user = await prisma.user.findUnique({
+    where: { id: orgId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      createdAt: true,
+      deletedAt: true,
+      erasureScheduledAt: true,
+      organization: {
+        select: {
+          plan: true,
+          name: true,
+          currency: true,
+          ordersThisMonth: true,
+          orderLimit: true,
+        },
+      },
+    },
+  });
+  if (!user) {
+    res.status(404).json({ error: "Tenant not found" });
+    return;
+  }
+  res.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    businessName: user.organization?.name,
+    plan: user.organization?.plan,
+    createdAt: user.createdAt.toISOString(),
+    deletedAt: user.deletedAt?.toISOString() ?? null,
+    erasureScheduledAt: user.erasureScheduledAt?.toISOString() ?? null,
+    currency: user.organization?.currency,
+    ordersThisMonth: user.organization?.ordersThisMonth,
+    orderLimit: user.organization?.orderLimit,
+  });
+});
+
+/** DELETE /api/platform/tenants/:orgId — schedule account erasure. */
+platformRouter.delete("/tenants/:orgId", async (req: Request, res: Response) => {
+  const orgId = String(req.params.orgId ?? "").trim();
+  const { prisma } = await import("../lib/prisma");
+  const { scheduleSellerAccountErasure } = await import("../lib/accountErasure");
+  const ownerEmail = (req as Request & { platformOwnerEmail?: string }).platformOwnerEmail;
+
+  const user = await prisma.user.findUnique({
+    where: { id: orgId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!user) {
+    res.status(404).json({ error: "Tenant not found or already deleted" });
+    return;
+  }
+
+  const result = await scheduleSellerAccountErasure({
+    userId: orgId,
+    actorEmail: ownerEmail ?? undefined,
+    reason: "platform_owner",
+  });
+  res.json({
+    ok: true,
+    erasureScheduledAt: result.erasureScheduledAt.toISOString(),
+  });
+});
+
+/** POST /api/platform/tenants/:orgId/cancel-erasure */
+platformRouter.post(
+  "/tenants/:orgId/cancel-erasure",
+  async (req: Request, res: Response) => {
+    const orgId = String(req.params.orgId ?? "").trim();
+    const { cancelScheduledAccountErasure } = await import("../lib/accountErasure");
+    const ownerEmail = (req as Request & { platformOwnerEmail?: string }).platformOwnerEmail;
+
+    await cancelScheduledAccountErasure({
+      userId: orgId,
+      actorEmail: ownerEmail ?? undefined,
+    });
+    res.json({ ok: true });
   },
 );

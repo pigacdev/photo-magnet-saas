@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ClerkAuthHeader } from "@/components/auth/ClerkAuthHeader";
 import { ClerkTokenBridge } from "@/components/auth/ClerkTokenBridge";
+import { CookieNotice } from "@/components/CookieNotice";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { clerkAppearance } from "@/lib/clerkAppearance";
 import "./globals.css";
@@ -45,6 +46,7 @@ export default function RootLayout({
             <ClerkTokenBridge />
             <ClerkAuthHeader />
             {children}
+            <CookieNotice />
           </ThemeProvider>
         </ClerkProvider>
       </body>

@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { api } from "@/lib/api";
 import { formatOrderReference } from "@/lib/orderReference";
 import {
   ORDER_STATUS_BADGE_CLASS,
@@ -62,6 +64,10 @@ export function CustomerDetailModal({
   orders,
   onClose,
 }: CustomerDetailModalProps) {
+  const { getToken } = useAuth();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
+
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
@@ -185,6 +191,112 @@ export function CustomerDetailModal({
                   </div>
                 )}
               </div>
+
+              {customer ? (
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
+                  <button
+                    type="button"
+                    disabled={busy != null}
+                    onClick={() => {
+                      if (!customer) return;
+                      setBusy("export");
+                      setActionError("");
+                      void (async () => {
+                        try {
+                          const token = await getToken();
+                          const res = await fetch(
+                            `/api/customers/${encodeURIComponent(customer.id)}/export.zip`,
+                            {
+                              credentials: "include",
+                              headers: token
+                                ? { Authorization: `Bearer ${token}` }
+                                : {},
+                            },
+                          );
+                          if (!res.ok) throw new Error("Export failed");
+                          const blob = await res.blob();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `customer-${customer.id}.zip`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch (e) {
+                          setActionError(
+                            e instanceof Error ? e.message : "Export failed",
+                          );
+                        } finally {
+                          setBusy(null);
+                        }
+                      })();
+                    }}
+                    className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface disabled:opacity-50"
+                  >
+                    {busy === "export" ? "Exporting…" : "Export data (ZIP)"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy != null}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          "Delete all images for this customer across their orders?",
+                        )
+                      ) {
+                        return;
+                      }
+                      setBusy("images");
+                      setActionError("");
+                      void api(
+                        `/api/customers/${encodeURIComponent(customer.id)}/images`,
+                        { method: "DELETE" },
+                      )
+                        .catch((e) =>
+                          setActionError(
+                            e instanceof Error ? e.message : "Delete failed",
+                          ),
+                        )
+                        .finally(() => setBusy(null));
+                    }}
+                    className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {busy === "images" ? "Deleting…" : "Delete all images"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy != null}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          "Erase all personal data for this customer? Order records stay but contact details are anonymized.",
+                        )
+                      ) {
+                        return;
+                      }
+                      setBusy("pii");
+                      setActionError("");
+                      void api(
+                        `/api/customers/${encodeURIComponent(customer.id)}/erase-pii`,
+                        { method: "POST" },
+                      )
+                        .then(() => onClose())
+                        .catch((e) =>
+                          setActionError(
+                            e instanceof Error ? e.message : "Erasure failed",
+                          ),
+                        )
+                        .finally(() => setBusy(null));
+                    }}
+                    className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {busy === "pii" ? "Erasing…" : "Erase personal data"}
+                  </button>
+                </div>
+              ) : null}
+
+              {actionError ? (
+                <p className="mt-2 text-sm text-red-600">{actionError}</p>
+              ) : null}
             </>
           ) : (
             <p className="text-sm text-red-600">Could not load customer.</p>

@@ -38,6 +38,7 @@ import {
 } from "@/lib/orderContextDisplay";
 import { formatOrderReference } from "@/lib/orderReference";
 import { OrderImageSelectCard } from "@/components/dashboard/OrderImageSelectCard";
+import { OrderImageDeleteConfirmModal } from "@/components/dashboard/OrderImageDeleteConfirmModal";
 import { invalidateNewOrdersCount } from "@/lib/newOrdersCount";
 import { useOrganizationUsage } from "@/hooks/useOrganizationUsage";
 import { usageHasFeature } from "@/lib/planFeatures";
@@ -73,6 +74,7 @@ type SellerOrderDetail = {
     renderedUrl: string | null;
     /** Present when retention cleanup removed blobs; UI may show placeholder instead of `<img>`. */
     mediaDeletedAt: string | null;
+    deletedAt?: string | null;
     position: number;
     shapeId: string;
     shapeType: string;
@@ -92,7 +94,12 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<
-    "printPreview" | "printSelected" | "markPrinted" | "status" | null
+    | "printPreview"
+    | "printSelected"
+    | "markPrinted"
+    | "status"
+    | "deleteImages"
+    | null
   >(null);
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
   /** Stays true until staggered PDF opens finish — avoids double POST / duplicate tabs. */
@@ -105,6 +112,7 @@ export default function OrderDetailPage() {
   const [sendEmailOpen, setSendEmailOpen] = useState(false);
   const [sendEmailUpgradeOpen, setSendEmailUpgradeOpen] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [deleteImagesConfirmOpen, setDeleteImagesConfirmOpen] = useState(false);
   /** After a successful "Print order", ask before marking — reinforces preview → confirm flow. */
   const [printOutcomePrompt, setPrintOutcomePrompt] = useState(false);
   const [referenceCopied, setReferenceCopied] = useState(false);
@@ -159,17 +167,24 @@ export default function OrderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load when id changes
   }, [id]);
 
-  const toggleImageSelected = useCallback((imageId: string) => {
-    setSelectedImageIds((prev) =>
-      prev.includes(imageId)
-        ? prev.filter((i) => i !== imageId)
-        : [...prev, imageId],
-    );
-  }, []);
+  const toggleImageSelected = useCallback(
+    (imageId: string) => {
+      const img = order?.images.find((i) => i.id === imageId);
+      if (img?.deletedAt || img?.mediaDeletedAt) return;
+      setSelectedImageIds((prev) =>
+        prev.includes(imageId)
+          ? prev.filter((i) => i !== imageId)
+          : [...prev, imageId],
+      );
+    },
+    [order],
+  );
 
   const printableImages = useMemo(
     () =>
-      order?.images.filter((img) => img.mediaDeletedAt == null) ?? [],
+      order?.images.filter(
+        (img) => img.mediaDeletedAt == null && !img.deletedAt,
+      ) ?? [],
     [order],
   );
 
@@ -177,7 +192,9 @@ export default function OrderDetailPage() {
     () =>
       order !== null &&
       order.images.length > 0 &&
-      order.images.every((img) => img.mediaDeletedAt != null),
+      order.images.every(
+        (img) => img.mediaDeletedAt != null || img.deletedAt != null,
+      ),
     [order],
   );
 
@@ -386,6 +403,27 @@ export default function OrderDetailPage() {
       refreshOrder();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update");
+    } finally {
+      setActionBusy(null);
+    }
+  }
+
+  async function deleteSelectedImages() {
+    if (!id || selectedImageIds.length === 0) return;
+    setActionBusy("deleteImages");
+    setError(null);
+    try {
+      for (const imageId of selectedImageIds) {
+        await api(
+          `/api/orders/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}`,
+          { method: "DELETE" },
+        );
+      }
+      setSelectedImageIds([]);
+      setDeleteImagesConfirmOpen(false);
+      refreshOrder();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not delete images");
     } finally {
       setActionBusy(null);
     }
@@ -803,7 +841,7 @@ export default function OrderDetailPage() {
                   </button>
                 </div>
                 <ul className="mt-4 flex flex-wrap gap-3">
-                  {printableImages.map((img) => (
+                  {order.images.map((img) => (
                     <li key={img.id}>
                       <OrderImageSelectCard
                         renderedUrl={img.renderedUrl}
@@ -814,6 +852,9 @@ export default function OrderDetailPage() {
                         }}
                         copies={img.copies ?? 1}
                         printed={img.printed}
+                        removed={
+                          img.mediaDeletedAt != null || img.deletedAt != null
+                        }
                         selected={selectedImageIds.includes(img.id)}
                         onToggle={() => toggleImageSelected(img.id)}
                       />
@@ -832,6 +873,14 @@ export default function OrderDetailPage() {
                   {selectedImageIds.length} selected
                 </p>
                 <div className="flex flex-wrap items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={actionBusy !== null}
+                    onClick={() => setDeleteImagesConfirmOpen(true)}
+                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-300 dark:hover:bg-red-950/40"
+                  >
+                    {actionBusy === "deleteImages" ? "Deleting…" : "Delete selected"}
+                  </button>
                   <button
                     type="button"
                     disabled={
@@ -908,6 +957,16 @@ export default function OrderDetailPage() {
           if (actionBusy !== "markPrinted") setPrintOutcomePrompt(false);
         }}
         onConfirm={() => void markPrinted()}
+      />
+
+      <OrderImageDeleteConfirmModal
+        open={deleteImagesConfirmOpen}
+        imageCount={selectedImageIds.length}
+        saving={actionBusy === "deleteImages"}
+        onClose={() => {
+          if (actionBusy !== "deleteImages") setDeleteImagesConfirmOpen(false);
+        }}
+        onConfirm={() => void deleteSelectedImages()}
       />
 
     </div>

@@ -109,6 +109,14 @@ model User {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   deletedAt    DateTime?
+  /// When seller accepted Terms/Privacy (mirrored from Clerk or re-consent modal).
+  legalAcceptedAt DateTime?
+  /// Policy version accepted (see legalConstants).
+  legalVersion    String?
+  /// Hard purge scheduled after soft-delete (account erasure grace period).
+  erasureScheduledAt DateTime?
+  /// Opt out of marketing-adjacent emails (early access notices).
+  marketingEmailsOptOut Boolean @default(false)
   events       Event[]
   organization Organization?
   storefronts  Storefront[]
@@ -300,6 +308,11 @@ model Order {
   eventPaymentPreference  String?
   /// Optional seller note when order is cancelled.
   cancellationNote        String?
+  /// Buyer acknowledged Privacy/Terms at checkout.
+  consentAcceptedAt       DateTime?
+  consentVersion          String?
+  /// When buyer PII on this order was anonymized (GDPR erasure).
+  buyerPiiErasedAt        DateTime?
   /// Future: 6-char A–Z0–9 display id for UI and print (generated when implemented).
   shortCode               String?           @unique
   organization            Organization      @relation(fields: [organizationId], references: [id])
@@ -340,6 +353,9 @@ model OrderImage {
   printedAt    DateTime?
   /// Order-media blobs removed by retention cleanup (`uploads/order-images*`, matching S3 keys); row retained.
   mediaDeletedAt DateTime?
+  /// Seller-initiated GDPR deletion; blob removed, row kept as tombstone.
+  deletedAt      DateTime?
+  deletedReason  String?
   order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   allowedShape AllowedShape @relation(fields: [shapeId], references: [id])
 
@@ -421,4 +437,21 @@ enum Plan {
   FREE
   HOBBY
   PRO
+}
+
+/// Audit trail for GDPR erasure and DSAR actions.
+model PrivacyAuditLog {
+  id             String   @id @default(uuid())
+  action         String
+  actorEmail     String?
+  organizationId String?
+  targetType     String?
+  targetId       String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([action])
+  @@index([targetId])
+  @@index([createdAt])
+  @@index([organizationId])
 }

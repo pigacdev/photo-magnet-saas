@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   CartesianGrid,
@@ -471,7 +472,15 @@ export default function PlatformPage() {
       </div>
 
       {!overviewLoading && overview != null ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <AlertFilterCard
+            title="Pending deletion"
+            count={overview.pendingErasure ?? 0}
+            subtitle="Grace period before purge"
+            variant="red"
+            active={usageFilter === "erasurePending"}
+            onClick={() => toggleUsageFilter("erasurePending")}
+          />
           <AlertFilterCard
             title="Near order limit"
             count={overview.nearOrderLimit}
@@ -621,18 +630,19 @@ export default function PlatformPage() {
                 <th className="px-4 py-3 font-medium">Lifetime GMV</th>
                 <th className="px-4 py-3 font-medium">Last order</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {tenantLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                     Loading sellers…
                   </td>
                 </tr>
               ) : tenants.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                     {usageFilter
                       ? "No sellers match this filter."
                       : "No sellers found."}
@@ -642,7 +652,11 @@ export default function PlatformPage() {
                 tenants.map((t) => (
                   <tr
                     key={t.id}
-                    className="border-b border-border last:border-0 hover:bg-surface/40"
+                    className={`border-b border-border last:border-0 hover:bg-surface/40 ${
+                      t.erasureScheduledAt
+                        ? "bg-amber-50/40 dark:bg-amber-950/15"
+                        : ""
+                    }`}
                   >
                     <td className="px-4 py-3">
                       <p className="font-medium text-foreground">{t.email}</p>
@@ -670,7 +684,14 @@ export default function PlatformPage() {
                       {formatDate(t.lastOrderAt)}
                     </td>
                     <td className="px-4 py-3">
-                      {t.onboardingComplete ? (
+                      {t.erasureScheduledAt ? (
+                        <span className="inline-flex max-w-[11rem] flex-col rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium leading-snug text-red-800 dark:bg-red-950/40 dark:text-red-300">
+                          <span>Deletion scheduled</span>
+                          <span className="font-normal opacity-90">
+                            {formatDate(t.erasureScheduledAt)}
+                          </span>
+                        </span>
+                      ) : t.onboardingComplete ? (
                         <span className="text-xs text-green-700 dark:text-green-400">
                           Active
                         </span>
@@ -679,6 +700,14 @@ export default function PlatformPage() {
                           Setup pending
                         </span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/platform/tenants/${t.id}`}
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        Manage
+                      </Link>
                     </td>
                   </tr>
                 ))
