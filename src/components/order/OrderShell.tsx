@@ -4,6 +4,7 @@ import type { OrderContentWidth } from "./orderUi";
 import { orderContentWidthClass } from "./orderUi";
 import { EventEntryBanner } from "./EventEntryBanner";
 import { useOrderFlowBanner } from "./OrderFlowBannerContext";
+import { LegalFooter } from "@/components/LegalFooter";
 
 export type OrderShellProps = {
   children: React.ReactNode;
@@ -38,10 +39,11 @@ export function OrderShell({
         </div>
       ) : null}
       <div
-        className={`mx-auto flex w-full flex-1 flex-col px-4 ${bannerUrl ? "" : "pt-8"} ${orderContentWidthClass(contentWidth)}`}
+        className={`mx-auto flex w-full flex-1 flex-col px-4 pb-8 ${bannerUrl ? "" : "pt-8"} ${orderContentWidthClass(contentWidth)}`}
       >
         {children}
       </div>
+      <LegalFooter compact openLinksInNewTab className="mt-auto" />
       {bottomBar}
     </div>
   );

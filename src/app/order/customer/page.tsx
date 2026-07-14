@@ -42,6 +42,7 @@ import {
   normalizeLegacyShippingType,
   type StorefrontShippingType,
 } from "@/lib/shippingTypes";
+import { LEGAL_LINKS, LEGAL_RETENTION_DEFAULTS } from "@/lib/legalConstants";
 
 const orderInputClass =
   "rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none ring-primary focus:ring-2";
@@ -125,6 +126,7 @@ function CustomerPageInner() {
   const [storefrontPickupAddress, setStorefrontPickupAddress] =
     useState<StructuredShippingAddress | null>(null);
   const [liveQueryForReviewBack, setLiveQueryForReviewBack] = useState("");
+  const [consentAccepted, setConsentAccepted] = useState(false);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -362,6 +364,7 @@ function CustomerPageInner() {
 
         const body: Record<string, unknown> = {
           ...customerOnly,
+          consentAccepted: true,
         };
         const copyRows = readCheckoutImageCopies();
         if (copyRows.length > 0) {
@@ -751,9 +754,50 @@ function CustomerPageInner() {
             </p>
           )}
 
+          {!isSubmittedOrderEdit ? (
+            <p className="text-sm text-muted-foreground" role="note">
+              Your uploaded photos are stored only as long as needed to fulfil this
+              order. Order image files are automatically deleted{" "}
+              {LEGAL_RETENTION_DEFAULTS.orderMediaDays} days after fulfilment (see
+              our{" "}
+              <Link
+                href={LEGAL_LINKS.privacy}
+                className="text-primary underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Privacy Policy
+              </Link>
+              ).
+            </p>
+          ) : null}
+
+          {!isSubmittedOrderEdit ? (
+            <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border bg-background p-3">
+              <input
+                type="checkbox"
+                checked={consentAccepted}
+                onChange={(e) => setConsentAccepted(e.target.checked)}
+                className="mt-0.5"
+                required
+              />
+              <span className="text-sm text-foreground">
+                I agree to the{" "}
+                <Link href={LEGAL_LINKS.terms} className="text-primary underline" target="_blank">
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link href={LEGAL_LINKS.privacy} className="text-primary underline" target="_blank">
+                  Privacy Policy
+                </Link>
+                .
+              </span>
+            </label>
+          ) : null}
+
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || (!isSubmittedOrderEdit && !consentAccepted)}
             className={orderBtnPrimary}
           >
             {saving
