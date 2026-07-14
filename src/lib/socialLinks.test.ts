@@ -6,6 +6,8 @@ const ENV_KEYS = [
   "NEXT_PUBLIC_SOCIAL_FACEBOOK_URL",
   "NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL",
   "NEXT_PUBLIC_SOCIAL_DISCORD_URL",
+  "NEXT_PUBLIC_SOCIAL_YOUTUBE_URL",
+  "NEXT_PUBLIC_SOCIAL_TIKTOK_URL",
 ] as const;
 
 describe("getSocialLinks", () => {
@@ -40,6 +42,10 @@ describe("getSocialLinks", () => {
     process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL =
       "https://instagram.com/magnetoo";
     process.env.NEXT_PUBLIC_SOCIAL_DISCORD_URL = "https://discord.gg/invite";
+    process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE_URL =
+      "https://www.youtube.com/@magnetoo";
+    process.env.NEXT_PUBLIC_SOCIAL_TIKTOK_URL =
+      "https://www.tiktok.com/@magnetoo";
 
     assert.deepEqual(getSocialLinks(), [
       {
@@ -56,6 +62,16 @@ describe("getSocialLinks", () => {
         platform: "discord",
         label: "Discord",
         href: "https://discord.gg/invite",
+      },
+      {
+        platform: "youtube",
+        label: "YouTube",
+        href: "https://www.youtube.com/@magnetoo",
+      },
+      {
+        platform: "tiktok",
+        label: "TikTok",
+        href: "https://www.tiktok.com/@magnetoo",
       },
     ]);
   });
