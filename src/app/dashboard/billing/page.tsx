@@ -140,9 +140,8 @@ function BillingContent() {
           <Link href="/privacy" className="text-primary underline">
             Privacy Policy
           </Link>{" "}
-          and the Data Processing Agreement in{" "}
-          <code className="rounded bg-surface px-1">docs/legal/DPA.md</code> apply
-          to buyer data you process through the platform.
+          and Data Processing Agreement apply to buyer data you process through
+          the platform.
         </p>
       </section>
 
