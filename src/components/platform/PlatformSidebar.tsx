@@ -48,13 +48,13 @@ export function PlatformSidebar({
         >
           <img
             src="/logo-light.png"
-            alt="Magnetoo"
-            className="block h-8 w-auto max-w-[200px] object-contain dark:hidden"
+            alt="Magnetoo Studio"
+            className="block h-9 w-auto max-w-[200px] object-contain dark:hidden"
           />
           <img
             src="/logo-dark.png"
-            alt="Magnetoo"
-            className="hidden h-8 w-auto max-w-[200px] object-contain dark:block"
+            alt="Magnetoo Studio"
+            className="hidden h-9 w-auto max-w-[200px] object-contain dark:block"
           />
         </Link>
       </div>
