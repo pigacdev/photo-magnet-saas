@@ -120,6 +120,15 @@ export function mergeCachedOrganizationUsage(
   usageListeners.forEach((listener) => listener());
 }
 
+/** Bump cached monthly order usage when new orders are detected client-side. */
+export function incrementCachedOrderUsage(delta = 1): void {
+  const usage = getCachedOrganizationUsage();
+  if (!usage || delta <= 0) return;
+  mergeCachedOrganizationUsage({
+    ordersThisMonth: usage.ordersThisMonth + delta,
+  });
+}
+
 export function getCachedOrganizationUsage(): OrganizationUsage | null {
   return cachedOrganization ?? null;
 }

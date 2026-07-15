@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { getCachedOrganizationUsage } from "@/lib/auth";
+import { useOrganizationUsage } from "@/hooks/useOrganizationUsage";
 import { hasUnlimitedEvents, hasUnlimitedOrders } from "@/lib/planCatalog";
 import { getEventUsageLevel, getPlanUsageLevel } from "@/lib/planUsage";
 
@@ -37,7 +37,7 @@ function UsageAlert({
 }
 
 export function PlanUsageAlertBanner() {
-  const usage = getCachedOrganizationUsage();
+  const usage = useOrganizationUsage();
   if (!usage) return null;
 
   const orderLevel = hasUnlimitedOrders(usage.orderLimit)

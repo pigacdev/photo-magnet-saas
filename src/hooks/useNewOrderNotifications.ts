@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { incrementCachedOrderUsage } from "@/lib/auth";
 import { invalidateNewOrdersCount } from "@/lib/newOrdersCount";
 
 export type NewOrderNotificationItem = {
@@ -50,6 +51,7 @@ export function useNewOrderNotifications() {
           }, lastSeenAtRef.current.getTime());
           lastSeenAtRef.current = new Date(latestCreatedAt);
           setQueue((prev) => [...prev, ...fresh]);
+          incrementCachedOrderUsage(fresh.length);
           invalidateNewOrdersCount();
         }
       } catch {
