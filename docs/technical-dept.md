@@ -77,8 +77,8 @@ Guardrails in place (2026-07-14): shapes carry `productionValidated` in `src/lib
 | ID | Item | Risk | Action |
 |----|------|------|--------|
 | PRINT-1 | **Square 63x63 mm template unvalidated** | Generalized chamfer is a guess; cut guide may not match any real die at this size → wasted materials, broken trust. | Physically validate on a 63 mm square cutter, then set `productionValidated: true` in `src/lib/shapePresets.ts` + add its key to `PRODUCTION_VALIDATED_SHAPE_KEYS` in `server/src/lib/validatedShapes.ts`. |
-| PRINT-2 | **Circle 50 mm template unvalidated** | Circle bleed ring + vector clip + curved brand label unverified against a real circular cutter. | Physically validate, then flip both allowlists as above. |
-| PRINT-3 | **Rectangle 50x70 mm template unvalidated** | Chamfered-rectangle frame with square-derived corner cut unverified against a real rectangular die. | Physically validate, then flip both allowlists as above. |
+| PRINT-2 | **Circle 57 mm template unvalidated** | Circle bleed ring + vector clip + curved brand label unverified against a real 2.25 in circular cutter. | Physically validate, then flip both allowlists as above. |
+| PRINT-3 | **Rectangle 50×76 mm template unvalidated** | Chamfered-rectangle frame with square-derived corner cut unverified against a real 2×3 in die. | Physically validate, then flip both allowlists as above. |
 
 ---
 
@@ -103,6 +103,7 @@ Context: GDPR compliance work (legal pages, consent, DSAR/erasure, retention). S
 
 | Date | Change |
 |------|--------|
+| 2026-07-15 | Shape catalog: Circle 50×50 → 57×57 mm (2.25 in round); Rectangle 50×70 → 50×76 mm (2×3 in). Both remain coming soon until physical cut validation. |
 | 2026-07-15 | Subscription lapse: `revertToFreePlan()` resets usage counters, clears early-access flags (EA-6 resolved), sends transactional lapse email; legacy Stripe uses shared path. |
 | 2026-07-15 | Grace-period login: sellers with scheduled account deletion can sign in again (no P2002); cancel-deletion audit logging unchanged. |
 | 2026-07-14 | Print templates: restricted early-access catalog to validated Square 2x2 in; added PRINT-1..3 debt + guardrails (UI/API/print-gen) and `db:remove-unvalidated-shapes`. |

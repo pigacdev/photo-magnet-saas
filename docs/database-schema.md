@@ -262,7 +262,7 @@ Seller CRM record for buyers (Pro plan feature). Created or updated at order com
 👉 Example:
 
 - Square 50×50
-- Rectangle 50×70
+- Rectangle 50×76
 
 ---
 

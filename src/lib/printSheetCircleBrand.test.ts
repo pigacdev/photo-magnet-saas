@@ -7,11 +7,11 @@ import {
 import { mm, printFrameSizeMm } from "../../server/src/lib/printSheetLayout";
 
 describe("printSheetCircleBrand", () => {
-  it("label radius sits inside circle 50×50 bleed frame", () => {
+  it("label radius sits inside circle 57×57 bleed frame", () => {
     const frame = printFrameSizeMm({
       shapeType: "CIRCLE",
-      widthMm: 50,
-      heightMm: 50,
+      widthMm: 57,
+      heightMm: 57,
     });
     const framePt = mm(frame.w);
     const labelR = circleBrandLabelRadius(framePt);

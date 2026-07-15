@@ -24,7 +24,8 @@ No approximations. No resizing later.
 | --- | --- | --- |
 | Square small | 50×50 mm | 591×591 px |
 | Square large | 63×63 mm | 744×744 px |
-| Rectangle | 50×70 mm | 591×827 px |
+| Circle | 57×57 mm | 673×673 px |
+| Rectangle | 50×76 mm | 591×898 px |
 
 👉 Formula:
 

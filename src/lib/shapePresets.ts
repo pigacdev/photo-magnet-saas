@@ -17,8 +17,8 @@ export type ShapePreset = ShapeInput & { productionValidated: boolean };
 export const SHAPE_PRESET_VALUES: ShapePreset[] = [
   { shapeType: "SQUARE", widthMm: 50, heightMm: 50, productionValidated: true },
   { shapeType: "SQUARE", widthMm: 63, heightMm: 63, productionValidated: false },
-  { shapeType: "CIRCLE", widthMm: 50, heightMm: 50, productionValidated: false },
-  { shapeType: "RECTANGLE", widthMm: 50, heightMm: 70, productionValidated: false },
+  { shapeType: "CIRCLE", widthMm: 57, heightMm: 57, productionValidated: false },
+  { shapeType: "RECTANGLE", widthMm: 50, heightMm: 76, productionValidated: false },
 ];
 
 export function getShapePresets(

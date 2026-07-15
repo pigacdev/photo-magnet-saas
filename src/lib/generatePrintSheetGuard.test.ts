@@ -18,8 +18,8 @@ describe("generatePrintSheet production-validation guard", () => {
     await assert.rejects(
       generatePrintSheet("order-test", [], "shape-test", {
         shapeType: "CIRCLE",
-        widthMm: 50,
-        heightMm: 50,
+        widthMm: 57,
+        heightMm: 57,
       }),
       /unvalidated shape/i,
     );

@@ -40,7 +40,7 @@ describe("shapePresets production validation", () => {
 
   it("rejects unknown / non-validated shapes", () => {
     assert.equal(
-      isProductionValidatedShape({ shapeType: "CIRCLE", widthMm: 50, heightMm: 50 }),
+      isProductionValidatedShape({ shapeType: "CIRCLE", widthMm: 57, heightMm: 57 }),
       false,
     );
     assert.equal(
@@ -64,8 +64,8 @@ describe("shapePresets production validation", () => {
   it("productionValidatedShapeKeys ignores legacy unvalidated rows", () => {
     const keys = productionValidatedShapeKeys([
       { shapeType: "SQUARE", widthMm: 50, heightMm: 50 },
-      { shapeType: "CIRCLE", widthMm: 50, heightMm: 50 },
-      { shapeType: "RECTANGLE", widthMm: 50, heightMm: 70 },
+      { shapeType: "CIRCLE", widthMm: 57, heightMm: 57 },
+      { shapeType: "RECTANGLE", widthMm: 50, heightMm: 76 },
     ]);
     assert.equal(keys.size, 1);
     assert.equal(keys.has("SQUARE-50-50"), true);

@@ -40,8 +40,8 @@ describe("printSheetLayout", () => {
     const cases: PrintSheetShape[] = [
       { shapeType: "SQUARE", widthMm: 50, heightMm: 50 },
       { shapeType: "SQUARE", widthMm: 63, heightMm: 63 },
-      { shapeType: "CIRCLE", widthMm: 50, heightMm: 50 },
-      { shapeType: "RECTANGLE", widthMm: 50, heightMm: 70 },
+      { shapeType: "CIRCLE", widthMm: 57, heightMm: 57 },
+      { shapeType: "RECTANGLE", widthMm: 50, heightMm: 76 },
     ];
     for (const shape of cases) {
       const size = printImageSizeMm(shape);
@@ -53,8 +53,8 @@ describe("printSheetLayout", () => {
   it("computes at least one slot per page for catalog print sizes", () => {
     const cases: PrintSheetShape[] = [
       { shapeType: "SQUARE", widthMm: 63, heightMm: 63 },
-      { shapeType: "CIRCLE", widthMm: 50, heightMm: 50 },
-      { shapeType: "RECTANGLE", widthMm: 50, heightMm: 70 },
+      { shapeType: "CIRCLE", widthMm: 57, heightMm: 57 },
+      { shapeType: "RECTANGLE", widthMm: 50, heightMm: 76 },
     ];
     for (const shape of cases) {
       const frame = printFrameSizeMm(shape);
@@ -65,31 +65,33 @@ describe("printSheetLayout", () => {
     }
   });
 
-  it("outer frame matches legacy Square 50×50 margin for Circle 50×50", () => {
+  it("outer frame matches legacy Square 50×50 margin for Circle 57×57", () => {
     const frame = printFrameSizeMm({
       shapeType: "CIRCLE",
-      widthMm: 50,
-      heightMm: 50,
+      widthMm: 57,
+      heightMm: 57,
     });
     assert.equal(frame.w, frame.h);
-    assert.ok(Math.abs(frame.w - 31 * (1 + Math.SQRT2)) < 0.01);
+    const bleedImageMm = 57 + 2;
+    const legacyPadMm = 31 * (1 + Math.SQRT2) - 52;
+    assert.ok(Math.abs(frame.w - (bleedImageMm + legacyPadMm)) < 0.01);
   });
 
   it("rectangle frame is taller than wide with octagon margin", () => {
     const frame = printFrameSizeMm({
       shapeType: "RECTANGLE",
       widthMm: 50,
-      heightMm: 70,
+      heightMm: 76,
     });
     assert.ok(frame.h > frame.w);
     assert.equal(frame.w, 52 + 2 * ((31 * (1 + Math.SQRT2) - 52) / 2));
   });
 
-  it("fits rectangle 50×70 frame on A4 with multiple rows", () => {
+  it("fits rectangle 50×76 frame on A4 with multiple rows", () => {
     const frame = printFrameSizeMm({
       shapeType: "RECTANGLE",
       widthMm: 50,
-      heightMm: 70,
+      heightMm: 76,
     });
     const grid = computePrintGrid(frame.w, frame.h);
     assert.equal(grid.rows, 2);
