@@ -30,6 +30,7 @@ export async function GET(request: Request) {
     "orderLimitReached",
     "eventLimitReached",
     "onboardingIncomplete",
+    "erasurePending",
   ];
   const usageFilter = usageFilters.includes(
     usageFilterRaw as PlatformTenantUsageFilter,
