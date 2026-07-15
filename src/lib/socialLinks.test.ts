@@ -4,10 +4,8 @@ import { getSocialLinks } from "./socialLinks.ts";
 
 const ENV_KEYS = [
   "NEXT_PUBLIC_SOCIAL_FACEBOOK_URL",
-  "NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL",
   "NEXT_PUBLIC_SOCIAL_DISCORD_URL",
   "NEXT_PUBLIC_SOCIAL_YOUTUBE_URL",
-  "NEXT_PUBLIC_SOCIAL_TIKTOK_URL",
 ] as const;
 
 describe("getSocialLinks", () => {
@@ -39,24 +37,15 @@ describe("getSocialLinks", () => {
   it("returns trimmed links for configured platforms", () => {
     process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK_URL =
       "  https://facebook.com/magnetoo  ";
-    process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL =
-      "https://instagram.com/magnetoo";
     process.env.NEXT_PUBLIC_SOCIAL_DISCORD_URL = "https://discord.gg/invite";
     process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE_URL =
       "https://www.youtube.com/@magnetoo";
-    process.env.NEXT_PUBLIC_SOCIAL_TIKTOK_URL =
-      "https://www.tiktok.com/@magnetoo";
 
     assert.deepEqual(getSocialLinks(), [
       {
         platform: "facebook",
         label: "Facebook",
         href: "https://facebook.com/magnetoo",
-      },
-      {
-        platform: "instagram",
-        label: "Instagram",
-        href: "https://instagram.com/magnetoo",
       },
       {
         platform: "discord",
@@ -67,11 +56,6 @@ describe("getSocialLinks", () => {
         platform: "youtube",
         label: "YouTube",
         href: "https://www.youtube.com/@magnetoo",
-      },
-      {
-        platform: "tiktok",
-        label: "TikTok",
-        href: "https://www.tiktok.com/@magnetoo",
       },
     ]);
   });

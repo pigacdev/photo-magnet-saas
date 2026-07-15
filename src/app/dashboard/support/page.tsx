@@ -118,6 +118,9 @@ function SupportPageContent() {
       ) : (
         <div className="mt-6">
           <SupportTicketForm user={user} initialContext={initialContext} />
+          <div className="mt-6 border-t border-border pt-6">
+            <SupportSocialLinks />
+          </div>
         </div>
       )}
     </div>
