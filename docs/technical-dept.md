@@ -66,6 +66,22 @@ These block turning on the lifetime-discount feature with confidence. Everything
 
 ---
 
+## Image processing / print templates
+
+Context: only `Square 50x50 mm` (2x2 in) has a physically validated print template — it runs the hand-tuned octagon path `drawLegacySquare50Slot` in `server/src/lib/generatePrintSheet.ts` and has been verified on the owner's 2x2 in cutter. The other 3 catalog shapes use the generalized `drawShapeAwareSlot`, whose corner chamfer (`cut = mm(31)/sqrt2`) is derived from the square and applied to any size — an educated guess, not a validated cut path. There is currently no equipment anywhere reachable to physically validate them.
+
+Guardrails in place (2026-07-14): shapes carry `productionValidated` in `src/lib/shapePresets.ts`; only validated shapes are selectable in the seller UI (others show "Coming soon"); the API rejects non-validated shapes (`server/src/lib/validatedShapes.ts` enforced in `events.ts` + `storefronts.ts`); `generatePrintSheet` refuses non-validated shapes and the orders print routes return a clean 400. Data hygiene: `npm run db:remove-unvalidated-shapes -- --apply`.
+
+### Must validate before offering each shape
+
+| ID | Item | Risk | Action |
+|----|------|------|--------|
+| PRINT-1 | **Square 63x63 mm template unvalidated** | Generalized chamfer is a guess; cut guide may not match any real die at this size → wasted materials, broken trust. | Physically validate on a 63 mm square cutter, then set `productionValidated: true` in `src/lib/shapePresets.ts` + add its key to `PRODUCTION_VALIDATED_SHAPE_KEYS` in `server/src/lib/validatedShapes.ts`. |
+| PRINT-2 | **Circle 50 mm template unvalidated** | Circle bleed ring + vector clip + curved brand label unverified against a real circular cutter. | Physically validate, then flip both allowlists as above. |
+| PRINT-3 | **Rectangle 50x70 mm template unvalidated** | Chamfered-rectangle frame with square-derived corner cut unverified against a real rectangular die. | Physically validate, then flip both allowlists as above. |
+
+---
+
 ## GDPR / privacy
 
 Context: GDPR compliance work (legal pages, consent, DSAR/erasure, retention). See `docs/legal/` and public routes `/privacy`, `/terms`, `/cookies`. **Audit lookup:** [docs/legal/audit-log.md](./legal/audit-log.md).
@@ -87,6 +103,7 @@ Context: GDPR compliance work (legal pages, consent, DSAR/erasure, retention). S
 
 | Date | Change |
 |------|--------|
+| 2026-07-14 | Print templates: restricted early-access catalog to validated Square 2x2 in; added PRINT-1..3 debt + guardrails (UI/API/print-gen) and `db:remove-unvalidated-shapes`. |
 | 2026-07-14 | Platform Overview: pending-erasure sellers stay visible with badge + filter; cancel via Manage. |
 | 2026-07-14 | Deletion audit logging: dual-write `[audit]` console + `PrivacyAuditLog`, `organizationId`, gaps filled (event/storefront/customer delete, exports, Clerk webhook). |
 | 2026-07-14 | GDPR/privacy section + implementation changelog. |

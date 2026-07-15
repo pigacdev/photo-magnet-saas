@@ -52,6 +52,7 @@ import {
   expandOrderImagesForPrintSheet,
   generatePrintSheet,
 } from "../lib/generatePrintSheet";
+import { isProductionValidatedShape } from "../lib/validatedShapes";
 import { renderOrderImages, ensureOrderImagesRendered } from "../lib/renderOrderImages";
 import {
   buildOrderEmailHtml,
@@ -85,6 +86,9 @@ export const ordersRouter = Router();
 
 const MEDIA_UNAVAILABLE_AFTER_RETENTION =
   "Media unavailable: files were removed after the retention period.";
+
+const SHAPE_NOT_AVAILABLE_FOR_PRINT =
+  "This order contains a magnet shape that is not available for printing yet.";
 
 const MARK_PRINTED_NO_PRINTABLE_MEDIA =
   "No printable images: media was removed after the retention period.";
@@ -413,6 +417,16 @@ ordersRouter.post(
     });
     const shapeById = new Map(allowedShapes.map((s) => [s.id, s]));
 
+    if (
+      shapeIds.some((shapeId) => {
+        const shapeRow = shapeById.get(shapeId);
+        return shapeRow != null && !isProductionValidatedShape(shapeRow);
+      })
+    ) {
+      res.status(400).json({ error: SHAPE_NOT_AVAILABLE_FOR_PRINT });
+      return;
+    }
+
     const urls: string[] = [];
     for (const shapeId of shapeIds) {
       const imgs = grouped[shapeId];
@@ -550,6 +564,16 @@ ordersRouter.post(
       select: { id: true, shapeType: true, widthMm: true, heightMm: true },
     });
     const shapeById = new Map(allowedShapes.map((s) => [s.id, s]));
+
+    if (
+      shapeIds.some((shapeId) => {
+        const shapeRow = shapeById.get(shapeId);
+        return shapeRow != null && !isProductionValidatedShape(shapeRow);
+      })
+    ) {
+      res.status(400).json({ error: SHAPE_NOT_AVAILABLE_FOR_PRINT });
+      return;
+    }
 
     const urls: string[] = [];
     for (const shapeId of shapeIds) {

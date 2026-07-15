@@ -24,6 +24,7 @@ import {
   readImageDimensions,
   SESSION_UPLOAD_MAX_BYTES,
 } from "../lib/sessionImageStorage";
+import { isProductionValidatedShape } from "../lib/validatedShapes";
 import { MAX_MULTIPART_FILES_PER_REQUEST } from "../../../src/lib/sessionImageLimits";
 import { getMinRequiredPx } from "../../../src/lib/minRequiredPxForShape";
 import { getMaxImagesAllowed } from "../lib/sessionImageMaxFromSession";
@@ -330,6 +331,10 @@ sessionImagesRouter.post(
       res.status(400).json({ error: "Selected shape is not valid" });
       return;
     }
+    if (!isProductionValidatedShape(allowedShape)) {
+      res.status(400).json({ error: "This shape is not available yet" });
+      return;
+    }
 
     const files = req.files;
     if (!files || !Array.isArray(files) || files.length === 0) {
@@ -513,6 +518,10 @@ sessionImagesRouter.patch("/:id", async (req, res) => {
   });
   if (!allowedShape) {
     res.status(400).json({ error: "Selected shape is not valid" });
+    return;
+  }
+  if (!isProductionValidatedShape(allowedShape)) {
+    res.status(400).json({ error: "This shape is not available yet" });
     return;
   }
 

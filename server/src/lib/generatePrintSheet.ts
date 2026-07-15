@@ -31,6 +31,7 @@ import {
   slotOrigin,
   type PrintSheetShape,
 } from "./printSheetLayout";
+import { isProductionValidatedShape } from "./validatedShapes";
 
 export type { PrintSheetShape } from "./printSheetLayout";
 
@@ -374,6 +375,12 @@ export async function generatePrintSheet(
   shapeId: string,
   shape: PrintSheetShape,
 ): Promise<string> {
+  if (!isProductionValidatedShape(shape)) {
+    throw new Error(
+      `Refusing to generate print sheet for unvalidated shape ${shape.shapeType} ${shape.widthMm}x${shape.heightMm} mm`,
+    );
+  }
+
   const onlyRendered = images.filter(
     (img): img is PrintSheetImageInput & { renderedUrl: string } =>
       Boolean(img.renderedUrl?.trim()),

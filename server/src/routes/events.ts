@@ -18,6 +18,7 @@ import {
   validateNewEventSchedule,
 } from "../lib/event";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
+import { isProductionValidatedShape } from "../lib/validatedShapes";
 import {
   parseNotificationEmailInput,
   parseSendOrderEmailsInput,
@@ -147,6 +148,21 @@ eventsRouter.post("/", async (req, res) => {
     )
   ) {
     res.status(400).json({ error: "All shapes must have widthMm and heightMm greater than 0" });
+    return;
+  }
+
+  if (
+    Array.isArray(shapes) &&
+    shapes.some(
+      (s: { shapeType?: string; widthMm?: number; heightMm?: number }) =>
+        !isProductionValidatedShape({
+          shapeType: String(s.shapeType),
+          widthMm: Number(s.widthMm),
+          heightMm: Number(s.heightMm),
+        }),
+    )
+  ) {
+    res.status(400).json({ error: "One or more shapes are not available yet" });
     return;
   }
 
@@ -623,6 +639,11 @@ eventsRouter.post("/:id/shapes", async (req, res) => {
 
   if (widthMm <= 0 || heightMm <= 0) {
     res.status(400).json({ error: "widthMm and heightMm must be greater than 0" });
+    return;
+  }
+
+  if (!isProductionValidatedShape({ shapeType, widthMm, heightMm })) {
+    res.status(400).json({ error: "This shape is not available yet" });
     return;
   }
 

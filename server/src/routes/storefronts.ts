@@ -7,6 +7,7 @@ import {
   parseVacationModeInput,
 } from "../lib/storefront";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
+import { isProductionValidatedShape } from "../lib/validatedShapes";
 import { parsePickupAddressInput } from "../lib/parsePickupAddressInput";
 import {
   parseNotificationEmailInput,
@@ -380,6 +381,11 @@ storefrontsRouter.post("/:id/shapes", async (req, res) => {
 
   if (widthMm <= 0 || heightMm <= 0) {
     res.status(400).json({ error: "widthMm and heightMm must be greater than 0" });
+    return;
+  }
+
+  if (!isProductionValidatedShape({ shapeType, widthMm, heightMm })) {
+    res.status(400).json({ error: "This shape is not available yet" });
     return;
   }
 

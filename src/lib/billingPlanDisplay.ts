@@ -43,7 +43,6 @@ export const BILLING_PLAN_COLUMNS: readonly BillingPlanColumn[] = [
       "Up to 10 orders per billing period",
       "Up to 1 event per billing period",
       "1 storefront",
-      "All magnet shape presets",
       "Magnetoo Studio print branding",
       "Professional branded email notifications",
     ],

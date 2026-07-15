@@ -1,6 +1,7 @@
 import type { OrderSession } from "../../../src/generated/prisma/client";
 import { SYSTEM_MAX_MAGNETS_PER_ORDER } from "../config/system";
 import { prisma } from "./prisma";
+import { isProductionValidatedShape } from "./validatedShapes";
 import { getPerItemEffectiveMaxMagnetsPerOrder } from "./maxMagnetsPerOrder";
 
 type PatchBody = {
@@ -48,6 +49,10 @@ export async function applySessionSelectionPatch(
 
   if (!shape) {
     return { ok: false, status: 400, error: "Shape is not allowed for this context" };
+  }
+
+  if (!isProductionValidatedShape(shape)) {
+    return { ok: false, status: 400, error: "This shape is not available yet" };
   }
 
   const shapeChanged =

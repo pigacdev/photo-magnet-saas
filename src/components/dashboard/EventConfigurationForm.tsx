@@ -11,7 +11,12 @@ import {
   SHAPE_PRESET_VALUES,
   shapePresetKey,
   shapeRecordKey,
+  productionValidatedShapeKeys,
 } from "@/lib/shapePresets";
+import {
+  hasUnvalidatedAllowedShapes,
+  removeStaleUnvalidatedAllowedShapes,
+} from "@/lib/removeStaleUnvalidatedShapes";
 import {
   PricingEditor,
   PricingPreview,
@@ -25,6 +30,7 @@ import { formatDisplayDateTime } from "@/lib/dateFormat";
 import { DEFAULT_PRINT_BRAND_TEXT, FREE_PRINT_BRAND_TEXT } from "@/lib/planCatalog";
 import { usageHasFeature } from "@/lib/planFeatures";
 import { EventBannerUpload } from "@/components/dashboard/EventBannerUpload";
+import { ComingSoonShapePresetRow } from "@/components/dashboard/ComingSoonShapePresetRow";
 
 type AllowedShape = {
   id: string;
@@ -91,7 +97,11 @@ async function syncEventShapes(
   for (const value of toAdd) {
     await api(`/api/events/${eventId}/shapes`, {
       method: "POST",
-      body: value,
+      body: {
+        shapeType: value.shapeType,
+        widthMm: value.widthMm,
+        heightMm: value.heightMm,
+      },
     });
   }
 }
@@ -118,7 +128,7 @@ export function EventConfigurationForm({
     event.sendOrderEmails ?? false,
   );
   const [selectedShapeKeys, setSelectedShapeKeys] = useState<Set<string>>(
-    () => new Set(event.shapes.map((s) => shapeRecordKey(s))),
+    () => productionValidatedShapeKeys(event.shapes),
   );
   const [pricingDirty, setPricingDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -126,12 +136,19 @@ export function EventConfigurationForm({
   const [savedMessage, setSavedMessage] = useState("");
 
   const savedShapeKeys = useMemo(
-    () => new Set(event.shapes.map((s) => shapeRecordKey(s))),
+    () => productionValidatedShapeKeys(event.shapes),
+    [event.shapes],
+  );
+
+  const hasStaleShapes = useMemo(
+    () => hasUnvalidatedAllowedShapes(event.shapes),
     [event.shapes],
   );
 
   const isDirty = useMemo(() => {
-    const shapesDirty = !shapeKeySetsEqual(savedShapeKeys, selectedShapeKeys);
+    const shapesDirty =
+      hasStaleShapes ||
+      !shapeKeySetsEqual(savedShapeKeys, selectedShapeKeys);
     const brandDirty = (event.brandText ?? "") !== brandDraft.trim();
     const emailDirty =
       (event.notificationEmail ?? "") !== notifEmailDraft.trim();
@@ -139,6 +156,7 @@ export function EventConfigurationForm({
     return shapesDirty || brandDirty || emailDirty || sendDirty || pricingDirty;
   }, [
     pricingDirty,
+    hasStaleShapes,
     savedShapeKeys,
     selectedShapeKeys,
     event.brandText,
@@ -235,8 +253,36 @@ export function EventConfigurationForm({
     setBrandDraft(event.brandText ?? "");
     setNotifEmailDraft(event.notificationEmail ?? "");
     setNotifSendDraft(event.sendOrderEmails ?? false);
-    setSelectedShapeKeys(new Set(event.shapes.map((s) => shapeRecordKey(s))));
+    setSelectedShapeKeys(productionValidatedShapeKeys(event.shapes));
   }, [event.id, event.brandText, event.notificationEmail, event.sendOrderEmails, event.shapes]);
+
+  useEffect(() => {
+    if (!hasStaleShapes) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const removed = await removeStaleUnvalidatedAllowedShapes(
+          "event",
+          event.id,
+          event.shapes,
+        );
+        if (!removed || cancelled) return;
+
+        const refreshed = await api<{ event: EventConfigurationEvent }>(
+          `/api/events/${event.id}`,
+        );
+        if (cancelled) return;
+        onSaved(refreshed.event);
+      } catch (err) {
+        console.warn("[event config] remove stale shapes", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [event.id, event.shapes, hasStaleShapes, onSaved]);
 
   function toggleShape(key: string) {
     setSelectedShapeKeys((prev) => {
@@ -371,12 +417,17 @@ export function EventConfigurationForm({
         <section className="dashboard-card">
           <h2 className="text-sm font-semibold text-foreground">Shapes</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            All four magnet sizes are available on every plan.
+            More sizes are coming soon as each print template is validated.
           </p>
           <fieldset className="mt-4 space-y-2">
             {shapePresets.map((preset) => {
               const key = shapePresetKey(preset.value);
               const checked = selectedShapeKeys.has(key);
+              if (!preset.available) {
+                return (
+                  <ComingSoonShapePresetRow key={key} label={preset.label} />
+                );
+              }
               return (
                 <label
                   key={key}

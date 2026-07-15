@@ -9,7 +9,12 @@ import {
   SHAPE_PRESET_VALUES,
   shapePresetKey,
   shapeRecordKey,
+  productionValidatedShapeKeys,
 } from "@/lib/shapePresets";
+import {
+  hasUnvalidatedAllowedShapes,
+  removeStaleUnvalidatedAllowedShapes,
+} from "@/lib/removeStaleUnvalidatedShapes";
 import {
   PricingEditor,
   PricingPreview,
@@ -28,6 +33,7 @@ import {
   validateOptionalStructuredAddress,
   type StructuredShippingAddress,
 } from "@/lib/shippingAddress";
+import { ComingSoonShapePresetRow } from "@/components/dashboard/ComingSoonShapePresetRow";
 
 type AllowedShape = {
   id: string;
@@ -122,7 +128,11 @@ async function syncStorefrontShapes(
   for (const value of toAdd) {
     await api(`/api/storefronts/${storefrontId}/shapes`, {
       method: "POST",
-      body: value,
+      body: {
+        shapeType: value.shapeType,
+        widthMm: value.widthMm,
+        heightMm: value.heightMm,
+      },
     });
   }
 }
@@ -178,7 +188,7 @@ export function StorefrontConfigurationForm({
     !pickupDraft.postCode &&
     !pickupDraft.country;
   const [selectedShapeKeys, setSelectedShapeKeys] = useState<Set<string>>(
-    () => new Set(storefront.shapes.map((s) => shapeRecordKey(s))),
+    () => productionValidatedShapeKeys(storefront.shapes),
   );
   const [pricingDirty, setPricingDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -186,12 +196,19 @@ export function StorefrontConfigurationForm({
   const [savedMessage, setSavedMessage] = useState("");
 
   const savedShapeKeys = useMemo(
-    () => new Set(storefront.shapes.map((s) => shapeRecordKey(s))),
+    () => productionValidatedShapeKeys(storefront.shapes),
+    [storefront.shapes],
+  );
+
+  const hasStaleShapes = useMemo(
+    () => hasUnvalidatedAllowedShapes(storefront.shapes),
     [storefront.shapes],
   );
 
   const isDirty = useMemo(() => {
-    const shapesDirty = !shapeKeySetsEqual(savedShapeKeys, selectedShapeKeys);
+    const shapesDirty =
+      hasStaleShapes ||
+      !shapeKeySetsEqual(savedShapeKeys, selectedShapeKeys);
     const brandDirty = (storefront.brandText ?? "") !== brandDraft.trim();
     const emailDirty =
       (storefront.notificationEmail ?? "") !== notifEmailDraft.trim();
@@ -208,6 +225,7 @@ export function StorefrontConfigurationForm({
     );
   }, [
     pricingDirty,
+    hasStaleShapes,
     savedShapeKeys,
     selectedShapeKeys,
     storefront.brandText,
@@ -330,7 +348,7 @@ export function StorefrontConfigurationForm({
     setPickupCity(pickup.city);
     setPickupPostCode(pickup.postCode);
     setPickupCountry(pickup.country);
-    setSelectedShapeKeys(new Set(storefront.shapes.map((s) => shapeRecordKey(s))));
+    setSelectedShapeKeys(productionValidatedShapeKeys(storefront.shapes));
   }, [
     storefront.id,
     storefront.brandText,
@@ -339,6 +357,34 @@ export function StorefrontConfigurationForm({
     storefront.pickupAddress,
     storefront.shapes,
   ]);
+
+  useEffect(() => {
+    if (!hasStaleShapes) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const removed = await removeStaleUnvalidatedAllowedShapes(
+          "storefront",
+          storefront.id,
+          storefront.shapes,
+        );
+        if (!removed || cancelled) return;
+
+        const refreshed = await api<{ storefront: StorefrontConfigurationStorefront }>(
+          `/api/storefronts/${storefront.id}`,
+        );
+        if (cancelled) return;
+        onSaved(refreshed.storefront);
+      } catch (err) {
+        console.warn("[storefront config] remove stale shapes", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasStaleShapes, onSaved, storefront.id, storefront.shapes]);
 
   function toggleShape(key: string) {
     setSelectedShapeKeys((prev) => {
@@ -512,12 +558,17 @@ export function StorefrontConfigurationForm({
           <div className="border-t border-border pt-8">
             <h2 className="text-sm font-semibold text-foreground">Shapes</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              All four magnet sizes are available on every plan.
+              More sizes are coming soon as each print template is validated.
             </p>
             <fieldset className="mt-4 space-y-2">
               {shapePresets.map((preset) => {
                 const key = shapePresetKey(preset.value);
                 const checked = selectedShapeKeys.has(key);
+                if (!preset.available) {
+                  return (
+                    <ComingSoonShapePresetRow key={key} label={preset.label} />
+                  );
+                }
                 return (
                   <label
                     key={key}

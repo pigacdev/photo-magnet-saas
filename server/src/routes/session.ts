@@ -23,6 +23,7 @@ import {
   validateStorefrontOrderContext,
 } from "../lib/sessionContextValidation";
 import { runStaleSessionCheckoutCleanup } from "../lib/sessionCheckoutCleanup";
+import { filterProductionValidatedShapes } from "../lib/validatedShapes";
 import { storedPickupAddressFromJson } from "../lib/parsePickupAddressInput";
 import { getDisplayPreferencesForOrderContext } from "../lib/organizationDisplayPreferences";
 import { getEventBannerForSession } from "../lib/event";
@@ -337,13 +338,15 @@ sessionRouter.get("/", async (req, res) => {
     data: { lastActiveAt: new Date() },
   });
 
-  const shapes = await prisma.allowedShape.findMany({
-    where: {
-      contextType: touched.contextType,
-      contextId: touched.contextId,
-    },
-    orderBy: { displayOrder: "asc" },
-  });
+  const shapes = filterProductionValidatedShapes(
+    await prisma.allowedShape.findMany({
+      where: {
+        contextType: touched.contextType,
+        contextId: touched.contextId,
+      },
+      orderBy: { displayOrder: "asc" },
+    }),
+  );
 
   const pricing = await prisma.pricing.findMany({
     where: {
