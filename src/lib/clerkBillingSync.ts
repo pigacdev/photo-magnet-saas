@@ -1,3 +1,4 @@
+import type { Plan } from "@/generated/prisma/client";
 import type { WebhookEvent } from "@clerk/backend/webhooks";
 import { prisma } from "./prisma";
 import {
@@ -8,6 +9,7 @@ import {
 } from "./clerkBillingPeriod";
 import {
   isFreeClerkPlanSlug,
+  planDisplayName,
   resolvePlanEntitlements,
 } from "./planCatalog";
 import { applyEarlyAccessSignup, getEarlyAccessStatus } from "./earlyAccessDb";
@@ -17,6 +19,7 @@ import {
 } from "./earlyAccess";
 import { maybeApplyUsagePeriodAnchor } from "./usagePeriodAnchor";
 import { sellerUserAccessibleWhere } from "./sellerUserAccess";
+import { sendSubscriptionLapseEmail } from "../../server/src/lib/email";
 
 type BillingPayer = {
   user_id?: string;
@@ -182,6 +185,7 @@ async function applyPaidPlan(
       isValidBillingPeriodDate(subscriptionPeriod.currentPeriodEnd)
         ? { subscriptionPeriodEnd: subscriptionPeriod.currentPeriodEnd }
         : {}),
+      subscriptionLapseNotifiedAt: null,
     },
   });
   await maybeApplyUsagePeriodAnchor(
@@ -190,20 +194,69 @@ async function applyPaidPlan(
   );
 }
 
-async function revertToFreePlan(orgId: string): Promise<void> {
+const PAID_ORGANIZATION_PLANS: Plan[] = ["HOBBY", "PRO"];
+
+/** Fields applied when downgrading a paid org to Free (shared by Clerk + legacy Stripe). */
+export function buildFreePlanRevertPayload(notifiedAt: Date = new Date()) {
   const limits = resolvePlanEntitlements("free_user");
-  await prisma.organization.update({
+  return {
+    plan: limits.plan,
+    orderLimit: limits.orderLimit,
+    eventLimit: limits.eventLimit,
+    clerkPlanSlug: "free_user",
+    clerkSubscriptionId: null,
+    stripeSubscriptionId: null,
+    subscriptionPeriodStart: null,
+    subscriptionPeriodEnd: null,
+    ordersThisMonth: 0,
+    eventsCreatedThisMonth: 0,
+    isEarlyAccess: false,
+    earlyAccessExpiresAt: null,
+    subscriptionLapseNotifiedAt: notifiedAt,
+  };
+}
+
+export function isPaidOrganizationPlan(plan: Plan): boolean {
+  return PAID_ORGANIZATION_PLANS.includes(plan);
+}
+
+/**
+ * Downgrade a paid org to Free. Idempotent when already Free.
+ * Sends a transactional lapse email once per paid→free transition.
+ */
+export async function revertToFreePlan(orgId: string): Promise<void> {
+  const org = await prisma.organization.findUnique({
     where: { id: orgId },
-    data: {
-      plan: limits.plan,
-      orderLimit: limits.orderLimit,
-      eventLimit: limits.eventLimit,
-      clerkPlanSlug: "free_user",
-      clerkSubscriptionId: null,
-      subscriptionPeriodStart: null,
-      subscriptionPeriodEnd: null,
+    select: {
+      plan: true,
+      user: { select: { email: true, name: true } },
     },
   });
+  if (!org || org.plan === "FREE") return;
+
+  const previousPlan = org.plan;
+  const previousPlanLabel = planDisplayName(previousPlan);
+  const notifiedAt = new Date();
+  const revertData = buildFreePlanRevertPayload(notifiedAt);
+
+  const updateResult = await prisma.organization.updateMany({
+    where: { id: orgId, plan: { in: PAID_ORGANIZATION_PLANS } },
+    data: revertData,
+  });
+
+  if (updateResult.count === 0) return;
+
+  if (!isPaidOrganizationPlan(previousPlan)) return;
+
+  try {
+    await sendSubscriptionLapseEmail({
+      to: org.user.email,
+      sellerName: org.user.name,
+      previousPlanLabel,
+    });
+  } catch (err) {
+    console.warn("[clerk.billing] subscription lapse email failed", orgId, err);
+  }
 }
 
 function getClerkSecretKey(): string | undefined {

@@ -730,6 +730,65 @@ export async function sendEarlyAccessExpiryEmail(data: {
   });
 }
 
+function billingPageUrl(): string {
+  const base =
+    process.env.APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    "http://localhost:3000";
+  return `${base.replace(/\/$/, "")}/dashboard/billing`;
+}
+
+export function buildSubscriptionLapseHtml(data: {
+  sellerName: string | null;
+  previousPlanLabel: string;
+  billingUrl?: string;
+}): string {
+  const greeting = data.sellerName?.trim()
+    ? escapeHtml(data.sellerName.trim())
+    : "there";
+  const previousPlan = escapeHtml(data.previousPlanLabel);
+  const url = escapeHtml(data.billingUrl ?? billingPageUrl());
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:24px;background:#f9fafb;">
+  <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">Your Magnetoo subscription has ended</h2>
+    <p style="margin:0 0 16px;color:#4b5563;font-size:15px;">Hi ${greeting},</p>
+    <p style="margin:0 0 16px;font-size:15px;">Your <strong>${previousPlan}</strong> subscription has ended. Your account is now on the <strong>Free</strong> plan.</p>
+    <p style="margin:0 0 8px;font-size:15px;font-weight:600;">You can still:</p>
+    <ul style="margin:0 0 16px;padding-left:20px;font-size:15px;">
+      <li>Sign in to your dashboard and view all existing orders</li>
+      <li>Download print-ready PDFs for your orders</li>
+      <li>Export event media ZIP files within the retention window</li>
+    </ul>
+    <p style="margin:0 0 8px;font-size:15px;font-weight:600;">Free plan limits:</p>
+    <ul style="margin:0 0 16px;padding-left:20px;font-size:15px;">
+      <li>Up to 10 new buyer orders per month</li>
+      <li>Up to 1 new event per month</li>
+      <li>Hobby and Pro features (calendar, custom branding, CSV export, customers, and more) are unavailable until you resubscribe</li>
+    </ul>
+    <p style="margin:0;"><a href="${url}" style="color:#2563eb;text-decoration:underline;">View plans and resubscribe</a> · ${url}</p>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendSubscriptionLapseEmail(data: {
+  to: string;
+  sellerName: string | null;
+  previousPlanLabel: string;
+  billingUrl?: string;
+}): Promise<void> {
+  await sendEmail({
+    to: data.to,
+    from: platformFromAddress(),
+    subject: "Your Magnetoo subscription has ended",
+    html: buildSubscriptionLapseHtml(data),
+    transactional: true,
+  });
+}
+
 export function buildPlatformNotificationHtml(data: {
   bodyHtml: string;
   recipientName?: string | null;

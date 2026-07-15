@@ -43,6 +43,7 @@ Seller tenant (1:1 with User; `id` = `user.id`). Billing limits + magnet order c
 - **early_access_expires_at** (nullable — 60-day launch window end)
 - **grant_lifetime_discount** (boolean, default false — platform owner toggle)
 - **early_access_heads_up_sent_at** (nullable — dedupe 7-day notice email)
+- **subscription_lapse_notified_at** (nullable — dedupe subscription-lapse email; cleared on paid resubscribe)
 
 ---
 

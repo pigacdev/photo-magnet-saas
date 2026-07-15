@@ -46,3 +46,31 @@ clerk config patch --file billing.json
 Record Clerk price IDs (`cprice_*`) in `.env` for loyalty transitions. Enable billing cron with `ENABLE_BILLING_CRON=true` on the API server (loyalty transition 05:00, cleanup 06:00, heads-up 07:00 UTC).
 
 **Platform owner:** `/platform/early-access` lists active early-access orgs and toggles lifetime discount.
+
+## Subscription lapse
+
+When a paid Clerk subscription ends (canceled, ended, or expired), the app downgrades the seller to **Free** via `revertToFreePlan()` in [`src/lib/clerkBillingSync.ts`](../src/lib/clerkBillingSync.ts). Triggers:
+
+- Clerk webhooks: `subscriptionItem.canceled`, `subscriptionItem.ended`, `subscriptionItem.expired`, and upsert paths with those item statuses
+- Fallback sync on `GET /api/auth/me` when Clerk API shows canceled/ended or a free plan slug
+- Legacy Stripe: `customer.subscription.deleted` for orgs still on `stripeSubscriptionId`
+
+**`past_due` grace:** While status is `past_due`, paid entitlements remain until Clerk sends an explicit cancel/expired event. The `subscription.pastDue` webhook is a no-op.
+
+**Post-lapse access (Free plan):**
+
+| Action | Available? |
+|--------|------------|
+| Dashboard sign-in | Yes |
+| View all orders | Yes |
+| Print PDFs / mark printed | Yes |
+| Event media ZIP export | Yes (within retention window) |
+| CSV order export | No (Pro) |
+| Customers CRM | No (Pro) |
+| Calendar, branding, vacation mode, etc. | No (Hobby+) |
+| New buyer orders | Yes, capped at 10/month |
+| New events | Yes, capped at 1/month |
+
+Downgrade also resets `ordersThisMonth` and `eventsCreatedThisMonth` to 0 and clears early-access flags (`isEarlyAccess`, `earlyAccessExpiresAt`). `grantLifetimeDiscount` is kept for potential resubscribe.
+
+**Email:** A transactional email (*"Your Magnetoo subscription has ended"*) is sent once per paid→free transition. Dedupe uses a conditional `updateMany` on paid plans plus `Organization.subscriptionLapseNotifiedAt` (cleared on resubscribe). See [`server/src/lib/email.ts`](../server/src/lib/email.ts).

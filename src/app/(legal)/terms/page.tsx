@@ -48,6 +48,12 @@ export default function TermsPage() {
             collect through Magnetoo.
           </li>
           <li>Subscription plans and limits are described in the dashboard.</li>
+          <li>
+            When a paid subscription ends, your account reverts to the Free plan.
+            You retain access to your dashboard and existing orders (including
+            print downloads). Free plan limits and feature restrictions apply
+            until you resubscribe.
+          </li>
         </ul>
       </section>
 

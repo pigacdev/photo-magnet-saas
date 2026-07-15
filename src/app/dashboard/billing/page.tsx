@@ -84,7 +84,8 @@ function BillingContent() {
         Compare plans and upgrade below. Payment methods, invoices, and
         cancellation are handled in{" "}
         <span className="font-medium text-foreground">Manage account</span> from
-        your profile menu.
+        your profile menu. If your subscription ends, you keep access to
+        existing orders on the Free plan.
       </p>
 
       {user && usage && (

@@ -8,7 +8,7 @@ import Stripe from "stripe";
 import { Prisma } from "../../../src/generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { getStripeOrNull } from "../lib/stripe";
-import { resolvePlanEntitlements } from "../lib/planCatalog";
+import { revertToFreePlan } from "../../../src/lib/clerkBillingSync";
 
 export const stripeRouter = Router();
 
@@ -78,19 +78,7 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
         return;
       }
 
-      const free = resolvePlanEntitlements("free_user");
-      await prisma.organization.update({
-        where: { id: org.id },
-        data: {
-          plan: free.plan,
-          orderLimit: free.orderLimit,
-          eventLimit: free.eventLimit,
-          clerkPlanSlug: "free_user",
-          stripeSubscriptionId: null,
-          ordersThisMonth: 0,
-          eventsCreatedThisMonth: 0,
-        },
-      });
+      await revertToFreePlan(org.id);
 
       console.log("[stripe.webhook] legacy org downgraded to free", org.id);
     }

@@ -53,6 +53,8 @@ model Organization {
   grantLifetimeDiscount      Boolean   @default(false)
   /// Prevent duplicate 7-day heads-up emails.
   earlyAccessHeadsUpSentAt   DateTime?
+  /// Set when subscription-lapse email is sent (cleared on paid resubscribe).
+  subscriptionLapseNotifiedAt DateTime?
   orders               Order[]
   customers            Customer[]
   user                 User     @relation(fields: [id], references: [id], onDelete: Cascade)

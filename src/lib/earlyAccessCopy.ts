@@ -3,7 +3,7 @@
 export const EARLY_ACCESS_HEADLINE = "Early access — help us launch";
 
 export const EARLY_ACCESS_PROSPECT_BODY =
-  "60-day free trial on Hobby & Pro · card required · limited to 20 sellers";
+  "60-day free trial on Hobby & Pro · card required";
 
 export const EARLY_ACCESS_EXPECTATION =
   "In return, we ask you to run real events, try features, and share feedback so we can improve Magnetoo before wider launch.";
