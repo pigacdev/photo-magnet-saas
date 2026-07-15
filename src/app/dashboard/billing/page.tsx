@@ -15,6 +15,8 @@ import {
 } from "@/lib/auth";
 import { BillingPlanFeatureLists } from "@/components/dashboard/BillingPlanFeatureLists";
 import { BillingEarlyAccessPlanBanners } from "@/components/dashboard/BillingEarlyAccessPlanBanners";
+import { BillingEarlyAccessProspectCallout } from "@/components/dashboard/BillingEarlyAccessProspectCallout";
+import { BillingEarlyAccessMemberBanner } from "@/components/dashboard/BillingEarlyAccessMemberBanner";
 import { BillingSubscriptionSuccessModal } from "@/components/dashboard/BillingSubscriptionSuccessModal";
 import { UserProfileSummary, subscriptionRenewLabel } from "@/components/dashboard/UserProfileSummary";
 import type { EarlyAccessStatus } from "@/lib/earlyAccessUi";
@@ -108,6 +110,15 @@ function BillingContent() {
       )}
 
       <section className="mt-8">
+        {earlyAccess ? (
+          <>
+            <BillingEarlyAccessProspectCallout status={earlyAccess} />
+            <BillingEarlyAccessMemberBanner
+              status={earlyAccess}
+              show={usage?.isOnFreeTrial ?? false}
+            />
+          </>
+        ) : null}
         <div
           className={`billing-plans-layout mt-4${earlyAccess?.isOpen ? " billing-plans-layout--early-access" : ""}`}
         >

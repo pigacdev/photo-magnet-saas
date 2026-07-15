@@ -8,7 +8,6 @@ export type BillingPlanColumn = {
 
 const HOBBY_TRIAL_FEATURES = [
   "60-day free trial — card required",
-  "Launch offer — limited seats",
   "Everything in Free",
   "Advanced analytics",
   "Event analytics",
@@ -24,7 +23,6 @@ const HOBBY_TRIAL_FEATURES = [
 
 const PRO_TRIAL_FEATURES = [
   "60-day free trial — card required",
-  "Launch offer — limited seats",
   "Everything in Hobby",
   "Priority customer support",
   "Customer management",

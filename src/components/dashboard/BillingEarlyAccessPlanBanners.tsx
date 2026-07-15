@@ -1,12 +1,14 @@
 "use client";
 
 import type { EarlyAccessStatus } from "@/lib/earlyAccessUi";
+import { EARLY_ACCESS_PLAN_BANNER_SUBTEXT } from "@/lib/earlyAccessCopy";
 
 function bannerSubtext(status: EarlyAccessStatus): string {
-  if (status.seatsRemaining === 1) {
-    return "Only 1 spot left · 60-day free trial";
-  }
-  return `${status.seatsRemaining} spots left · 60-day free trial`;
+  const seats =
+    status.seatsRemaining === 1
+      ? "Only 1 spot left"
+      : `${status.seatsRemaining} spots left`;
+  return `${seats} · ${EARLY_ACCESS_PLAN_BANNER_SUBTEXT}`;
 }
 
 export function BillingEarlyAccessPlanBanners({

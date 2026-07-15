@@ -27,7 +27,7 @@ Clerk subscription `period_start` / `period_end` is for **payment renewal only**
 
 ## Early access (60-day free trials)
 
-During launch, **Hobby** and **Pro** offer a **60-day free trial** (`free_trial_enabled` / `free_trial_days` in `billing.json`). Card is required; Clerk bills full price when the trial ends. The app tracks **20 seats**; after seat 20, trials are disabled on `hobby` / `pro` via PLAPI (plans stay public at full price).
+During launch, **Hobby** and **Pro** offer a **60-day free trial** (`free_trial_enabled` / `free_trial_days` in `billing.json`). Card is required; Clerk bills full price when the trial ends. The app tracks **20 seats**; after seat 20, trials are disabled on `hobby` / `pro` via PLAPI (plans stay public at full price). Dashboard and billing UI copy explains that early-access sellers are expected to test the product and share feedback (Support / Discord); this is messaging only, not enforced in code.
 
 | Slug | Visibility | Notes |
 |------|------------|-------|
