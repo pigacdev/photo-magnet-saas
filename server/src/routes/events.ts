@@ -20,6 +20,10 @@ import {
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
 import { isProductionValidatedShape } from "../lib/validatedShapes";
 import {
+  deleteAllowedShapeSafely,
+  shapesForSellerCatalog,
+} from "../lib/allowedShapeLifecycle";
+import {
   parseNotificationEmailInput,
   parseSendOrderEmailsInput,
 } from "../lib/parseOrderNotificationSettings";
@@ -236,10 +240,12 @@ eventsRouter.post("/", async (req, res) => {
     });
   }
 
-  const allowedShapes = await prisma.allowedShape.findMany({
-    where: { contextType: "EVENT", contextId: event.id },
-    orderBy: { displayOrder: "asc" },
-  });
+  const allowedShapes = shapesForSellerCatalog(
+    await prisma.allowedShape.findMany({
+      where: { contextType: "EVENT", contextId: event.id },
+      orderBy: { displayOrder: "asc" },
+    }),
+  );
 
   await incrementEventUsage(userId);
 
@@ -321,10 +327,12 @@ eventsRouter.get("/:id", async (req, res) => {
     return;
   }
 
-  const shapes = await prisma.allowedShape.findMany({
-    where: { contextType: "EVENT", contextId: event.id },
-    orderBy: { displayOrder: "asc" },
-  });
+  const shapes = shapesForSellerCatalog(
+    await prisma.allowedShape.findMany({
+      where: { contextType: "EVENT", contextId: event.id },
+      orderBy: { displayOrder: "asc" },
+    }),
+  );
 
   const pricing = await prisma.pricing.findMany({
     where: { contextType: "EVENT", contextId: event.id, deletedAt: null },
@@ -448,10 +456,12 @@ eventsRouter.patch("/:id", async (req, res) => {
     },
   });
 
-  const shapes = await prisma.allowedShape.findMany({
-    where: { contextType: "EVENT", contextId: event.id },
-    orderBy: { displayOrder: "asc" },
-  });
+  const shapes = shapesForSellerCatalog(
+    await prisma.allowedShape.findMany({
+      where: { contextType: "EVENT", contextId: event.id },
+      orderBy: { displayOrder: "asc" },
+    }),
+  );
 
   const pricing = await prisma.pricing.findMany({
     where: { contextType: "EVENT", contextId: event.id, deletedAt: null },
@@ -698,7 +708,15 @@ eventsRouter.delete("/:id/shapes/:shapeId", async (req, res) => {
     return;
   }
 
-  await prisma.allowedShape.delete({ where: { id: shapeId } });
+  const deleteResult = await deleteAllowedShapeSafely(shapeId);
+  if (deleteResult.outcome === "retained") {
+    res.json({
+      success: true,
+      retained: true,
+      reason: "Shape is used by existing orders and was kept for record-keeping.",
+    });
+    return;
+  }
 
   const remaining = await prisma.allowedShape.findMany({
     where: { contextType: "EVENT", contextId: id },

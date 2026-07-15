@@ -146,9 +146,7 @@ export function EventConfigurationForm({
   );
 
   const isDirty = useMemo(() => {
-    const shapesDirty =
-      hasStaleShapes ||
-      !shapeKeySetsEqual(savedShapeKeys, selectedShapeKeys);
+    const shapesDirty = !shapeKeySetsEqual(savedShapeKeys, selectedShapeKeys);
     const brandDirty = (event.brandText ?? "") !== brandDraft.trim();
     const emailDirty =
       (event.notificationEmail ?? "") !== notifEmailDraft.trim();
@@ -156,7 +154,6 @@ export function EventConfigurationForm({
     return shapesDirty || brandDirty || emailDirty || sendDirty || pricingDirty;
   }, [
     pricingDirty,
-    hasStaleShapes,
     savedShapeKeys,
     selectedShapeKeys,
     event.brandText,

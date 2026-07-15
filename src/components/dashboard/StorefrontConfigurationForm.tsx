@@ -206,9 +206,7 @@ export function StorefrontConfigurationForm({
   );
 
   const isDirty = useMemo(() => {
-    const shapesDirty =
-      hasStaleShapes ||
-      !shapeKeySetsEqual(savedShapeKeys, selectedShapeKeys);
+    const shapesDirty = !shapeKeySetsEqual(savedShapeKeys, selectedShapeKeys);
     const brandDirty = (storefront.brandText ?? "") !== brandDraft.trim();
     const emailDirty =
       (storefront.notificationEmail ?? "") !== notifEmailDraft.trim();
@@ -225,7 +223,6 @@ export function StorefrontConfigurationForm({
     );
   }, [
     pricingDirty,
-    hasStaleShapes,
     savedShapeKeys,
     selectedShapeKeys,
     storefront.brandText,

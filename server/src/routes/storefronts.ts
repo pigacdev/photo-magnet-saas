@@ -8,6 +8,10 @@ import {
 } from "../lib/storefront";
 import { parseMaxMagnetsPerOrderInput } from "../lib/validateMaxMagnetsPerOrderInput";
 import { isProductionValidatedShape } from "../lib/validatedShapes";
+import {
+  deleteAllowedShapeSafely,
+  shapesForSellerCatalog,
+} from "../lib/allowedShapeLifecycle";
 import { parsePickupAddressInput } from "../lib/parsePickupAddressInput";
 import {
   parseNotificationEmailInput,
@@ -148,10 +152,12 @@ storefrontsRouter.get("/:id", async (req, res) => {
     return;
   }
 
-  const shapes = await prisma.allowedShape.findMany({
-    where: { contextType: "STOREFRONT", contextId: storefront.id },
-    orderBy: { displayOrder: "asc" },
-  });
+  const shapes = shapesForSellerCatalog(
+    await prisma.allowedShape.findMany({
+      where: { contextType: "STOREFRONT", contextId: storefront.id },
+      orderBy: { displayOrder: "asc" },
+    }),
+  );
 
   const pricing = await prisma.pricing.findMany({
     where: { contextType: "STOREFRONT", contextId: storefront.id, deletedAt: null },
@@ -295,10 +301,12 @@ storefrontsRouter.patch("/:id", async (req, res) => {
     },
   });
 
-  const shapes = await prisma.allowedShape.findMany({
-    where: { contextType: "STOREFRONT", contextId: storefront.id },
-    orderBy: { displayOrder: "asc" },
-  });
+  const shapes = shapesForSellerCatalog(
+    await prisma.allowedShape.findMany({
+      where: { contextType: "STOREFRONT", contextId: storefront.id },
+      orderBy: { displayOrder: "asc" },
+    }),
+  );
 
   const pricing = await prisma.pricing.findMany({
     where: { contextType: "STOREFRONT", contextId: storefront.id, deletedAt: null },
@@ -440,7 +448,15 @@ storefrontsRouter.delete("/:id/shapes/:shapeId", async (req, res) => {
     return;
   }
 
-  await prisma.allowedShape.delete({ where: { id: shapeId } });
+  const deleteResult = await deleteAllowedShapeSafely(shapeId);
+  if (deleteResult.outcome === "retained") {
+    res.json({
+      success: true,
+      retained: true,
+      reason: "Shape is used by existing orders and was kept for record-keeping.",
+    });
+    return;
+  }
 
   const remaining = await prisma.allowedShape.findMany({
     where: { contextType: "STOREFRONT", contextId: id },

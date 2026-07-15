@@ -1,11 +1,12 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
+import { deleteAllowedShapeSafely } from "../server/src/lib/allowedShapeLifecycle";
 import { isProductionValidatedShape } from "../server/src/lib/validatedShapes";
 
 /**
  * Removes AllowedShape rows whose print template is not production-validated
- * (see server/src/lib/validatedShapes.ts). Use before inviting sellers so no
- * stale "Coming soon" shapes linger on already-configured events/storefronts.
+ * (see server/src/lib/validatedShapes.ts). Shapes referenced by OrderImage rows
+ * are kept for historical orders (FK RESTRICT).
  *
  * Dry-run by default. Pass --apply to delete.
  *   npm run db:remove-unvalidated-shapes            (report only)
@@ -39,20 +40,26 @@ async function main(): Promise<void> {
 
   console.log(`Found ${unvalidated.length} unvalidated shape row(s):`);
   for (const s of unvalidated) {
+    const inUse = await prisma.orderImage.count({ where: { shapeId: s.id } });
+    const suffix = inUse > 0 ? ` — retained (${inUse} order image(s))` : "";
     console.log(
-      `  ${s.contextType} ${s.contextId} — ${s.shapeType} ${s.widthMm}x${s.heightMm} mm (${s.id})`,
+      `  ${s.contextType} ${s.contextId} — ${s.shapeType} ${s.widthMm}x${s.heightMm} mm (${s.id})${suffix}`,
     );
   }
 
   if (!apply) {
-    console.log("\nDry run. Re-run with --apply to delete these rows.");
+    console.log("\nDry run. Re-run with --apply to delete removable rows.");
     return;
   }
 
-  const result = await prisma.allowedShape.deleteMany({
-    where: { id: { in: unvalidated.map((s) => s.id) } },
-  });
-  console.log(`\nDeleted ${result.count} unvalidated shape row(s).`);
+  let deleted = 0;
+  let retained = 0;
+  for (const shape of unvalidated) {
+    const result = await deleteAllowedShapeSafely(shape.id);
+    if (result.outcome === "deleted") deleted += 1;
+    else retained += 1;
+  }
+  console.log(`\nDeleted ${deleted} row(s); retained ${retained} in-use row(s).`);
 }
 
 main()
