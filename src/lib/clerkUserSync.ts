@@ -1,6 +1,11 @@
 import { prisma } from "./prisma";
 import { defaultBillingPeriodEnd } from "./billingPeriod";
 import { logAuditEvent } from "../../server/src/lib/privacyAuditLog";
+import {
+  SellerAccountUnavailableError,
+  sellerUserAccessibleWhere,
+  sellerUserIsAccessible,
+} from "./sellerUserAccess";
 
 export type EnsureSellerUserInput = {
   clerkId: string;
@@ -58,7 +63,7 @@ export async function ensureSellerUser(
   const name = input.name?.trim() || null;
 
   const byClerkId = await prisma.user.findFirst({
-    where: { clerkId: input.clerkId, deletedAt: null },
+    where: { clerkId: input.clerkId, AND: [sellerUserAccessibleWhere()] },
     select: { id: true, email: true, name: true, role: true },
   });
   if (byClerkId) {
@@ -89,7 +94,7 @@ export async function ensureSellerUser(
   }
 
   const byEmail = await prisma.user.findFirst({
-    where: { email, deletedAt: null },
+    where: { email, AND: [sellerUserAccessibleWhere()] },
     select: { id: true, email: true, name: true, role: true, clerkId: true },
   });
 
@@ -110,6 +115,14 @@ export async function ensureSellerUser(
     });
     await ensureSellerOrganization(linked.id);
     return linked;
+  }
+
+  const tombstone = await prisma.user.findFirst({
+    where: { email },
+    select: { deletedAt: true, erasureScheduledAt: true },
+  });
+  if (tombstone && !sellerUserIsAccessible(tombstone)) {
+    throw new SellerAccountUnavailableError();
   }
 
   const periodEnd = defaultBillingPeriodEnd();

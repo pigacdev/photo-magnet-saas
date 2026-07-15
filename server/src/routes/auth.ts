@@ -7,11 +7,27 @@ import { getEarlyAccessStatus } from "../../../src/lib/earlyAccessDb";
 import { ensureSellerOrganization } from "../../../src/lib/clerkUserSync";
 import { needsLegalReconsent } from "../lib/legalConstants";
 import { isPlatformOwnerEmail } from "../lib/platformOwner";
+import {
+  SellerAccountUnavailableError,
+  sellerUserIsAccessible,
+} from "../../../src/lib/sellerUserAccess";
 
 export const authRouter = Router();
 
 authRouter.get("/me", async (req, res) => {
-  const authUser = await resolveAuthUser(req);
+  let authUser;
+  try {
+    authUser = await resolveAuthUser(req);
+  } catch (err) {
+    if (err instanceof SellerAccountUnavailableError) {
+      res.status(403).json({
+        error: err.message,
+        code: "account_erasure_pending",
+      });
+      return;
+    }
+    throw err;
+  }
 
   if (!authUser) {
     res.status(401).json({ error: "Not authenticated" });
@@ -19,7 +35,7 @@ authRouter.get("/me", async (req, res) => {
   }
 
   const user = await prisma.user.findUnique({
-    where: { id: authUser.userId, deletedAt: null },
+    where: { id: authUser.userId },
     select: {
       id: true,
       email: true,
@@ -28,11 +44,12 @@ authRouter.get("/me", async (req, res) => {
       clerkId: true,
       legalAcceptedAt: true,
       legalVersion: true,
+      deletedAt: true,
       erasureScheduledAt: true,
     },
   });
 
-  if (!user) {
+  if (!user || !sellerUserIsAccessible(user)) {
     res.status(401).json({ error: "User not found" });
     return;
   }

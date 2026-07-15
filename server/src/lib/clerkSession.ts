@@ -6,6 +6,7 @@ import { createClerkClient } from "@clerk/backend";
 import type { Request as ExpressRequest } from "express";
 import { prisma } from "./prisma";
 import { ensureSellerUser } from "../../../src/lib/clerkUserSync";
+import { SellerAccountUnavailableError, sellerUserAccessibleWhere } from "../../../src/lib/sellerUserAccess";
 
 export interface AuthUser {
   userId: string;
@@ -144,7 +145,7 @@ export async function resolveAuthUser(
     }
 
     let dbUser = await prisma.user.findFirst({
-      where: { clerkId: clerkUserId, deletedAt: null },
+      where: { clerkId: clerkUserId, AND: [sellerUserAccessibleWhere()] },
       select: { id: true, role: true },
     });
 
@@ -180,6 +181,9 @@ export async function resolveAuthUser(
       sessionClaims: (auth.sessionClaims ?? {}) as Record<string, unknown>,
     };
   } catch (err) {
+    if (err instanceof SellerAccountUnavailableError) {
+      throw err;
+    }
     if (process.env.NODE_ENV !== "production") {
       console.error("[auth] resolveAuthUser failed:", err);
     }

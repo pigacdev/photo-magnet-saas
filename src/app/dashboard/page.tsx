@@ -23,6 +23,7 @@ import {
 import { formatDisplayMonthDay } from "@/lib/dateFormat";
 import { PlanUsageAlertBanner } from "@/components/dashboard/PlanUsageAlertBanner";
 import { BillingEarlyAccessBanner } from "@/components/dashboard/BillingEarlyAccessBanner";
+import { AccountErasureScheduledBanner } from "@/components/dashboard/AccountErasureScheduledBanner";
 import { storefrontNavHref } from "@/components/dashboard/dashboardNav";
 import type { EarlyAccessStatus } from "@/lib/earlyAccessUi";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
@@ -386,6 +387,7 @@ export default function DashboardPage() {
     <div className="dashboard-page">
       <div>
         <PlanUsageAlertBanner />
+        <AccountErasureScheduledBanner />
         {earlyAccess ? <BillingEarlyAccessBanner status={earlyAccess} /> : null}
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Dashboard

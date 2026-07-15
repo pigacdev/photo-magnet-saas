@@ -103,6 +103,7 @@ Context: GDPR compliance work (legal pages, consent, DSAR/erasure, retention). S
 
 | Date | Change |
 |------|--------|
+| 2026-07-15 | Grace-period login: sellers with scheduled account deletion can sign in again (no P2002); cancel-deletion audit logging unchanged. |
 | 2026-07-14 | Print templates: restricted early-access catalog to validated Square 2x2 in; added PRINT-1..3 debt + guardrails (UI/API/print-gen) and `db:remove-unvalidated-shapes`. |
 | 2026-07-14 | Platform Overview: pending-erasure sellers stay visible with badge + filter; cancel via Manage. |
 | 2026-07-14 | Deletion audit logging: dual-write `[audit]` console + `PrivacyAuditLog`, `organizationId`, gaps filled (event/storefront/customer delete, exports, Clerk webhook). |

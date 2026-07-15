@@ -7,6 +7,10 @@ import { buildOrganizationUsage } from "../../../../../server/src/lib/organizati
 import { isPlatformOwnerEmail } from "../../../../../server/src/lib/platformOwner";
 import { needsLegalReconsent } from "../../../../../server/src/lib/legalConstants";
 import { getEarlyAccessStatus } from "@/lib/earlyAccessDb";
+import {
+  SellerAccountUnavailableError,
+  sellerUserIsAccessible,
+} from "@/lib/sellerUserAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +60,7 @@ export async function GET() {
     });
 
     const user = await prisma.user.findUnique({
-      where: { id: synced.id, deletedAt: null },
+      where: { id: synced.id },
       select: {
         id: true,
         email: true,
@@ -65,11 +69,12 @@ export async function GET() {
         clerkId: true,
         legalAcceptedAt: true,
         legalVersion: true,
+        deletedAt: true,
         erasureScheduledAt: true,
       },
     });
 
-    if (!user) {
+    if (!user || !sellerUserIsAccessible(user)) {
       return NextResponse.json({ error: "User not found" }, { status: 401 });
     }
 
@@ -116,6 +121,12 @@ export async function GET() {
       },
     });
   } catch (err) {
+    if (err instanceof SellerAccountUnavailableError) {
+      return NextResponse.json(
+        { error: err.message, code: "account_erasure_pending" },
+        { status: 403 },
+      );
+    }
     console.error("[GET /api/auth/me]", err);
     return NextResponse.json(
       { error: "Failed to load account" },

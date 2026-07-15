@@ -16,6 +16,7 @@ import {
   isTrialSubscriptionItem,
 } from "./earlyAccess";
 import { maybeApplyUsagePeriodAnchor } from "./usagePeriodAnchor";
+import { sellerUserAccessibleWhere } from "./sellerUserAccess";
 
 type BillingPayer = {
   user_id?: string;
@@ -75,7 +76,7 @@ function clerkUserIdFromPayer(payer: BillingPayer | undefined): string | null {
 
 async function organizationIdForClerkUser(clerkUserId: string): Promise<string | null> {
   const user = await prisma.user.findFirst({
-    where: { clerkId: clerkUserId, deletedAt: null },
+    where: { clerkId: clerkUserId, AND: [sellerUserAccessibleWhere()] },
     select: { id: true },
   });
   return user?.id ?? null;

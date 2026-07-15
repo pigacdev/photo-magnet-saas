@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getEarlyAccessStatus } from "@/lib/earlyAccessDb";
 import { prisma } from "@/lib/prisma";
+import { sellerUserAccessibleWhere } from "@/lib/sellerUserAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export async function GET() {
   try {
     const status = await getEarlyAccessStatus();
     const user = await prisma.user.findFirst({
-      where: { clerkId: userId, deletedAt: null },
+      where: { clerkId: userId, AND: [sellerUserAccessibleWhere()] },
       select: { id: true },
     });
     const organization = user
