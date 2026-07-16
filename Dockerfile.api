@@ -33,8 +33,7 @@ RUN chmod +x ./scripts/start-api.sh \
   && npx prisma generate \
   && mkdir -p /app/uploads
 
-# Persist media across deploys: Railway volume → /app/uploads
-VOLUME ["/app/uploads"]
+# Persist media: attach a Railway Volume mounted at /app/uploads (do not use Docker VOLUME — unsupported on Railway).
 
 EXPOSE 4000
 ENV API_PORT=4000

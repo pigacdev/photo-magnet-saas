@@ -3,12 +3,38 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+function createPrismaClient(connectionString: string): PrismaClient {
+  return new PrismaClient({
+    adapter: new PrismaPg({ connectionString }),
   });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
 }
+
+/**
+ * Lazy Prisma singleton so Next.js can import API routes during build
+ * without requiring DATABASE_URL at image-build time.
+ */
+function resolvePrismaClient(): PrismaClient {
+  if (globalForPrisma.prisma) return globalForPrisma.prisma;
+
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString || typeof connectionString !== "string") {
+    throw new Error(
+      "DATABASE_URL is missing or invalid. Set DATABASE_URL for the web service at runtime.",
+    );
+  }
+
+  return createPrismaClient(connectionString);
+}
+
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = resolvePrismaClient();
+    if (process.env.NODE_ENV !== "production") {
+      globalForPrisma.prisma = client;
+    } else if (!globalForPrisma.prisma) {
+      globalForPrisma.prisma = client;
+    }
+    const value = Reflect.get(client, prop, receiver);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});

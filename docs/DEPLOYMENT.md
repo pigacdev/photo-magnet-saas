@@ -26,7 +26,7 @@ Config-as-code templates: [`railway.web.toml`](../railway.web.toml), [`railway.a
 2. Add **Postgres** plugin; copy `DATABASE_URL` to both services (or reference the variable).
 3. Create **api** service from this GitHub repo:
    - **Preferred:** Settings → Build → Dockerfile path `Dockerfile.api` (or Config-as-code → `railway.api.toml`)
-   - Attach a **volume** mounted at `/app/uploads` (required until render/print is fully R2-native)
+   - Attach a **Railway Volume** mounted at `/app/uploads` (Settings → Volumes). Do not use Docker `VOLUME` in the Dockerfile — Railway rejects it.
    - Memory: start at **1 GB** (Sharp / PDF)
    - Replicas: **1** (in-process `node-cron` duplicates on multi-replica)
    - If using Nixpacks instead of Docker: Start Command `npx prisma migrate deploy && npm run start:api`
@@ -41,7 +41,7 @@ Config-as-code templates: [`railway.web.toml`](../railway.web.toml), [`railway.a
 
 | Variable | Notes |
 |----------|--------|
-| `DATABASE_URL` | Same Postgres (some Next routes use Prisma) |
+| `DATABASE_URL` | Same Postgres at **runtime** (some Next routes use Prisma). Not required during Docker image build. |
 | `INTERNAL_API_URL` | Private Railway URL of api, e.g. `http://api.railway.internal:4000` |
 | `NEXT_PUBLIC_API_URL` | Usually same public origin as the app (rewrites go through Next) or public api URL if exposed |
 | `APP_URL` / `NEXT_PUBLIC_APP_URL` | Public `https://your-domain` |
