@@ -43,13 +43,15 @@ Config-as-code templates: [`railway.web.toml`](../railway.web.toml), [`railway.a
 | `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/...` | Variable **Reference** from the Postgres plugin → `DATABASE_URL` (or `${{ Postgres.DATABASE_URL }}`) |
 | Missing `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Paste Clerk publishable key on **web** Variables, then **redeploy** |
 
-`localhost` inside a Railway container is the container itself — Postgres is not there. The api start script now **exits with a clear error** if `DATABASE_URL` is empty or points at localhost.
+`localhost` inside a Railway container is the container itself — Postgres is not there. The **api** and **web** start scripts both **exit with a clear error** if `DATABASE_URL` is empty or points at localhost.
+
+**Symptom:** after login, UI shows “Your account could not be loaded” and web logs show `ECONNREFUSED` on `prisma.user.findFirst` / `[GET /api/auth/me]`. That means the **web** service `DATABASE_URL` is missing, points at localhost, or is otherwise unreachable — App Router `/api/auth/me` talks to Postgres on web, not only on api. Fix: web Variables → Variable Reference to Postgres → redeploy web.
 
 ### Required env — web
 
 | Variable | Notes |
 |----------|--------|
-| `DATABASE_URL` | Same Postgres at **runtime** (Variable Reference). Not required for image build. |
+| `DATABASE_URL` | Same Postgres at **runtime** (Variable Reference). Never `localhost`. Not required for image build. `DATABASE_PRIVATE_URL` is accepted as fallback. |
 | `INTERNAL_API_URL` | **Build-time + needed for rewrites.** Private URL of api using the same port the api listens on (Railway `PORT`, often `8080`), e.g. `http://api.railway.internal:8080`. |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | **Build-time (ARG).** Required or Docker build fails. |
 | `CLERK_SECRET_KEY` | Runtime (and any server routes). |
@@ -157,14 +159,15 @@ If api is not reachable via the web rewrite, monitor the public api URL instead.
 ## Post-deploy verification
 
 1. `GET /api/health` → `{ "status": "ok", ... }`
-2. **EA-3 `/api/auth/me` source** — while signed in as a seller, inspect response header:
+2. **Web DB** — web deploy logs show `[web] DATABASE_URL is set` (not a localhost exit). After sign-in, `GET /api/auth/me` returns 200 (not `ECONNREFUSED` / “account could not be loaded”).
+3. **EA-3 `/api/auth/me` source** — while signed in as a seller, inspect response header:
    - `X-Auth-Me-Source: next` → App Router handler wins (filesystem over `afterFiles` rewrite)
    - `X-Auth-Me-Source: express` → Express rewrite wins  
    Document which one runs; keep that implementation as source of truth (see [technical-dept.md](./technical-dept.md) EA-3).
-3. Upload a session image; confirm file under volume and preview works.
-4. Generate a Square 50×50 print PDF.
-5. Confirm Clerk webhook deliveries succeed.
-6. Confirm UptimeRobot green; trigger a test Sentry error in staging if needed.
+4. Upload a session image; confirm file under volume and preview works.
+5. Generate a Square 50×50 print PDF.
+6. Confirm Clerk webhook deliveries succeed.
+7. Confirm UptimeRobot green; trigger a test Sentry error in staging if needed.
 
 ---
 
@@ -173,7 +176,8 @@ If api is not reachable via the web rewrite, monitor the public api URL instead.
 | Script | Purpose |
 |--------|---------|
 | `npm run start:api` | Local/prod-like API via tsx |
-| `scripts/start-api.sh` | Container: `prisma migrate deploy` then API |
+| `scripts/start-api.sh` | Container: reject bad `DATABASE_URL`, `prisma migrate deploy`, then API |
+| `scripts/start-web.sh` | Container: reject bad `DATABASE_URL`, then Next standalone |
 | `npm run build` / `npm run start` | Next (web uses standalone in Docker) |
 
 ---

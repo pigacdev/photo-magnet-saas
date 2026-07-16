@@ -1,12 +1,37 @@
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient;
+  prismaHostLogged?: boolean;
+};
 
 function createPrismaClient(connectionString: string): PrismaClient {
   return new PrismaClient({
     adapter: new PrismaPg({ connectionString }),
   });
+}
+
+function resolveConnectionString(): string {
+  const connectionString =
+    process.env.DATABASE_URL || process.env.DATABASE_PRIVATE_URL;
+  if (!connectionString || typeof connectionString !== "string") {
+    throw new Error(
+      "DATABASE_URL is missing or invalid. On Railway, set web DATABASE_URL from the Postgres plugin Variable Reference (not localhost).",
+    );
+  }
+  return connectionString;
+}
+
+function logDbHostOnce(connectionString: string): void {
+  if (globalForPrisma.prismaHostLogged) return;
+  globalForPrisma.prismaHostLogged = true;
+  try {
+    const host = new URL(connectionString).hostname || "(unknown)";
+    console.info(`[web/prisma] Connecting to Postgres host: ${host}`);
+  } catch {
+    console.info("[web/prisma] Connecting to Postgres (host unparseable)");
+  }
 }
 
 /**
@@ -16,13 +41,8 @@ function createPrismaClient(connectionString: string): PrismaClient {
 function resolvePrismaClient(): PrismaClient {
   if (globalForPrisma.prisma) return globalForPrisma.prisma;
 
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString || typeof connectionString !== "string") {
-    throw new Error(
-      "DATABASE_URL is missing or invalid. Set DATABASE_URL for the web service at runtime.",
-    );
-  }
-
+  const connectionString = resolveConnectionString();
+  logDbHostOnce(connectionString);
   return createPrismaClient(connectionString);
 }
 
