@@ -34,9 +34,8 @@ RUN chmod +x ./scripts/start-api.sh \
   && mkdir -p /app/uploads
 
 # Persist media: attach a Railway Volume mounted at /app/uploads (do not use Docker VOLUME — unsupported on Railway).
+# Do not bake PORT/API_PORT — Railway injects PORT at runtime (often 8080). Locally use API_PORT=4000 or PORT=4000.
 
-EXPOSE 4000
-ENV API_PORT=4000
-ENV PORT=4000
+EXPOSE 8080
 
 CMD ["./scripts/start-api.sh"]

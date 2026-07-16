@@ -11,7 +11,7 @@ Local dual-process architecture is unchanged; see [tech-stack.md](./tech-stack.m
 | Service | Dockerfile | Role |
 |---------|------------|------|
 | **web** | [`Dockerfile.web`](../Dockerfile.web) | Next.js (port 3000), Clerk UI, Clerk webhooks App Router route |
-| **api** | [`Dockerfile.api`](../Dockerfile.api) | Express (port 4000), uploads, Sharp, PDF, Stripe webhook, crons |
+| **api** | [`Dockerfile.api`](../Dockerfile.api) | Express (listens on `PORT`, Railway often `8080`), uploads, Sharp, PDF, Stripe webhook, crons |
 | **Postgres** | Railway plugin | Prisma `DATABASE_URL` |
 
 Browser → **web** → rewrites `/api/*` and `/uploads/*` → **api** (`INTERNAL_API_URL`).
@@ -50,7 +50,7 @@ Config-as-code templates: [`railway.web.toml`](../railway.web.toml), [`railway.a
 | Variable | Notes |
 |----------|--------|
 | `DATABASE_URL` | Same Postgres at **runtime** (Variable Reference). Not required for image build. |
-| `INTERNAL_API_URL` | **Build-time + needed for rewrites.** Private URL of api, e.g. `http://api.railway.internal:4000` (service name must match). |
+| `INTERNAL_API_URL` | **Build-time + needed for rewrites.** Private URL of api using the same port the api listens on (Railway `PORT`, often `8080`), e.g. `http://api.railway.internal:8080`. |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | **Build-time (ARG).** Required or Docker build fails. |
 | `CLERK_SECRET_KEY` | Runtime (and any server routes). |
 | `NEXT_PUBLIC_APP_URL` / `APP_URL` | Public `https://your-domain` (set after domain exists; rebuild web when `NEXT_PUBLIC_*` changes). |
@@ -64,7 +64,7 @@ Config-as-code templates: [`railway.web.toml`](../railway.web.toml), [`railway.a
 | Variable | Notes |
 |----------|--------|
 | `DATABASE_URL` | **Must** be the Railway Postgres URL (Variable Reference). Never `localhost`. |
-| `API_PORT` / `PORT` | `4000` (Docker sets both) |
+| `PORT` | Injected by Railway — do not override with `4000`. Locally use `API_PORT=4000` or `PORT=4000`. |
 | `CORS_ORIGIN` | Public app origin `https://your-domain` |
 | `NODE_ENV` | `production` |
 | `CLERK_SECRET_KEY` | Same as web |

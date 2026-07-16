@@ -22,5 +22,5 @@ esac
 echo "[api] DATABASE_URL is set (length ${#DATABASE_URL}). Running prisma migrate deploy..."
 npx prisma migrate deploy
 
-echo "[api] Starting Express on port ${API_PORT:-${PORT:-4000}}..."
+echo "[api] Starting Express on PORT=${PORT:-${API_PORT:-4000}} (Railway sets PORT; local default 4000)..."
 exec npx tsx server/src/index.ts

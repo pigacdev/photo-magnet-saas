@@ -29,7 +29,8 @@ import { errorHandler } from "./middleware/errorHandler";
 initSentry();
 
 const app = express();
-const PORT = process.env.API_PORT || process.env.PORT || 4000;
+/** Railway injects PORT (often 8080). Prefer PORT over API_PORT so platform healthchecks reach the process. */
+const PORT = Number(process.env.PORT || process.env.API_PORT || 4000);
 
 app.use(helmet());
 app.use(
@@ -114,8 +115,8 @@ app.use(errorHandler);
 void import("./cron/mediaCleanupCron");
 void import("./cron/billingCron");
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server listening on 0.0.0.0:${PORT}`);
   console.log(`[uploads] serving from ${uploadsDir}`);
 });
 

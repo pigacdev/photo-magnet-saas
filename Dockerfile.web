@@ -67,7 +67,7 @@ RUN if [ -z "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ]; then \
     fi \
  && if [ -z "$INTERNAL_API_URL" ] && [ -z "$NEXT_PUBLIC_API_URL" ]; then \
       echo "ERROR: Set INTERNAL_API_URL (preferred) or NEXT_PUBLIC_API_URL for API rewrites."; \
-      echo "Example: INTERNAL_API_URL=http://api.railway.internal:4000"; \
+      echo "Example: INTERNAL_API_URL=http://api.railway.internal:8080"; \
       exit 1; \
     fi \
  && npx prisma generate && npm run build
