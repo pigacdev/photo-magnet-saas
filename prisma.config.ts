@@ -7,6 +7,11 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Railway may expose DATABASE_PRIVATE_URL for private-network Postgres.
+    url:
+      process.env["DATABASE_URL"] ||
+      process.env["DATABASE_PRIVATE_URL"] ||
+      undefined,
   },
 });
+

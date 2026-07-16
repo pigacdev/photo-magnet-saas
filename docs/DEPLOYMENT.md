@@ -23,7 +23,7 @@ Config-as-code templates: [`railway.web.toml`](../railway.web.toml), [`railway.a
 ## One-time Railway setup
 
 1. Create a Railway project (prefer **EU** region if sellers/buyers are EU — GDPR).
-2. Add **Postgres** plugin; copy `DATABASE_URL` to both services (or reference the variable).
+2. Add **PostgreSQL** via **Add Plugin** (or database service) in the same environment.
 3. Create **api** service from this GitHub repo:
    - **Preferred:** Settings → Build → Dockerfile path `Dockerfile.api` (or Config-as-code → `railway.api.toml`)
    - Attach a **Railway Volume** mounted at `/app/uploads` (Settings → Volumes). Do not use Docker `VOLUME` in the Dockerfile — Railway rejects it.
@@ -32,31 +32,38 @@ Config-as-code templates: [`railway.web.toml`](../railway.web.toml), [`railway.a
    - If using Nixpacks instead of Docker: Start Command `npx prisma migrate deploy && npm run start:api`
 4. Create **web** service from the same repo:
    - **Preferred:** Dockerfile path `Dockerfile.web` (or Config-as-code → `railway.web.toml`)
-   - Set build-time env for `NEXT_PUBLIC_*` (Clerk publishable key, Sentry DSN, app URL, social URLs)
-   - `npm run build` already runs `prisma generate` (client is gitignored). Do not skip that step.
+   - Set variables **before** the first successful build (see below). `NEXT_PUBLIC_*` and `INTERNAL_API_URL` are Docker `ARG`s — changing them requires a **rebuild**.
 5. Generate Railway domains (or attach custom domain) for **web**. Optionally give **api** a private network only; web must reach api via private URL.
 6. Set a **spend alert** in Railway billing.
+
+### Critical: do not use `.env.example` localhost URLs
+
+| Wrong (local only) | Right (Railway) |
+|--------------------|-----------------|
+| `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/...` | Variable **Reference** from the Postgres plugin → `DATABASE_URL` (or `${{ Postgres.DATABASE_URL }}`) |
+| Missing `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Paste Clerk publishable key on **web** Variables, then **redeploy** |
+
+`localhost` inside a Railway container is the container itself — Postgres is not there. The api start script now **exits with a clear error** if `DATABASE_URL` is empty or points at localhost.
 
 ### Required env — web
 
 | Variable | Notes |
 |----------|--------|
-| `DATABASE_URL` | Same Postgres at **runtime** (some Next routes use Prisma). Not required during Docker image build. |
-| `INTERNAL_API_URL` | Private Railway URL of api, e.g. `http://api.railway.internal:4000` |
-| `NEXT_PUBLIC_API_URL` | Usually same public origin as the app (rewrites go through Next) or public api URL if exposed |
-| `APP_URL` / `NEXT_PUBLIC_APP_URL` | Public `https://your-domain` |
-| `NEXT_PUBLIC_CLERK_*` / `CLERK_SECRET_KEY` | Clerk keys |
+| `DATABASE_URL` | Same Postgres at **runtime** (Variable Reference). Not required for image build. |
+| `INTERNAL_API_URL` | **Build-time + needed for rewrites.** Private URL of api, e.g. `http://api.railway.internal:4000` (service name must match). |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | **Build-time (ARG).** Required or Docker build fails. |
+| `CLERK_SECRET_KEY` | Runtime (and any server routes). |
+| `NEXT_PUBLIC_APP_URL` / `APP_URL` | Public `https://your-domain` (set after domain exists; rebuild web when `NEXT_PUBLIC_*` changes). |
+| `NEXT_PUBLIC_API_URL` | Optional if `INTERNAL_API_URL` is set; browser uses same-origin `/api`. |
 | `CLERK_WEBHOOK_SIGNING_SECRET` | Clerk → `https://your-domain/api/webhooks/clerk` |
-| `NEXT_PUBLIC_SENTRY_DSN` | Optional until Sentry project exists |
-| `SENTRY_DSN` | Server-side (can match public DSN) |
-| `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` | Optional source maps upload at build |
-| `CORS_ORIGIN` | Not used by Next; set on **api** |
+| `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_*` | Optional |
+| Clerk sign-in/up URL vars | Defaults baked in Dockerfile if unset |
 
 ### Required env — api
 
 | Variable | Notes |
 |----------|--------|
-| `DATABASE_URL` | Postgres |
+| `DATABASE_URL` | **Must** be the Railway Postgres URL (Variable Reference). Never `localhost`. |
 | `API_PORT` / `PORT` | `4000` (Docker sets both) |
 | `CORS_ORIGIN` | Public app origin `https://your-domain` |
 | `NODE_ENV` | `production` |

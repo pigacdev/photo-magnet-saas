@@ -22,21 +22,23 @@ function resolvePrismaClient(): PrismaClient {
     cached &&
     !("platformNotificationLog" in cached)
   ) {
-    const connectionString = process.env.DATABASE_URL;
-    if (!connectionString || typeof connectionString !== "string") {
-      throw new Error(
-        "DATABASE_URL is missing or invalid. Ensure .env exists at the project root and contains DATABASE_URL.",
-      );
-    }
-    return createPrismaClient(connectionString);
+  const connectionString =
+    process.env.DATABASE_URL || process.env.DATABASE_PRIVATE_URL;
+  if (!connectionString || typeof connectionString !== "string") {
+    throw new Error(
+      "DATABASE_URL is missing or invalid. On Railway, set DATABASE_URL from the Postgres plugin (not localhost).",
+    );
+  }
+  return createPrismaClient(connectionString);
   }
 
   if (cached) return cached;
 
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString =
+    process.env.DATABASE_URL || process.env.DATABASE_PRIVATE_URL;
   if (!connectionString || typeof connectionString !== "string") {
     throw new Error(
-      "DATABASE_URL is missing or invalid. Ensure .env exists at the project root and contains DATABASE_URL.",
+      "DATABASE_URL is missing or invalid. On Railway, set DATABASE_URL from the Postgres plugin (not localhost).",
     );
   }
 
