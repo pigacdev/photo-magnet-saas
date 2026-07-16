@@ -75,6 +75,8 @@ authRouter.get("/me", async (req, res) => {
     }),
   ]);
 
+  // EA-3: distinguish Express vs Next /api/auth/me in production (response header).
+  res.setHeader("X-Auth-Me-Source", "express");
   res.json({
     user: {
       id: user.id,

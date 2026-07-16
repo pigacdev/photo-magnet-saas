@@ -100,8 +100,9 @@ export function parseVacationModeInput(body: {
       return { ok: false, error: "Vacation note must be a string or null" };
     }
     if (typeof body.vacationNote === "string") {
-      note = body.vacationNote.trim() || null;
-      if (note.length > VACATION_NOTE_MAX) {
+      const trimmed = body.vacationNote.trim();
+      note = trimmed || null;
+      if (trimmed.length > VACATION_NOTE_MAX) {
         return { ok: false, error: `Vacation note must be at most ${VACATION_NOTE_MAX} characters` };
       }
     }

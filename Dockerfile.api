@@ -1,0 +1,43 @@
+# Express API — Sharp, uploads, PDF, crons
+FROM node:20-bookworm-slim AS base
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    openssl \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+RUN npm ci
+
+FROM base AS runner
+ENV NODE_ENV=production
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+COPY billing.json ./
+COPY server ./server
+COPY src ./src
+COPY tsconfig.json ./
+COPY scripts/start-api.sh ./scripts/start-api.sh
+
+RUN chmod +x ./scripts/start-api.sh \
+  && npx prisma generate \
+  && mkdir -p /app/uploads
+
+# Persist media across deploys: Railway volume → /app/uploads
+VOLUME ["/app/uploads"]
+
+EXPOSE 4000
+ENV API_PORT=4000
+ENV PORT=4000
+
+CMD ["./scripts/start-api.sh"]

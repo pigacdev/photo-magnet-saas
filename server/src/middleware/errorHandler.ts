@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { Sentry } from "../lib/sentry";
 
 export function errorHandler(
   err: Error,
@@ -6,6 +7,8 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ) {
+  Sentry.captureException(err);
+
   if (process.env.NODE_ENV === "production") {
     console.error("[error]", err.message);
   } else {

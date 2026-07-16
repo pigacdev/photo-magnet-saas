@@ -2,6 +2,23 @@
 
 Items to address before production launch.
 
+Full deploy runbook: [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+## Hosting / ops
+
+- [ ] **Railway project** — web (`Dockerfile.web`) + api (`Dockerfile.api`) + Postgres; api volume at `/app/uploads`; EU region if EU sellers; spend alert.
+- [ ] **Env matrix** — Copy from `.env.example` / DEPLOYMENT.md; enable `ENABLE_MEDIA_CLEANUP_CRON` and `ENABLE_BILLING_CRON` on api only.
+- [ ] **Sentry** — Create projects; set `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_DSN` on web and api.
+- [ ] **UptimeRobot** — Monitors for `GET /` and `GET /api/health` after public domain is live.
+- [ ] **EA-3 verify** — Confirm `X-Auth-Me-Source` on `GET /api/auth/me` (`next` vs `express`).
+- [ ] **Cloudflare R2** (optional v1) — Bucket + CORS + `S3_*`; keep api volume until render/print is R2-native.
+
+## Compliance / region
+
+- [ ] **Clerk Legal Acceptance** — [CLERK-LEGAL-SETUP.md](./CLERK-LEGAL-SETUP.md)
+- [ ] **Legal entity address** — Replace placeholder in `src/lib/legalConstants.ts` (GDPR-2)
+- [ ] **Subprocessors** — Keep [legal/subprocessors.md](./legal/subprocessors.md) aligned with Railway / R2 / Sentry
+
 ## Email
 
 All seller-context emails (Free, Hobby, and Pro) are sent via the platform Magnetoo Resend account (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`). Customer-facing emails set `Reply-To` to the seller's `notificationEmail` on the event or storefront so replies go directly to the seller.

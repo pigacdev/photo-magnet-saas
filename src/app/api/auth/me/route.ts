@@ -99,27 +99,31 @@ export async function GET() {
       }),
     ]);
 
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        legalAcceptedAt: user.legalAcceptedAt?.toISOString() ?? null,
-        legalVersion: user.legalVersion,
-        needsLegalReconsent: needsLegalReconsent(
-          user.legalAcceptedAt,
-          user.legalVersion,
-        ),
-        erasureScheduledAt: user.erasureScheduledAt?.toISOString() ?? null,
+    // EA-3: distinguish Next vs Express /api/auth/me in production (response header).
+    return NextResponse.json(
+      {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          legalAcceptedAt: user.legalAcceptedAt?.toISOString() ?? null,
+          legalVersion: user.legalVersion,
+          needsLegalReconsent: needsLegalReconsent(
+            user.legalAcceptedAt,
+            user.legalVersion,
+          ),
+          erasureScheduledAt: user.erasureScheduledAt?.toISOString() ?? null,
+        },
+        organization,
+        isPlatformOwner: isPlatformOwnerEmail(email),
+        earlyAccess: {
+          ...earlyAccessBase,
+          userIsEarlyAccess: orgEarly?.isEarlyAccess ?? false,
+        },
       },
-      organization,
-      isPlatformOwner: isPlatformOwnerEmail(email),
-      earlyAccess: {
-        ...earlyAccessBase,
-        userIsEarlyAccess: orgEarly?.isEarlyAccess ?? false,
-      },
-    });
+      { headers: { "X-Auth-Me-Source": "next" } },
+    );
   } catch (err) {
     if (err instanceof SellerAccountUnavailableError) {
       return NextResponse.json(

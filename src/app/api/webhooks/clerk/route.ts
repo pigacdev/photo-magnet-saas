@@ -64,7 +64,9 @@ export async function POST(req: NextRequest) {
 
       if (primaryEmail) {
         const name = displayNameFromClerk(username, first_name, last_name);
-        const legal = parseClerkLegalAccepted(evt.data as Record<string, unknown>);
+        const legal = parseClerkLegalAccepted(
+          evt.data as unknown as Record<string, unknown>,
+        );
         await ensureSellerUser({
           clerkId: id,
           email: primaryEmail,

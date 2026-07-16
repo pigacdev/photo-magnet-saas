@@ -20,9 +20,15 @@ const SUBPROCESSORS = [
     data: "Billing identifiers",
   },
   {
-    name: "Amazon Web Services (S3)",
+    name: "Railway",
+    purpose: "Application hosting and managed PostgreSQL",
+    location: "Configurable (prefer EU)",
+    data: "Application data, operational logs",
+  },
+  {
+    name: "Cloudflare R2 / Amazon Web Services (S3)",
     purpose: "Image and file storage",
-    location: "Configurable region (e.g. EU)",
+    location: "Configurable region (prefer EU)",
     data: "Uploaded photos, banners, print files",
   },
   {
@@ -32,10 +38,16 @@ const SUBPROCESSORS = [
     data: "Email addresses, order notification content",
   },
   {
-    name: "PostgreSQL hosting",
-    purpose: "Application database",
-    location: "Per deployment",
-    data: "All application data at rest",
+    name: "Sentry",
+    purpose: "Error monitoring",
+    location: "United States / EU",
+    data: "Stack traces and request metadata (no intentional buyer PII)",
+  },
+  {
+    name: "UptimeRobot",
+    purpose: "Availability monitoring",
+    location: "United States",
+    data: "Public URL reachability checks",
   },
 ] as const;
 

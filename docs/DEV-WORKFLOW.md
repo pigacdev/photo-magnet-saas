@@ -2,6 +2,9 @@
 
 - Always work in phases from implementation-plan.md
 - Never skip ahead
+- Production deploy (Railway, R2, Sentry, UptimeRobot): see [DEPLOYMENT.md](./DEPLOYMENT.md)
+
+
 
 ### Before coding:
 - Explain approach

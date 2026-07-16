@@ -7,8 +7,11 @@ Full-stack photo magnet platform.
 - **Frontend:** Next.js 16 (App Router), TypeScript, Tailwind CSS
 - **Backend:** Node.js + Express (TypeScript)
 - **Database:** PostgreSQL with Prisma ORM
-- **Storage:** S3-compatible (prepared)
-- **Payments:** Stripe (prepared)
+- **Storage:** Local `uploads/` + S3-compatible (Cloudflare R2 / AWS S3)
+- **Auth / billing:** Clerk
+- **Email:** Resend
+- **Production:** Railway (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md))
+- **Observability:** Sentry + UptimeRobot
 
 ## Project Structure
 
@@ -71,3 +74,7 @@ npm run db:studio     # Open Prisma Studio GUI
 ## Environment Variables
 
 See `.env.example` for all required variables.
+
+## Production
+
+Deploy to Railway (Next + Express + Postgres). Runbook, R2, Sentry, and UptimeRobot steps: **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.

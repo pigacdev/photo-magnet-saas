@@ -11,8 +11,10 @@ For product context and business goals, see [masterplan.md](./masterplan.md).
 **Next.js** serves the UI; a **standalone Express API** handles business logic, uploads, PDF generation, Stripe webhooks, and cron jobs. Next.js rewrites `/api/*` and `/uploads/*` to the API server (default port **4000**).
 
 ```
-Browser → Next.js (port 3000) → rewrites → Express API (port 4000) → PostgreSQL / S3
+Browser → Next.js (port 3000) → rewrites → Express API (port 4000) → PostgreSQL / S3 (or R2)
 ```
+
+**Production hosting:** Railway (web + api + Postgres), Cloudflare R2 when useful, Sentry, UptimeRobot. See [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ---
 
@@ -57,8 +59,10 @@ Browser → Next.js (port 3000) → rewrites → Express API (port 4000) → Pos
 |-------|------------|-------|
 | Database | **PostgreSQL** | |
 | ORM | **Prisma 7** | Schema: `prisma/schema.prisma`; client generated to `src/generated/prisma` |
-| Object storage | **AWS S3** | `@aws-sdk/client-s3` — production media |
-| Local uploads | `uploads/` | Dev / fallback; served by Express at `/uploads` |
+| Object storage | **S3-compatible** (AWS S3 or **Cloudflare R2**) | `@aws-sdk/client-s3` via `S3_*` env |
+| Local uploads | `uploads/` | Dev + Railway volume at `/app/uploads`; served by Express at `/uploads` |
+| Errors | **Sentry** | `@sentry/nextjs` (web) + `@sentry/node` (api); optional DSN |
+| Uptime | **UptimeRobot** | External HTTP checks on `/` and `/api/health` |
 
 **DB scripts:** `db:generate`, `db:migrate`, `db:push`, `db:studio`
 

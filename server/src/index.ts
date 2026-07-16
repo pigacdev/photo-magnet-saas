@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+import { initSentry, Sentry } from "./lib/sentry";
 import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
 import { eventsRouter } from "./routes/events";
@@ -25,8 +26,10 @@ import { authenticate, requireRole } from "./middleware/auth";
 import { requirePlatformOwner } from "./middleware/platformOwner";
 import { errorHandler } from "./middleware/errorHandler";
 
+initSentry();
+
 const app = express();
-const PORT = process.env.API_PORT || 4000;
+const PORT = process.env.API_PORT || process.env.PORT || 4000;
 
 app.use(helmet());
 app.use(
@@ -47,6 +50,7 @@ app.post(
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
+/** Mount Railway volume at `<cwd>/uploads` (Docker WORKDIR is `/app`). */
 const uploadsDir = path.join(process.cwd(), "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
 fs.mkdirSync(path.join(uploadsDir, "order-images"), { recursive: true });
@@ -103,6 +107,7 @@ app.use(
   platformRouter,
 );
 
+Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
 
 // Load after Express is configured; schedules when ENABLE_MEDIA_CLEANUP_CRON=true
@@ -111,6 +116,7 @@ void import("./cron/billingCron");
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`[uploads] serving from ${uploadsDir}`);
 });
 
 export default app;

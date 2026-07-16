@@ -224,7 +224,7 @@ function SignupsChart({
               debounce={50}
             >
               <LineChart
-                data={chartData}
+                data={chartData as Array<Record<string, string | number>>}
                 margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
