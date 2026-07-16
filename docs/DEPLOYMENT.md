@@ -52,7 +52,7 @@ Config-as-code templates: [`railway.web.toml`](../railway.web.toml), [`railway.a
 | Variable | Notes |
 |----------|--------|
 | `DATABASE_URL` | Same Postgres at **runtime** (Variable Reference). Never `localhost`. Not required for image build. `DATABASE_PRIVATE_URL` is accepted as fallback. |
-| `INTERNAL_API_URL` | **Build-time + needed for rewrites.** Private URL of api using the same port the api listens on (Railway `PORT`, often `8080`), e.g. `http://api.railway.internal:8080`. |
+| `INTERNAL_API_URL` | **Build-time (rewrites) + runtime (middleware).** Private URL of api using the same port the api listens on (Railway `PORT`, often `8080`), e.g. `http://api.railway.internal:8080`. Must remain set on the web service at **runtime** — `/order` session gate calls Express over this URL (not the public app hostname). |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | **Build-time (ARG).** Required or Docker build fails. |
 | `CLERK_SECRET_KEY` | Runtime (and any server routes). |
 | `NEXT_PUBLIC_APP_URL` / `APP_URL` | Public `https://your-domain` (set after domain exists; rebuild web when `NEXT_PUBLIC_*` changes). |
@@ -164,10 +164,15 @@ If api is not reachable via the web rewrite, monitor the public api URL instead.
    - `X-Auth-Me-Source: next` → App Router handler wins (filesystem over `afterFiles` rewrite)
    - `X-Auth-Me-Source: express` → Express rewrite wins  
    Document which one runs; keep that implementation as source of truth (see [technical-dept.md](./technical-dept.md) EA-3).
-4. Upload a session image; confirm file under volume and preview works.
-5. Generate a Square 50×50 print PDF.
-6. Confirm Clerk webhook deliveries succeed.
-7. Confirm UptimeRobot green; trigger a test Sentry error in staging if needed.
+4. **Start order (buyer)** — open a storefront (or event) entry URL → **Start order**:
+   - Network: `POST /api/session/start` → 200 or 201
+   - Then `GET /order` → **200** (must **not** 307 back to `/store/...` or `/event/...`)
+   - Application → Cookies: `sessionId` present on the app host
+   - If it still bounces: check **web** logs for `[order-session] bounce reason=...` (`timeout` | `http_status` | `bad_json` | `no_session` | `fetch_error`). Confirm web has runtime `INTERNAL_API_URL` pointing at the api private hostname + port.
+5. Upload a session image; confirm file under volume and preview works.
+6. Generate a Square 50×50 print PDF.
+7. Confirm Clerk webhook deliveries succeed.
+8. Confirm UptimeRobot green; trigger a test Sentry error in staging if needed.
 
 ---
 

@@ -103,6 +103,7 @@ Context: GDPR compliance work (legal pages, consent, DSAR/erasure, retention). S
 
 | Date | Change |
 |------|--------|
+| 2026-07-16 | **Resolved:** buyer Start order bounced (`GET /order` 307 → store) because middleware session check hairpinned the public URL; now calls Express via `INTERNAL_API_URL` with structured `[order-session]` bounce logs. |
 | 2026-07-16 | Deploy scaffold: Railway Dockerfiles + DEPLOYMENT.md; Sentry (Next/Express); `X-Auth-Me-Source` header for EA-3 verification. |
 | 2026-07-15 | Shape catalog: Circle 50×50 → 57×57 mm (2.25 in round); Rectangle 50×70 → 50×76 mm (2×3 in). Both remain coming soon until physical cut validation. |
 | 2026-07-15 | Subscription lapse: `revertToFreePlan()` resets usage counters, clears early-access flags (EA-6 resolved), sends transactional lapse email; legacy Stripe uses shared path. |
