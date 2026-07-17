@@ -62,7 +62,11 @@ These block turning on the lifetime-discount feature with confidence. Everything
 
 ## Other application areas
 
-*(Add new subsections here — e.g. image processing, orders, auth, platform dashboard.)*
+### Orders / plan usage (dashboard)
+
+| ID | Item | Risk | Action |
+|----|------|------|--------|
+| ORD-1 | ~~**Mobile sidebar inflated `ordersThisMonth`**~~ | Opening the hamburger menu remounted `useNewOrdersCount`, which treated unreviewed NEW-order badge count as monthly usage and bumped `ordersThisMonth` client-side. | **Resolved 2026-07-17:** lifted hook to `DashboardShell`; removed usage bump from `useNewOrdersCount`; real-time usage updates remain via `useNewOrderNotifications` only. |
 
 ---
 
@@ -103,6 +107,7 @@ Context: GDPR compliance work (legal pages, consent, DSAR/erasure, retention). S
 
 | Date | Change |
 |------|--------|
+| 2026-07-17 | **Resolved (ORD-1):** mobile sidebar no longer inflates `ordersThisMonth` on menu open; `useNewOrdersCount` badge polling decoupled from monthly usage cache. |
 | 2026-07-16 | **Resolved:** buyer Start order bounced (`GET /order` 307 → store) because middleware session check hairpinned the public URL; now calls Express via `INTERNAL_API_URL` with structured `[order-session]` bounce logs. |
 | 2026-07-16 | Deploy scaffold: Railway Dockerfiles + DEPLOYMENT.md; Sentry (Next/Express); `X-Auth-Me-Source` header for EA-3 verification. |
 | 2026-07-15 | Shape catalog: Circle 50×50 → 57×57 mm (2.25 in round); Rectangle 50×70 → 50×76 mm (2×3 in). Both remain coming soon until physical cut validation. |

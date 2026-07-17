@@ -13,12 +13,12 @@ import {
 } from "./dashboardNav";
 import { DashboardNavIcon } from "./dashboardNavIcons";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
-import { useNewOrdersCount } from "@/hooks/useNewOrdersCount";
 import { usageHasFeature } from "@/lib/planFeatures";
 
 export type DashboardSidebarProps = {
   user: User;
   usage: OrganizationUsage | null;
+  newOrdersCount: number;
   onNavigate?: () => void;
   className?: string;
 };
@@ -26,12 +26,12 @@ export type DashboardSidebarProps = {
 export function DashboardSidebar({
   user,
   usage,
+  newOrdersCount,
   onNavigate,
   className = "",
 }: DashboardSidebarProps) {
   const pathname = usePathname();
   const { storefront } = useSellerStorefront();
-  const { count: newOrdersCount } = useNewOrdersCount();
 
   return (
     <aside

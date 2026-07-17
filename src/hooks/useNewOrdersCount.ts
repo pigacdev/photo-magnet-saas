@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { incrementCachedOrderUsage } from "@/lib/auth";
 import { subscribeNewOrdersCount } from "@/lib/newOrdersCount";
 
 type NewOrdersCountResponse = {
@@ -14,17 +13,12 @@ const POLL_INTERVAL_MS = 30_000;
 export function useNewOrdersCount() {
   const [count, setCount] = useState(0);
   const fetchingRef = useRef(false);
-  const prevCountRef = useRef(0);
 
-  const refresh = useCallback(async (skipUsageBump = false) => {
+  const refresh = useCallback(async () => {
     if (fetchingRef.current || document.hidden) return;
     fetchingRef.current = true;
     try {
       const data = await api<NewOrdersCountResponse>("/api/orders/new-count");
-      if (!skipUsageBump && data.count > prevCountRef.current) {
-        incrementCachedOrderUsage(data.count - prevCountRef.current);
-      }
-      prevCountRef.current = data.count;
       setCount(data.count);
     } catch {
       /* ignore transient fetch failures */
@@ -43,7 +37,7 @@ export function useNewOrdersCount() {
     }
 
     const unsubscribe = subscribeNewOrdersCount(() => {
-      void refresh(true);
+      void refresh();
     });
 
     document.addEventListener("visibilitychange", onVisibilityChange);

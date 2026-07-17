@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { OrganizationUsage, User } from "@/lib/auth";
+import { useNewOrdersCount } from "@/hooks/useNewOrdersCount";
 import { DashboardHeader } from "./DashboardHeader";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { NewOrderNotification } from "./NewOrderNotification";
@@ -18,6 +19,7 @@ export function DashboardShell({
   children,
 }: DashboardShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { count: newOrdersCount } = useNewOrdersCount();
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
@@ -39,7 +41,11 @@ export function DashboardShell({
   return (
     <div className="flex min-h-full flex-1">
       <div className="hidden lg:flex">
-        <DashboardSidebar user={user} usage={usage} />
+        <DashboardSidebar
+          user={user}
+          usage={usage}
+          newOrdersCount={newOrdersCount}
+        />
       </div>
 
       {mobileOpen && (
@@ -51,7 +57,12 @@ export function DashboardShell({
             onClick={closeMobile}
           />
           <div className="relative z-50 h-full w-60 shadow-xl">
-            <DashboardSidebar user={user} usage={usage} onNavigate={closeMobile} />
+            <DashboardSidebar
+              user={user}
+              usage={usage}
+              newOrdersCount={newOrdersCount}
+              onNavigate={closeMobile}
+            />
           </div>
         </div>
       )}
