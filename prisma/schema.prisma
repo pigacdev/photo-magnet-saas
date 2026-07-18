@@ -101,6 +101,14 @@ model EarlyAccessCounter {
   plansFlippedAt DateTime?
 }
 
+/// Singleton row (id=1) for platform ops email alert toggles.
+model PlatformAlertSettings {
+  id                       Int      @id @default(1)
+  newUserAlertsEnabled     Boolean  @default(true)
+  planChangeAlertsEnabled  Boolean  @default(true)
+  updatedAt                DateTime @updatedAt
+}
+
 model User {
   id           String        @id @default(uuid())
   clerkId      String?       @unique

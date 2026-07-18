@@ -823,3 +823,104 @@ export async function sendPlatformNotificationEmail(data: {
     marketing: !data.includeOptedOut,
   });
 }
+
+function platformOverviewUrl(): string {
+  return `${appBaseUrl()}/platform`;
+}
+
+export function buildPlatformNewUserAlertHtml(data: {
+  sellerName: string | null;
+  sellerEmail: string;
+  userId: string;
+  platformUrl?: string;
+}): string {
+  const name = data.sellerName?.trim()
+    ? escapeHtml(data.sellerName.trim())
+    : "—";
+  const email = escapeHtml(data.sellerEmail);
+  const userId = escapeHtml(data.userId);
+  const url = escapeHtml(data.platformUrl ?? platformOverviewUrl());
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:24px;background:#f9fafb;">
+  <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">New Magnetoo seller registered</h2>
+    <p style="margin:0 0 16px;font-size:15px;">A new seller account was created.</p>
+    <ul style="margin:0 0 16px;padding-left:20px;font-size:15px;">
+      <li><strong>Name:</strong> ${name}</li>
+      <li><strong>Email:</strong> ${email}</li>
+      <li><strong>User id:</strong> ${userId}</li>
+    </ul>
+    <p style="margin:0;"><a href="${url}" style="color:#2563eb;text-decoration:underline;">Open platform overview</a> · ${url}</p>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendPlatformNewUserAlert(data: {
+  to: string;
+  sellerName: string | null;
+  sellerEmail: string;
+  userId: string;
+}): Promise<void> {
+  await sendEmail({
+    to: data.to,
+    from: platformFromAddress(),
+    subject: "New Magnetoo seller registered",
+    html: buildPlatformNewUserAlertHtml(data),
+    transactional: true,
+  });
+}
+
+export function buildPlatformPlanChangeAlertHtml(data: {
+  sellerName: string | null;
+  sellerEmail: string;
+  userId: string;
+  fromPlanLabel: string;
+  toPlanLabel: string;
+  platformUrl?: string;
+}): string {
+  const name = data.sellerName?.trim()
+    ? escapeHtml(data.sellerName.trim())
+    : "—";
+  const email = escapeHtml(data.sellerEmail);
+  const userId = escapeHtml(data.userId);
+  const fromPlan = escapeHtml(data.fromPlanLabel);
+  const toPlan = escapeHtml(data.toPlanLabel);
+  const url = escapeHtml(data.platformUrl ?? platformOverviewUrl());
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:24px;background:#f9fafb;">
+  <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:520px;margin:auto;line-height:1.5;color:#111827;">
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;">Magnetoo seller plan changed</h2>
+    <p style="margin:0 0 16px;font-size:15px;">A seller's product plan changed from <strong>${fromPlan}</strong> to <strong>${toPlan}</strong>.</p>
+    <ul style="margin:0 0 16px;padding-left:20px;font-size:15px;">
+      <li><strong>Name:</strong> ${name}</li>
+      <li><strong>Email:</strong> ${email}</li>
+      <li><strong>User id:</strong> ${userId}</li>
+      <li><strong>Plan:</strong> ${fromPlan} → ${toPlan}</li>
+    </ul>
+    <p style="margin:0;"><a href="${url}" style="color:#2563eb;text-decoration:underline;">Open platform overview</a> · ${url}</p>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendPlatformPlanChangeAlert(data: {
+  to: string;
+  sellerName: string | null;
+  sellerEmail: string;
+  userId: string;
+  fromPlanLabel: string;
+  toPlanLabel: string;
+}): Promise<void> {
+  await sendEmail({
+    to: data.to,
+    from: platformFromAddress(),
+    subject: "Magnetoo seller plan changed",
+    html: buildPlatformPlanChangeAlertHtml(data),
+    transactional: true,
+  });
+}

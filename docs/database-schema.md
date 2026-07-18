@@ -57,6 +57,19 @@ Singleton row (`id = 1`) for launch seat tracking.
 
 ---
 
+## PlatformAlertSettings
+
+Singleton row (`id = 1`) for platform ops email alert toggles (`/platform/notifications`).
+
+- id (int, always 1)
+- new_user_alerts_enabled (boolean, default true)
+- plan_change_alerts_enabled (boolean, default true)
+- updated_at
+
+Recipients come from env `PLATFORM_ALERT_EMAILS` (not stored in DB).
+
+---
+
 ## Event
 
 - id (uuid)

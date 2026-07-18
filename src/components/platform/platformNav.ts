@@ -12,6 +12,11 @@ export const PLATFORM_NAV_ITEMS: ReadonlyArray<{
 }> = [
   { href: "/platform", label: "Overview", icon: "home" },
   { href: "/platform/early-access", label: "Early access", icon: "orders" },
+  {
+    href: "/platform/notifications",
+    label: "Notifications",
+    icon: "notifications",
+  },
 ];
 
 export function isPlatformNavActive(pathname: string, href: string): boolean {

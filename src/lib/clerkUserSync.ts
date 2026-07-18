@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { defaultBillingPeriodEnd } from "./billingPeriod";
 import { logAuditEvent } from "../../server/src/lib/privacyAuditLog";
+import { notifyPlatformNewUser } from "../../server/src/lib/platformSellerAlerts";
 import {
   SellerAccountUnavailableError,
   sellerUserAccessibleWhere,
@@ -127,8 +128,8 @@ export async function ensureSellerUser(
 
   const periodEnd = defaultBillingPeriodEnd();
 
-  return prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
       data: {
         clerkId: input.clerkId,
         email,
@@ -145,13 +146,21 @@ export async function ensureSellerUser(
 
     await tx.organization.create({
       data: {
-        id: user.id,
+        id: created.id,
         currentPeriodEnd: periodEnd,
       },
     });
 
-    return user;
+    return created;
   });
+
+  await notifyPlatformNewUser({
+    userId: user.id,
+    email: user.email,
+    name: user.name,
+  });
+
+  return user;
 }
 
 /** Soft-delete seller when Clerk sends user.deleted. */

@@ -173,3 +173,28 @@ export function sendPlatformNotification(body: {
     body,
   });
 }
+
+export type PlatformAlertSettingsResponse = {
+  newUserAlertsEnabled: boolean;
+  planChangeAlertsEnabled: boolean;
+  updatedAt: string;
+};
+
+export function fetchPlatformAlertSettings(): Promise<PlatformAlertSettingsResponse> {
+  return api<PlatformAlertSettingsResponse>(
+    "/api/platform/notifications/settings",
+  );
+}
+
+export function patchPlatformAlertSettings(body: {
+  newUserAlertsEnabled?: boolean;
+  planChangeAlertsEnabled?: boolean;
+}): Promise<PlatformAlertSettingsResponse> {
+  return api<PlatformAlertSettingsResponse>(
+    "/api/platform/notifications/settings",
+    {
+      method: "PATCH",
+      body,
+    },
+  );
+}

@@ -20,6 +20,7 @@ import {
 import { maybeApplyUsagePeriodAnchor } from "./usagePeriodAnchor";
 import { sellerUserAccessibleWhere } from "./sellerUserAccess";
 import { sendSubscriptionLapseEmail } from "../../server/src/lib/email";
+import { notifyPlatformPlanChange } from "../../server/src/lib/platformSellerAlerts";
 
 type BillingPayer = {
   user_id?: string;
@@ -169,6 +170,14 @@ async function applyPaidPlan(
   },
 ): Promise<void> {
   const limits = resolvePlanEntitlements(clerkPlanSlug);
+  const existing = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: {
+      plan: true,
+      user: { select: { email: true, name: true } },
+    },
+  });
+
   await prisma.organization.update({
     where: { id: orgId },
     data: {
@@ -188,6 +197,17 @@ async function applyPaidPlan(
       subscriptionLapseNotifiedAt: null,
     },
   });
+
+  if (existing && existing.plan !== limits.plan) {
+    await notifyPlatformPlanChange({
+      userId: orgId,
+      email: existing.user.email,
+      name: existing.user.name,
+      fromPlan: existing.plan,
+      toPlan: limits.plan,
+    });
+  }
+
   await maybeApplyUsagePeriodAnchor(
     orgId,
     subscriptionPeriod?.currentPeriodStart,
@@ -257,6 +277,14 @@ export async function revertToFreePlan(orgId: string): Promise<void> {
   } catch (err) {
     console.warn("[clerk.billing] subscription lapse email failed", orgId, err);
   }
+
+  await notifyPlatformPlanChange({
+    userId: orgId,
+    email: org.user.email,
+    name: org.user.name,
+    fromPlan: previousPlan,
+    toPlan: "FREE",
+  });
 }
 
 function getClerkSecretKey(): string | undefined {

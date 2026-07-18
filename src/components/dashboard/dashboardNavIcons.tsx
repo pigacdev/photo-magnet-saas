@@ -4,7 +4,8 @@ export type DashboardNavIconName =
   | "customers"
   | "events"
   | "storefront"
-  | "calendar";
+  | "calendar"
+  | "notifications";
 
 export function DashboardNavIcon({
   name,
@@ -124,6 +125,23 @@ export function DashboardNavIcon({
             d="M6.5 4V3M13.5 4V3M4.5 7h11M5.5 5h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"
           />
           <path strokeLinecap="round" d="M7 10h2M11 10h2" />
+        </svg>
+      );
+    case "notifications":
+      return (
+        <svg
+          className={className}
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          aria-hidden
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 16.5h4M5.5 14h9l-1-1.5V9a4.5 4.5 0 1 0-9 0v3.5L5.5 14z"
+          />
         </svg>
       );
   }

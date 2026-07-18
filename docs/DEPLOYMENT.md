@@ -58,6 +58,9 @@ Config-as-code templates: [`railway.web.toml`](../railway.web.toml), [`railway.a
 | `NEXT_PUBLIC_APP_URL` / `APP_URL` | Public `https://your-domain` (set after domain exists; rebuild web when `NEXT_PUBLIC_*` changes). |
 | `NEXT_PUBLIC_API_URL` | Optional if `INTERNAL_API_URL` is set; browser uses same-origin `/api`. |
 | `CLERK_WEBHOOK_SIGNING_SECRET` | Clerk → `https://your-domain/api/webhooks/clerk` |
+| `PLATFORM_OWNER_EMAILS` | Comma-separated dashboard allowlist (web platform routes) |
+| `PLATFORM_ALERT_EMAILS` | Ops alert recipients (Clerk webhook + billing sync on web) |
+| `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | Needed on web for seller alert emails from Clerk webhooks |
 | `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_*` | Optional |
 | Clerk sign-in/up URL vars | Defaults baked in Dockerfile if unset |
 
@@ -71,7 +74,8 @@ Config-as-code templates: [`railway.web.toml`](../railway.web.toml), [`railway.a
 | `NODE_ENV` | `production` |
 | `CLERK_SECRET_KEY` | Same as web |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Used by some shared sync helpers |
-| `PLATFORM_OWNER_EMAILS` | Comma-separated |
+| `PLATFORM_OWNER_EMAILS` | Comma-separated dashboard allowlist |
+| `PLATFORM_ALERT_EMAILS` | Comma-separated ops alert recipients (new sellers / plan changes); no fallback to owner list |
 | `ENABLE_MEDIA_CLEANUP_CRON` | `true` in production |
 | `ENABLE_BILLING_CRON` | `true` in production |
 | `APP_URL` | Public app URL for links/emails |

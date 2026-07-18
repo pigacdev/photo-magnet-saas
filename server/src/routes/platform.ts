@@ -16,6 +16,10 @@ import {
   sendPlatformNotifications,
   type PlatformNotificationSelection,
 } from "../lib/platformNotifications";
+import {
+  getPlatformAlertSettings,
+  updatePlatformAlertSettings,
+} from "../lib/platformAlertSettings";
 
 export const platformRouter = Router();
 
@@ -153,6 +157,71 @@ platformRouter.post("/notifications/send", async (req: Request, res: Response) =
     res.status(500).json({ error: "Failed to send notifications" });
   }
 });
+
+/** GET /api/platform/notifications/settings — global ops alert toggles. */
+platformRouter.get(
+  "/notifications/settings",
+  async (_req: Request, res: Response) => {
+    const settings = await getPlatformAlertSettings();
+    res.json({
+      newUserAlertsEnabled: settings.newUserAlertsEnabled,
+      planChangeAlertsEnabled: settings.planChangeAlertsEnabled,
+      updatedAt: settings.updatedAt.toISOString(),
+    });
+  },
+);
+
+/** PATCH /api/platform/notifications/settings — update ops alert toggles. */
+platformRouter.patch(
+  "/notifications/settings",
+  async (req: Request, res: Response) => {
+    const body = req.body as {
+      newUserAlertsEnabled?: unknown;
+      planChangeAlertsEnabled?: unknown;
+    };
+    const hasNewUser = typeof body.newUserAlertsEnabled === "boolean";
+    const hasPlanChange = typeof body.planChangeAlertsEnabled === "boolean";
+    if (!hasNewUser && !hasPlanChange) {
+      res.status(400).json({
+        error:
+          "Provide newUserAlertsEnabled and/or planChangeAlertsEnabled as boolean",
+      });
+      return;
+    }
+    if (
+      body.newUserAlertsEnabled !== undefined &&
+      typeof body.newUserAlertsEnabled !== "boolean"
+    ) {
+      res
+        .status(400)
+        .json({ error: "newUserAlertsEnabled must be a boolean" });
+      return;
+    }
+    if (
+      body.planChangeAlertsEnabled !== undefined &&
+      typeof body.planChangeAlertsEnabled !== "boolean"
+    ) {
+      res
+        .status(400)
+        .json({ error: "planChangeAlertsEnabled must be a boolean" });
+      return;
+    }
+
+    const settings = await updatePlatformAlertSettings({
+      ...(hasNewUser
+        ? { newUserAlertsEnabled: body.newUserAlertsEnabled as boolean }
+        : {}),
+      ...(hasPlanChange
+        ? { planChangeAlertsEnabled: body.planChangeAlertsEnabled as boolean }
+        : {}),
+    });
+    res.json({
+      newUserAlertsEnabled: settings.newUserAlertsEnabled,
+      planChangeAlertsEnabled: settings.planChangeAlertsEnabled,
+      updatedAt: settings.updatedAt.toISOString(),
+    });
+  },
+);
 
 /** GET /api/platform/early-access — early-access subscribers. */
 platformRouter.get("/early-access", async (_req: Request, res: Response) => {
