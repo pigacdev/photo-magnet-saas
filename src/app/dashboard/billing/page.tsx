@@ -14,7 +14,6 @@ import {
   type OrganizationUsage,
 } from "@/lib/auth";
 import { BillingPlanFeatureLists } from "@/components/dashboard/BillingPlanFeatureLists";
-import { BillingEarlyAccessPlanBanners } from "@/components/dashboard/BillingEarlyAccessPlanBanners";
 import { BillingEarlyAccessProspectCallout } from "@/components/dashboard/BillingEarlyAccessProspectCallout";
 import { BillingEarlyAccessMemberBanner } from "@/components/dashboard/BillingEarlyAccessMemberBanner";
 import { BillingSubscriptionSuccessModal } from "@/components/dashboard/BillingSubscriptionSuccessModal";
@@ -123,7 +122,6 @@ function BillingContent() {
         <div
           className={`billing-plans-layout mt-4${earlyAccess?.isOpen ? " billing-plans-layout--early-access" : ""}`}
         >
-          <BillingEarlyAccessPlanBanners status={earlyAccess} />
           <div className="clerk-pricing-table">
             <PricingTable
               for="user"
