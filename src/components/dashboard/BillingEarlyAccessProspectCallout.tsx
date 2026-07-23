@@ -4,6 +4,8 @@ import type { EarlyAccessStatus } from "@/lib/earlyAccessUi";
 import {
   EARLY_ACCESS_EXPECTATION,
   EARLY_ACCESS_HEADLINE,
+  EARLY_ACCESS_LAUNCH_PILL,
+  EARLY_ACCESS_OFFER_SCOPE,
   EARLY_ACCESS_PROSPECT_BODY,
 } from "@/lib/earlyAccessCopy";
 import { EarlyAccessFeedbackLinks } from "@/components/dashboard/EarlyAccessFeedbackLinks";
@@ -15,26 +17,38 @@ type Props = {
 export function BillingEarlyAccessProspectCallout({ status }: Props) {
   if (!status.isOpen || status.userIsEarlyAccess) return null;
 
+  const spotsLabel =
+    status.seatsRemaining === 1 ? "spot left" : "spots left";
+
   return (
-    <div
-      className="mb-6 overflow-hidden rounded-lg border border-amber-300/60 bg-gradient-to-r from-amber-50 via-orange-50 to-primary/5 px-4 py-4 shadow-sm dark:border-amber-600/40 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-primary/10"
-      role="status"
-    >
-      <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+    <div className="billing-early-access-offer-box mb-6" role="status">
+      <div className="billing-early-access-offer-box-top">
+        <span className="billing-early-access-offer-pill">
+          {EARLY_ACCESS_LAUNCH_PILL}
+        </span>
+      </div>
+      <p className="billing-early-access-offer-headline">
         {EARLY_ACCESS_HEADLINE}
       </p>
-      <p className="mt-1.5 text-sm text-amber-900/90 dark:text-amber-200/90">
-        {EARLY_ACCESS_PROSPECT_BODY} ·{" "}
-        <span className="font-bold tabular-nums underline decoration-amber-700/60 underline-offset-2 dark:decoration-amber-300/50">
-          {status.seatsRemaining}{" "}
-          {status.seatsRemaining === 1 ? "seat" : "seats"} remaining
+      <p className="billing-early-access-offer-seats">
+        <span className="billing-early-access-offer-seats-count tabular-nums">
+          {status.seatsRemaining}
+        </span>{" "}
+        <span className="billing-early-access-offer-seats-label">
+          {spotsLabel}
         </span>
       </p>
-      <p className="mt-1.5 text-sm text-amber-900/90 dark:text-amber-200/90">
+      <p className="billing-early-access-offer-scope">
+        {EARLY_ACCESS_OFFER_SCOPE}
+      </p>
+      <p className="billing-early-access-offer-body">
+        {EARLY_ACCESS_PROSPECT_BODY}
+      </p>
+      <p className="billing-early-access-offer-body">
         {EARLY_ACCESS_EXPECTATION}
       </p>
-      <div className="mt-1.5">
-        <EarlyAccessFeedbackLinks />
+      <div className="billing-early-access-offer-links">
+        <EarlyAccessFeedbackLinks tone="onBrand" />
       </div>
     </div>
   );
