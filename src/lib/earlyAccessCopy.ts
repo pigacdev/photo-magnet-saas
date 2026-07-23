@@ -11,5 +11,9 @@ export const EARLY_ACCESS_EXPECTATION =
 export const EARLY_ACCESS_MEMBER_BODY =
   "You're in our early access cohort — 60 days free while you test Magnetoo. Your feedback helps us validate and improve the product.";
 
-export const EARLY_ACCESS_PLAN_BANNER_SUBTEXT =
-  "60-day trial · tester feedback welcome";
+/** Billing offer box: commercial scope (Free plan is excluded). */
+export const EARLY_ACCESS_OFFER_SCOPE =
+  "Offer applies to Hobby and Pro plans only";
+
+/** Pill label on the blue billing offer box. */
+export const EARLY_ACCESS_LAUNCH_PILL = "Launch offer";

@@ -1,7 +1,9 @@
 "use client";
 
 import type { EarlyAccessStatus } from "@/lib/earlyAccessUi";
-import { EARLY_ACCESS_PLAN_BANNER_SUBTEXT } from "@/lib/earlyAccessCopy";
+
+const EARLY_ACCESS_PLAN_BANNER_SUBTEXT =
+  "60-day trial · tester feedback welcome";
 
 function bannerSubtext(status: EarlyAccessStatus): string {
   const seats =
