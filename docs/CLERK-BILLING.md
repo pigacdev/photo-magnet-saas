@@ -17,7 +17,7 @@ Slugs must stay in sync with [`src/lib/planCatalog.ts`](../src/lib/planCatalog.t
 
 **PricingTable UI:** Clerk truncates in-card features and shows "+ See all features" (not fixable with taller cards). The billing page hides Clerk's feature block and renders full lists in `BillingPlanFeatureLists` (`src/lib/billingPlanDisplay.ts`). Clerk feature attachments in `billing.json` still drive entitlements/`has()`; display copy can include limits from `planCatalog`.
 
-**Early-access offer UI:** While seats remain, the billing page shows one full-width offer box above the table (`BillingEarlyAccessProspectCallout`) stating the Hobby/Pro-only 60-day trial and remaining spots. Per-plan banners above individual Clerk cards were removed so mobile stacking stays Free → Hobby → Pro. Hobby/Pro cards still use an early-access glow via `.billing-plans-layout--early-access`.
+**Early-access offer UI:** While seats remain, the billing page shows one full-width offer box above the table (`BillingEarlyAccessProspectCallout`) stating the Hobby/Pro-only 60-day trial and remaining spots. Per-plan banners above individual Clerk cards were removed so mobile stacking stays Free → Hobby → Pro. On small viewports, custom feature lists are portaled under each Clerk plan card so features stay attached to the matching plan. Plan cards use the same neutral border as Free (no separate Hobby/Pro glow).
 
 If Organizations are enabled, set **Membership optional** in Clerk Dashboard so user billing checkout works.
 

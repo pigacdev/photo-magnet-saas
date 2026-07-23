@@ -3,11 +3,88 @@
  * Taller cards cannot fix that — extra features are not in the DOM. We hide Clerk's list and render
  * our own full feature columns in .billing-plan-features-grid (see BillingPlanFeatureLists).
  *
- * Layout: two aligned 3-column grids — Clerk cards on top, custom features directly below.
- * Each column reads as one card via shared borders and a horizontal separator.
+ * Desktop (≥640px): two aligned 3-column grids — Clerk cards on top, custom features below.
+ * Mobile: BillingPlanFeatureLists portals each feature column into an anchor
+ * inserted after the matching Clerk plan card (Free → features → Hobby → …).
  */
 .billing-plans-layout {
   width: 100%;
+}
+
+.billing-plan-feature-anchor {
+  display: block;
+  width: 100%;
+}
+
+.billing-plan-features-heading {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+/* Mobile: attached portals sit under each card; fallback grid stays visible if
+   Clerk cards are not matched yet (never hide features with display:none). */
+@media (max-width: 639.98px) {
+  /* Kill Clerk row gaps so card + feature anchor sit flush. */
+  .billing-plans-layout .clerk-pricing-table .magnetoo-clerk-pricing-table,
+  .billing-plans-layout .clerk-pricing-table [class*="pricingTable"] {
+    gap: 0 !important;
+    row-gap: 0 !important;
+  }
+
+  .billing-plan-feature-anchor {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  /* No spacer under the plan shell when skills follow immediately. */
+  .billing-plans-layout .clerk-pricing-table .magnetoo-clerk-pricing-card:has(+ .billing-plan-feature-anchor),
+  .billing-plans-layout .clerk-pricing-table *:has(> .magnetoo-clerk-pricing-card):has(+ .billing-plan-feature-anchor) {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Flat join: plan card (top) + skills (bottom) read as one box. */
+  .billing-plans-layout .clerk-pricing-table .magnetoo-clerk-pricing-card {
+    margin-bottom: 0 !important;
+    border-bottom: none !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-color: var(--border) !important;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
+    animation: none !important;
+  }
+
+  .billing-plans-layout .billing-plan-feature-anchor .billing-plan-features-col {
+    margin-top: -1px;
+    margin-bottom: 1rem;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-color: var(--border);
+    box-shadow: none;
+  }
+
+  .billing-plans-layout
+    .billing-plan-feature-anchor:has(.billing-plan-features-col--pro)
+    .billing-plan-features-col {
+    margin-bottom: 0;
+  }
+
+  .billing-plan-features-grid--mobile-fallback {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .billing-plan-features-grid--mobile-fallback .billing-plan-features-col {
+    border-radius: 0.75rem;
+    margin-top: 0;
+    border-color: var(--border);
+    box-shadow: none;
+  }
 }
 
 /* Single full-width early-access offer box (replaces per-plan banners). */
@@ -198,58 +275,5 @@
   .billing-plans-layout:has([id*="pro"][data-variant="highlighted"]) .billing-plan-features-col--pro,
   .billing-plans-layout:has([id*="pro"][class*="highlighted"]) .billing-plan-features-col--pro {
     border-color: var(--primary);
-  }
-
-  /* Early access glow on hobby/pro during launch */
-  .billing-plans-layout--early-access .clerk-pricing-table .magnetoo-clerk-pricing-table [id*="hobby"]:not([id*="loyalty"]) .magnetoo-clerk-pricing-card,
-  .billing-plans-layout--early-access .clerk-pricing-table .magnetoo-clerk-pricing-table [id*="pro"]:not([id*="loyalty"]) .magnetoo-clerk-pricing-card {
-    position: relative;
-    border-color: rgb(37 99 235 / 0.45);
-    box-shadow:
-      0 1px 2px 0 rgb(0 0 0 / 0.05),
-      0 0 0 1px rgb(37 99 235 / 0.25),
-      0 8px 28px rgb(37 99 235 / 0.12);
-    animation: early-access-glow 3s ease-in-out infinite;
-  }
-
-  .billing-plans-layout--early-access
-    .clerk-pricing-table
-    .magnetoo-clerk-pricing-table
-    [id*="pro"]:not([id*="loyalty"])
-    .magnetoo-clerk-pricing-card {
-    border-color: rgb(37 99 235 / 0.65);
-    box-shadow:
-      0 1px 2px 0 rgb(0 0 0 / 0.05),
-      0 0 0 2px rgb(37 99 235 / 0.35),
-      0 10px 32px rgb(37 99 235 / 0.18);
-  }
-
-  .billing-plans-layout--early-access .billing-plan-features-col--hobby,
-  .billing-plans-layout--early-access .billing-plan-features-col--pro {
-    border-color: rgb(37 99 235 / 0.35);
-    box-shadow: 0 4px 16px rgb(37 99 235 / 0.08);
-  }
-}
-
-@keyframes early-access-glow {
-  0%,
-  100% {
-    box-shadow:
-      0 1px 2px 0 rgb(0 0 0 / 0.05),
-      0 0 0 1px rgb(37 99 235 / 0.25),
-      0 8px 24px rgb(37 99 235 / 0.1);
-  }
-  50% {
-    box-shadow:
-      0 1px 2px 0 rgb(0 0 0 / 0.05),
-      0 0 0 2px rgb(37 99 235 / 0.4),
-      0 12px 32px rgb(37 99 235 / 0.18);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .billing-plans-layout--early-access .clerk-pricing-table .magnetoo-clerk-pricing-table [id*="hobby"]:not([id*="loyalty"]) .magnetoo-clerk-pricing-card,
-  .billing-plans-layout--early-access .clerk-pricing-table .magnetoo-clerk-pricing-table [id*="pro"]:not([id*="loyalty"]) .magnetoo-clerk-pricing-card {
-    animation: none;
   }
 }
