@@ -14,7 +14,7 @@ export function SupportSocialLinks() {
         You can also try reaching us or other Magnetoo members through our
         social channels:
       </p>
-      <ul className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+      <ul className="mt-3 flex flex-row flex-wrap gap-2 sm:gap-3">
         {links.map((link) => (
           <li key={link.platform}>
             <a
