@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# Cursor Superpowers SDD working notes (ephemeral)
+.superpowers/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
