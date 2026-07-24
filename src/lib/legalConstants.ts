@@ -5,6 +5,8 @@
 
 export const CURRENT_POLICY_VERSION = "2026-07-14";
 
+export const EARLY_ACCESS_DISCOUNT_TERMS_VERSION = "2026-07-24";
+
 /** Platform operator identity (update before production launch). */
 export const LEGAL_ENTITY = {
   name: "Magnetoo",
@@ -29,5 +31,6 @@ export const LEGAL_LINKS = {
   cookies: "/cookies",
   subprocessors: "/subprocessors",
   imprint: "/imprint",
+  earlyAccessDiscountTerms: "/early-access-discount-terms",
   dpa: "/dashboard/billing",
 } as const;

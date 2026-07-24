@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { getSocialLinks } from "@/lib/socialLinks";
 
-type Tone = "amber" | "onBrand";
+type Tone = "amber" | "neutral";
 
 const toneClasses: Record<Tone, { text: string; link: string }> = {
+  neutral: {
+    text: "text-sm text-muted-foreground",
+    link: "font-medium text-primary underline-offset-2 hover:underline",
+  },
   amber: {
     text: "text-sm text-amber-900/90 dark:text-amber-200/90",
     link: "font-medium text-amber-950 underline decoration-amber-700/60 underline-offset-2 hover:decoration-amber-800 dark:text-amber-100 dark:decoration-amber-300/50 dark:hover:decoration-amber-200",
-  },
-  onBrand: {
-    text: "text-sm text-white/90",
-    link: "font-medium text-white underline decoration-white/60 underline-offset-2 hover:decoration-white",
   },
 };
 
