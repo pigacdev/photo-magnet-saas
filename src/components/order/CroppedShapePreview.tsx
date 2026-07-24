@@ -12,9 +12,11 @@ function isCircleShape(shape: CatalogShape): boolean {
 type Props = {
   image: SessionImage;
   shape: CatalogShape;
-  /** Max CSS width of the preview (height follows shape aspect, not crop pixels). */
+  /** Max CSS width of the preview (height follows shape aspect). */
   maxWidthPx?: number;
 };
+
+type LayoutSize = { w: number; h: number };
 
 function drawCropped(
   canvas: HTMLCanvasElement,
@@ -44,8 +46,9 @@ function drawCropped(
 }
 
 /**
- * Draws the stored crop into a frame that matches the magnet shape (not crop pixel ratio),
- * so the preview stays a true circle / correct rectangle even if crop data drifts slightly.
+ * Step 4 review preview — draws the stored pixel crop (same as print/PDF).
+ * Resize only scales the preview; crop content is viewport-independent.
+ * Do not use pan/zoom UI fields here — those are relative to the crop-editor frame size.
  */
 export function CroppedShapePreview({
   image,
@@ -55,7 +58,7 @@ export function CroppedShapePreview({
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const loadedRef = useRef<{ url: string; img: HTMLImageElement } | null>(null);
-  const [layoutW, setLayoutW] = useState(0);
+  const [layout, setLayout] = useState<LayoutSize>({ w: 0, h: 0 });
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading",
   );
@@ -71,9 +74,12 @@ export function CroppedShapePreview({
   useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setLayoutW(el.clientWidth));
+    const measure = () => {
+      setLayout({ w: el.clientWidth, h: el.clientHeight });
+    };
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
-    setLayoutW(el.clientWidth);
+    measure();
     return () => ro.disconnect();
   }, []);
 
@@ -93,12 +99,10 @@ export function CroppedShapePreview({
     let cancelled = false;
 
     const paint = (img: HTMLImageElement) => {
-      if (cancelled || layoutW < 8) return;
+      if (cancelled || layout.w < 8 || layout.h < 8) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const cssW = Math.min(maxWidthPx, layoutW);
-      const cssH = cssW / frameAspect;
-      drawCropped(canvas, img, cx, cy, cw, ch, cssW, cssH, rotation);
+      drawCropped(canvas, img, cx, cy, cw, ch, layout.w, layout.h, rotation);
       setStatus("ready");
     };
 
@@ -116,15 +120,6 @@ export function CroppedShapePreview({
 
     const img = new Image();
     img.decoding = "async";
-    /**
-     * Canvas + cross-origin pixels:
-     * - Same-origin URLs (e.g. `/uploads/...` on the app host): do not set `crossOrigin`
-     *   (same-origin loads are fine for `drawImage` without tainting).
-     * - Absolute `http(s):` URLs (e.g. public S3): set `anonymous` so the bitmap is
-     *   CORS-enabled; otherwise the canvas can be tainted or the load may fail.
-     * Production: object storage must send `Access-Control-Allow-Origin` for this app
-     * (or `*` for public GET). See docs/DEV-WORKFLOW.md (session image URLs & canvas).
-     */
     if (/^https?:\/\//i.test(image.originalUrl)) {
       img.crossOrigin = "anonymous";
     }
@@ -148,9 +143,8 @@ export function CroppedShapePreview({
     cw,
     ch,
     rotation,
-    maxWidthPx,
-    layoutW,
-    frameAspect,
+    layout.w,
+    layout.h,
   ]);
 
   const circle = isCircleShape(shape);
@@ -158,16 +152,12 @@ export function CroppedShapePreview({
   return (
     <div
       ref={wrapRef}
-      className={`relative w-full overflow-hidden bg-neutral-100 ${
-        circle ? "aspect-square max-w-[min(100%,384px)] rounded-full" : "rounded-xl"
+      className={`relative mx-auto w-full max-w-md overflow-hidden bg-neutral-100 ${
+        circle ? "rounded-full" : "rounded-xl"
       }`}
-      style={
-        circle
-          ? undefined
-          : {
-              aspectRatio: `${Math.max(0.25, Math.min(4, frameAspect))}`,
-            }
-      }
+      style={{
+        aspectRatio: `${Math.max(0.25, Math.min(4, frameAspect))}`,
+      }}
     >
       {status === "loading" && (
         <div
@@ -182,7 +172,7 @@ export function CroppedShapePreview({
       )}
       <canvas
         ref={canvasRef}
-        className={`mx-auto block max-w-full ${
+        className={`absolute left-0 top-0 block ${
           status === "ready" ? "opacity-100" : "opacity-0"
         } transition-opacity duration-150 ${
           circle ? "rounded-full" : "rounded-xl"

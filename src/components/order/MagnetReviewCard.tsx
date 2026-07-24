@@ -66,7 +66,7 @@ export function MagnetReviewCard({
         href={cropEditHref}
         onClick={onCropLinkClick}
         aria-label={`Edit magnet ${index + 1} — adjust crop`}
-        className={`group relative mx-auto block w-full max-w-md touch-manipulation overflow-hidden outline-none transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${previewFrameClass}`}
+        className={`group relative mx-auto block w-full max-w-md touch-manipulation outline-none transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${previewFrameClass}`}
       >
         <CroppedShapePreview image={image} shape={shape} />
         <span className="pointer-events-none absolute right-2 top-2 flex size-9 items-center justify-center rounded-full bg-background/95 text-muted-foreground shadow-md ring-1 ring-black/5 transition group-hover:bg-background group-hover:text-primary">
